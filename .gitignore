@@ -6,3 +6,4 @@ __pycache__/
 db/
 media/
 config.py
+.aider*
