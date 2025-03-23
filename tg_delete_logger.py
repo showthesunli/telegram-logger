@@ -44,6 +44,12 @@ from telethon.tl.types import (
 import config
 import file_encrypt
 
+logging.basicConfig(
+    level=logging.INFO,  # 设置日志级别为 INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
 TYPE_USER = 1
 TYPE_CHANNEL = 2
 TYPE_GROUP = 3
@@ -87,7 +93,7 @@ async def get_chat_type(event: Event) -> int:
     elif event.is_channel:  # megagroups and channels
         chat_type = TYPE_CHANNEL
     elif event.is_private:
-        if (await event.get_sendeTruer()).bot:
+        if (await event.get_sender()).bot:
             chat_type = TYPE_BOT
         else:
             chat_type = TYPE_USER
@@ -623,29 +629,81 @@ async def delete_expired_messages():
         await asyncio.sleep(300)
 
 
+async def forward_user_messages_handler(event: NewMessage.Event):
+    """处理特定用户的消息转发"""
+    # 添加调试日志
+    from_id = get_sender_id(event.message)
+    logging.info(f"收到消息 - 来自: {from_id}, 目标用户列表: {config.FORWARD_USER_IDS}")
+
+    try:
+        # 检查消息是否来自目标用户
+        if from_id not in config.FORWARD_USER_IDS:
+            logging.debug(f"消息不是来自目标用户，忽略 - 来自: {from_id}")
+            return
+
+        logging.info(
+            f"开始处理目标用户消息 - 用户ID: {from_id}, 消息ID: {event.message.id}"
+        )
+
+        # 创建消息文本
+        mention_sender = await create_mention(from_id)
+        mention_chat = await create_mention(event.chat_id, event.message.id)
+
+        text = f"**📨转发消息来自: **{mention_sender}\n"
+        text += f"在 {mention_chat}\n"
+
+        if event.message.text:
+            text += "**消息内容:** \n" + event.message.text
+
+        # 处理媒体内容
+        if event.message.media:
+            # 如果是禁止转发的内容，先保存媒体
+            noforwards = False
+            try:
+                noforwards = event.chat.noforwards is True
+            except AttributeError:
+                noforwards = event.message.noforwards is True
+
+            if noforwards:
+                await save_media_as_file(event.message)
+                with retrieve_media_as_file(
+                    event.message.id, event.chat_id, event.message.media, noforwards
+                ) as media_file:
+                    await client.send_message(config.LOG_CHAT_ID, text, file=media_file)
+            else:
+                # 直接转发消息
+                await client.send_message(
+                    config.LOG_CHAT_ID, text, file=event.message.media
+                )
+        else:
+            # 纯文本消息直接发送
+            await client.send_message(config.LOG_CHAT_ID, text)
+
+        logging.info(f"消息转发成功 - 用户ID: {from_id}, 消息ID: {event.message.id}")
+
+    except Exception as e:
+        logging.error(f"转发消息失败: {str(e)}")
+
+
 async def init():
     global my_id
+    me = await client.get_me()
+    my_id = me.id
 
-    if config.DEBUG_MODE:
-        logging.basicConfig(level="INFO")
-    else:
-        logging.basicConfig(level="WARNING")
+    # 添加转发用户消息的事件处理器
+    if hasattr(config, "FORWARD_USER_IDS") and config.FORWARD_USER_IDS:
+        # 为每个目标用户ID单独添加事件处理器
+        for user_id in config.FORWARD_USER_IDS:
+            client.add_event_handler(
+                forward_user_messages_handler, events.NewMessage(from_users=user_id)
+            )
+            logging.info(f"已添加用户消息转发处理器 - 用户ID: {user_id}")
 
-    config.IGNORED_IDS.add(config.LOG_CHAT_ID)
-
-    my_id = (await client.get_me()).id
-
-    client.add_event_handler(
-        new_message_handler,
-        events.NewMessage(incoming=True, outgoing=config.LISTEN_OUTGOING_MESSAGES),
-    )
+    # 注册其他事件处理器
+    client.add_event_handler(new_message_handler, events.NewMessage())
     client.add_event_handler(new_message_handler, events.MessageEdited())
     client.add_event_handler(edited_deleted_handler, events.MessageEdited())
     client.add_event_handler(edited_deleted_handler, events.MessageDeleted())
-    client.add_event_handler(edited_deleted_handler)
-    # client.add_event_handler(edited_deleted_handler,
-    #                          events.MessageRead(True))
-    # doesnt work for self destructs
 
     await delete_expired_messages()
 
