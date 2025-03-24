@@ -27,7 +27,7 @@ telegram_logger/
 ├── __init__.py
 ├── main.py                  # 主入口点
 ├── config.py                # 配置文件（从现有的 config.py 导入）
-├── db/
+├── data/
 │   ├── __init__.py
 │   ├── models.py            # 数据库模型
 │   └── database.py          # 数据库操作
@@ -56,7 +56,7 @@ telegram_logger/
 - 注册事件处理器
 - 启动应用程序
 
-#### 2.2 数据库模块 (db/)
+#### 2.2 数据库模块 (data/)
 
 - **models.py**: 定义消息数据模型
 - **database.py**: 提供数据库连接和操作函数
@@ -100,8 +100,8 @@ telegram_logger/
    - 创建配置验证函数
 
 3. **数据库模块**
-   - 将数据库初始化和操作从主文件移至 database.py
-   - 创建消息模型
+   - 将数据库初始化和操作从主文件移至 data/database.py
+   - 创建消息模型在 data/models.py 中
 
 4. **工具模块**
    - 提取媒体处理函数到 media.py
