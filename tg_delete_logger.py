@@ -302,7 +302,7 @@ async def edited_deleted_handler(
         # 检查消息类型，如果是机器人消息则跳过
         chat_type = message.get("type", TYPE_UNKNOWN)  # 从数据库记录中获取类型
         if chat_type == TYPE_BOT:
-            logger.info(f"跳过机器人消息 - 发送者ID: {message['from_id']}")
+            logging.info(f"跳过机器人消息 - 发送者ID: {message['from_id']}")
             continue
 
         mention_sender = await create_mention(message["from_id"])
