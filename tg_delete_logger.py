@@ -210,7 +210,7 @@ def load_messages_from_event(
     else:
         where_clause = f'WHERE chat_id not like "-100%" and id IN ({sql_message_ids})'
     query = f"""SELECT * FROM (SELECT id, from_id, chat_id, msg_text, media, noforwards, self_destructing,
-            created_time FROM messages {where_clause} ORDER BY edited_time DESC)
+            created_time, type FROM messages {where_clause} ORDER BY edited_time DESC)
             GROUP BY chat_id, id ORDER BY created_time ASC"""
 
     db_results = sqlite_cursor.execute(query).fetchall()
@@ -230,6 +230,7 @@ def load_messages_from_event(
                 "media": pickle.loads(db_result[4]),
                 "noforwards": db_result[5],
                 "self_destructing": db_result[6],
+                "type": db_result[8],  # 添加类型信息
             }
         )
 
@@ -289,7 +290,6 @@ async def edited_deleted_handler(
         return
 
     messages = load_messages_from_event(event)
-
     log_deleted_sender_ids = []
 
     for message in messages:
@@ -298,6 +298,12 @@ async def edited_deleted_handler(
             or message["chat_id"] in config.IGNORED_IDS
         ):
             return
+
+        # 检查消息类型，如果是机器人消息则跳过
+        chat_type = message.get("type", TYPE_UNKNOWN)  # 从数据库记录中获取类型
+        if chat_type == TYPE_BOT:
+            logger.info(f"跳过机器人消息 - 发送者ID: {message['from_id']}")
+            continue
 
         mention_sender = await create_mention(message["from_id"])
         mention_chat = await create_mention(message["chat_id"], message["id"])
@@ -702,8 +708,8 @@ async def init():
     # 注册其他事件处理器
     client.add_event_handler(new_message_handler, events.NewMessage())
     client.add_event_handler(new_message_handler, events.MessageEdited())
-    client.add_event_handler(edited_deleted_handler, events.MessageEdited())
-    client.add_event_handler(edited_deleted_handler, events.MessageDeleted())
+    # client.add_event_handler(edited_deleted_handler, events.MessageEdited())
+    # client.add_event_handler(edited_deleted_handler, events.MessageDeleted())
 
     await delete_expired_messages()
 
