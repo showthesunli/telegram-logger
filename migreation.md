@@ -101,10 +101,9 @@ telegram_logger/
 - 从现有的 config.py 导入配置
 - 创建配置验证函数
 
-✅ 4. **工具模块**
-   - 提取媒体处理函数到 media.py
-   - 提取提及创建函数到 mentions.py
-   - 设置日志配置在 logging.py
+✅ 3. **数据库模块**
+   - 将数据库初始化和操作从主文件移至 data/database.py
+   - 创建消息模型在 data/models.py 中
 
 [当前进度]
 - 下一步应进行处理器模块拆分

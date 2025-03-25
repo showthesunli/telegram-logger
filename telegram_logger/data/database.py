@@ -134,7 +134,3 @@ class DatabaseManager:
         'bot': 4
     }
 
-    def _validate_msg_type(self, msg_type: str):
-        """Validate message type"""
-        if msg_type not in self.MSG_TYPE_MAP:
-            raise ValueError(f"Invalid message type: {msg_type}")

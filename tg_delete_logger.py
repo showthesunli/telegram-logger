@@ -66,11 +66,8 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-TYPE_USER = 1
-TYPE_CHANNEL = 2
-TYPE_GROUP = 3
-TYPE_BOT = 4
-TYPE_UNKNOWN = 0
+from telegram_logger.data.database import DatabaseManager
+MSG_TYPE_MAP = DatabaseManager.MSG_TYPE_MAP
 
 client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 my_id = -1
@@ -196,10 +193,9 @@ def load_messages_from_event(
         ids = [event.message.id]
 
     messages = db.get_messages(
-        chat_id=event.chat_id if hasattr(event, "chat_id") and event.chat_id else None,
+        chat_id=event.chat_id if hasattr(event, "chat_id") else None,
         message_ids=ids
     )
-    
     # Filter out non-self-destructing messages for UpdateReadMessagesContents
     if isinstance(event, UpdateReadMessagesContents):
         messages = [msg for msg in messages if msg.self_destructing]
@@ -264,8 +260,8 @@ async def edited_deleted_handler(
 
     for message in messages:
         if (
-            message["from_id"] in IGNORED_IDS
-            or message["chat_id"] in IGNORED_IDS
+            message.from_id in IGNORED_IDS
+            or message.chat_id in IGNORED_IDS
         ):
             return
 
@@ -275,8 +271,8 @@ async def edited_deleted_handler(
             logging.info(f"跳过机器人消息 - 发送者ID: {message['from_id']}")
             continue
 
-        mention_sender = await create_mention(message["from_id"])
-        mention_chat = await create_mention(message["chat_id"], message["id"])
+        mention_sender = await create_mention(client, message.from_id)
+        mention_chat = await create_mention(client, message.chat_id, message.id)
 
         log_deleted_sender_ids.append(message["from_id"])
 
@@ -554,13 +550,6 @@ async def delete_from_saved_stickers(sticker: Document):
 
 async def delete_expired_messages():
     while True:
-        now = datetime.now()
-        time_user = now - timedelta(days=PERSIST_TIME_IN_DAYS_USER)
-        time_channel = now - timedelta(days=PERSIST_TIME_IN_DAYS_CHANNEL)
-        time_group = now - timedelta(days=PERSIST_TIME_IN_DAYS_GROUP)
-        time_bot = now - timedelta(days=PERSIST_TIME_IN_DAYS_BOT)
-        time_unknown = now - timedelta(days=PERSIST_TIME_IN_DAYS_GROUP)
-
         persist_times = {
             'user': PERSIST_TIME_IN_DAYS_USER,
             'channel': PERSIST_TIME_IN_DAYS_CHANNEL,
