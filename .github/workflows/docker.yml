@@ -1,59 +1,72 @@
-name: Build and Deploy Telegram Logger
+name: Build and Push Docker Image
 
 on:
   push:
     branches: [ "main" ]
-    tags: [ "v*" ]
-  workflow_dispatch:
+    tags: [ "v*.*.*" ]  # 更严格的语义化版本标签匹配
+  pull_request:
+    branches: [ "main" ]
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  VERSION: ${{
-    github.event_name == 'push' && github.ref_type == 'tag' 
-    && github.ref_name 
-    || 'latest'
-  }}
+  PYTHON_VERSION: "3.13"  # 匹配pyproject.toml要求
 
 jobs:
-  test:
+  validate:
+    name: Validate and Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up Python 3.12
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
           
       - name: Install uv
-        run: pip install uv==0.6.9
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.6.9"
+          enable-cache: true  # 启用uv缓存
           
       - name: Install dependencies
-        run: uv sync --dev
-          
-      - name: Run tests
-        run: uv run pytest
+        run: uv sync --all-extras
+        
+      - name: Lint check
+        run: uv run flake8 .  # 可选：添加代码风格检查
+        
+      - name: Run type checking
+        run: uv run mypy --strict .  # 可选：添加类型检查
 
-  build:
-    needs: test
+  build-and-push:
+    name: Build and Push
+    needs: validate
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+      id-token: write  # 用于OIDC安全认证
       
     steps:
       - uses: actions/checkout@v4
       
-      - name: Docker meta
+      - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=tag
+            type=schedule
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=ref,event=branch
+            type=ref,event=tag
             type=sha
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.created=${{ steps.prep.outputs.created }}
+            org.opencontainers.image.revision=${{ github.sha }}
             
       - name: Login to GHCR
         uses: docker/login-action@v3
@@ -66,8 +79,11 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: true
+          push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64  # 多架构支持
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            PYTHON_VERSION=${{ env.PYTHON_VERSION }}
