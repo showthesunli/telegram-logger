@@ -74,32 +74,10 @@ TYPE_UNKNOWN = 0
 
 client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 my_id = -1
-sqlite_cursor: sqlite3.Cursor = None
-sqlite_connection: sqlite3.Connection = None
+from telegram_logger.data.database import DatabaseManager
+from telegram_logger.data.models import Message
 
-
-def init_db():
-    if not os.path.exists("db"):
-        os.mkdir("db")
-    if not os.path.exists("media"):
-        os.mkdir("media")
-
-    connection = sqlite3.connect("db/messages.db")
-    cursor = connection.cursor()
-    cursor.execute(
-        """CREATE TABLE IF NOT EXISTS messages
-                 (id INTEGER, from_id INTEGER, chat_id INTEGER,
-                  type INTEGER, msg_text TEXT, media BLOB, noforwards INTEGER DEFAULT 0, self_destructing INTEGER DEFAULT 0, created_time TIMESTAMP, edited_time TIMESTAMP,
-                  PRIMARY KEY (chat_id, id, edited_time))"""
-    )
-
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS messages_created_index ON messages (created_time DESC)"
-    )
-
-    connection.commit()
-
-    return cursor, connection
+db = DatabaseManager()
 
 
 async def get_chat_type(event: Event) -> int:
@@ -174,22 +152,19 @@ async def new_message_handler(event: Union[NewMessage.Event, MessageEdited.Event
             edited_time = datetime.now()  # event.message.edit_date
             await edited_deleted_handler(event)
 
-        sqlite_cursor.execute(
-            "INSERT INTO messages (id, from_id, chat_id, edited_time, type, msg_text, media, noforwards, self_destructing, created_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                msg_id,
-                from_id,
-                chat_id,
-                edited_time,
-                await get_chat_type(event),
-                event.message.message,
-                sqlite3.Binary(pickle.dumps(event.message.media)),
-                int(noforwards),
-                int(self_destructing),
-                datetime.now(),
-            ),
+        message = Message(
+            id=msg_id,
+            from_id=from_id,
+            chat_id=chat_id,
+            msg_type=await get_chat_type(event),
+            msg_text=event.message.message,
+            media=pickle.dumps(event.message.media),
+            noforwards=noforwards,
+            self_destructing=self_destructing,
+            created_time=datetime.now(),
+            edited_time=edited_time
         )
-        sqlite_connection.commit()
+        db.save_message(message)
 
 
 def get_sender_id(message) -> int:
@@ -220,35 +195,14 @@ def load_messages_from_event(
     elif isinstance(event, MessageEdited.Event):
         ids = [event.message.id]
 
-    sql_message_ids = ",".join(str(deleted_id) for deleted_id in ids)
-    if hasattr(event, "chat_id") and event.chat_id:
-        where_clause = f"WHERE chat_id = {event.chat_id} and id IN ({sql_message_ids})"
-    else:
-        where_clause = f'WHERE chat_id not like "-100%" and id IN ({sql_message_ids})'
-    query = f"""SELECT * FROM (SELECT id, from_id, chat_id, msg_text, media, noforwards, self_destructing,
-            created_time, type FROM messages {where_clause} ORDER BY edited_time DESC)
-            GROUP BY chat_id, id ORDER BY created_time ASC"""
-
-    db_results = sqlite_cursor.execute(query).fetchall()
-
-    messages = []
-    for db_result in db_results:
-        # skip read messages which are not self-destructing
-        if isinstance(event, UpdateReadMessagesContents) and not db_result[6]:
-            continue
-
-        messages.append(
-            {
-                "id": db_result[0],
-                "from_id": db_result[1],
-                "chat_id": db_result[2],
-                "msg_text": db_result[3],
-                "media": pickle.loads(db_result[4]),
-                "noforwards": db_result[5],
-                "self_destructing": db_result[6],
-                "type": db_result[8],  # 添加类型信息
-            }
-        )
+    messages = db.get_messages(
+        chat_id=event.chat_id if hasattr(event, "chat_id") and event.chat_id else None,
+        message_ids=ids
+    )
+    
+    # Filter out non-self-destructing messages for UpdateReadMessagesContents
+    if isinstance(event, UpdateReadMessagesContents):
+        messages = [msg for msg in messages if msg.self_destructing]
 
     return messages
 
@@ -607,28 +561,16 @@ async def delete_expired_messages():
         time_bot = now - timedelta(days=PERSIST_TIME_IN_DAYS_BOT)
         time_unknown = now - timedelta(days=PERSIST_TIME_IN_DAYS_GROUP)
 
-        sqlite_cursor.execute(
-            """DELETE FROM messages WHERE (type = ? and created_time < ?) OR
-            (type = ? and created_time < ?) OR
-            (type = ? and created_time < ?) OR
-            (type = ? and created_time < ?) OR
-            (type = ? and created_time < ?)""",
-            (
-                TYPE_USER,
-                time_user,
-                TYPE_CHANNEL,
-                time_channel,
-                TYPE_GROUP,
-                time_group,
-                TYPE_BOT,
-                time_bot,
-                TYPE_UNKNOWN,
-                time_unknown,
-            ),
-        )
-
-        if sqlite_cursor.rowcount > 0:
-            logging.info(f"Deleted {sqlite_cursor.rowcount} expired messages from DB")
+        persist_times = {
+            'user': PERSIST_TIME_IN_DAYS_USER,
+            'channel': PERSIST_TIME_IN_DAYS_CHANNEL,
+            'group': PERSIST_TIME_IN_DAYS_GROUP,
+            'bot': PERSIST_TIME_IN_DAYS_BOT
+        }
+        
+        deleted_count = db.delete_expired_messages(persist_times)
+        if deleted_count > 0:
+            logging.info(f"Deleted {deleted_count} expired messages from DB")
 
         # todo: save group/channel label in file name
 
@@ -731,7 +673,7 @@ async def init():
 
 
 if __name__ == "__main__":
-    sqlite_cursor, sqlite_connection = init_db()
-
     with client:
         client.loop.run_until_complete(init())
+    
+    db.close()
