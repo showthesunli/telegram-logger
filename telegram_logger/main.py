@@ -38,9 +38,26 @@ async def main():
     }
     
     handlers = [
-        NewMessageHandler(client=None, db=db, persist_times=persist_times),
-        EditDeleteHandler(client=None, db=db, log_chat_id=LOG_CHAT_ID),
-        ForwardHandler(client=None, db=db, forward_user_ids=FORWARD_USER_IDS, log_chat_id=LOG_CHAT_ID)
+        NewMessageHandler(
+            client=None, 
+            db=db, 
+            log_chat_id=LOG_CHAT_ID, 
+            ignored_ids=IGNORED_IDS, 
+            persist_times=persist_times
+        ),
+        EditDeleteHandler(
+            client=None, 
+            db=db, 
+            log_chat_id=LOG_CHAT_ID, 
+            ignored_ids=IGNORED_IDS
+        ),
+        ForwardHandler(
+            client=None, 
+            db=db, 
+            log_chat_id=LOG_CHAT_ID, 
+            ignored_ids=IGNORED_IDS, 
+            forward_user_ids=FORWARD_USER_IDS
+        )
     ]
     
     # Initialize services
