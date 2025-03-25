@@ -13,8 +13,8 @@ from telegram_logger.config import LOG_CHAT_ID, IGNORED_IDS, SAVE_EDITED_MESSAGE
 logger = logging.getLogger(__name__)
 
 class NewMessageHandler(BaseHandler):
-    def __init__(self, client, db, persist_times):
-        super().__init__(client, db, LOG_CHAT_ID, IGNORED_IDS)
+    def __init__(self, client, db, log_chat_id, ignored_ids, persist_times):
+        super().__init__(client, db, log_chat_id, ignored_ids)
         self.persist_times = persist_times
 
     async def process(self, event: Union[events.NewMessage.Event, events.MessageEdited.Event]) -> Optional[Message]:

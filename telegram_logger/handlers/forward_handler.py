@@ -10,8 +10,8 @@ from telegram_logger.config import LOG_CHAT_ID
 logger = logging.getLogger(__name__)
 
 class ForwardHandler(BaseHandler):
-    def __init__(self, client, db, forward_user_ids):
-        super().__init__(client, db, LOG_CHAT_ID, IGNORED_IDS)
+    def __init__(self, client, db, log_chat_id, ignored_ids, forward_user_ids):
+        super().__init__(client, db, log_chat_id, ignored_ids)
         self.forward_user_ids = forward_user_ids or []
 
     async def process(self, event: events.NewMessage.Event) -> Optional[Message]:

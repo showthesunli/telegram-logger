@@ -16,6 +16,8 @@ from telegram_logger.config import (
 logger = logging.getLogger(__name__)
 
 class EditDeleteHandler(BaseHandler):
+    def __init__(self, client, db, log_chat_id, ignored_ids):
+        super().__init__(client, db, log_chat_id, ignored_ids)
     async def process(
         self, 
         event: Union[events.MessageDeleted.Event, events.MessageEdited.Event]
