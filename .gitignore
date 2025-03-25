@@ -7,3 +7,4 @@ db/
 media/
 config.py
 .aider*
+*.log
