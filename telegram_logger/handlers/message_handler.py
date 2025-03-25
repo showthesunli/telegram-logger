@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 class NewMessageHandler(BaseHandler):
     def __init__(self, client, db, persist_times):
-        super().__init__(client, db)
+        super().__init__(client, db, LOG_CHAT_ID, IGNORED_IDS)
         self.persist_times = persist_times
 
     async def process(self, event: Union[events.NewMessage.Event, events.MessageEdited.Event]) -> Optional[Message]:

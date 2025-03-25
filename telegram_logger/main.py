@@ -38,9 +38,9 @@ async def main():
     }
     
     handlers = [
-        NewMessageHandler(db=db, persist_times=persist_times),
-        EditDeleteHandler(db=db, log_chat_id=LOG_CHAT_ID),
-        ForwardHandler(db=db, forward_user_ids=FORWARD_USER_IDS, log_chat_id=LOG_CHAT_ID)
+        NewMessageHandler(client=None, db=db, persist_times=persist_times),
+        EditDeleteHandler(client=None, db=db, log_chat_id=LOG_CHAT_ID),
+        ForwardHandler(client=None, db=db, forward_user_ids=FORWARD_USER_IDS, log_chat_id=LOG_CHAT_ID)
     ]
     
     # Initialize services

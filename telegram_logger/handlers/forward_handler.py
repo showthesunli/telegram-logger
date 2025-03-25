@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class ForwardHandler(BaseHandler):
     def __init__(self, client, db, forward_user_ids):
-        super().__init__(client, db)
+        super().__init__(client, db, LOG_CHAT_ID, IGNORED_IDS)
         self.forward_user_ids = forward_user_ids or []
 
     async def process(self, event: events.NewMessage.Event) -> Optional[Message]:
