@@ -147,7 +147,7 @@ class EditDeleteHandler(BaseHandler):
     async def _send_appropriate_message(self, text: str, media, message: Message):
         """Send message with appropriate media handling"""
         is_restricted = message.noforwards or message.self_destructing
-        with retrieve_media(
+        with retrieve_media_as_file(
             self.client,
             message.id,
             message.chat_id,

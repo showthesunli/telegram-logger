@@ -6,7 +6,7 @@ from typing import Optional, Union
 from telethon import events
 from telethon.tl.types import Message
 from telegram_logger.handlers.base_handler import BaseHandler
-from telegram_logger.utils.media import save_media
+from telegram_logger.utils.media import save_media_as_file
 from telegram_logger.utils.mentions import create_mention
 from telegram_logger.config import LOG_CHAT_ID, IGNORED_IDS, SAVE_EDITED_MESSAGES
 
@@ -53,7 +53,7 @@ class NewMessageHandler(BaseHandler):
         media = None
         if event.message.media or (noforwards or self_destructing):
             try:
-                media_path = await save_media(self.client, event.message)
+                media_path = await save_media_as_file(self.client, event.message)
                 media = pickle.dumps(event.message.media)
             except Exception as e:
                 logger.error(f"保存媒体失败: {str(e)}")
