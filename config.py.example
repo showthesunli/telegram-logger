@@ -1,7 +1,8 @@
 API_ID = 0
 API_HASH = '0'
 FILE_PASSWORD = 'some random string'
-MAX_IN_MEMORY_FILE_SIZE = 5 * 1024 * 1024
+MAX_IN_MEMORY_FILE_SIZE = 5 * 1024 * 1024  # 保持原变量名不变
+SESSION_NAME = "db/user"                   # 新增会话配置
 
 DEBUG_MODE = False
 
@@ -16,11 +17,7 @@ PERSIST_TIME_IN_DAYS_CHANNEL = 1
 PERSIST_TIME_IN_DAYS_GROUP = 1
 
 RATE_LIMIT_NUM_MESSAGES = 5
-
-# chat where all deleted messages will be dumped
 LOG_CHAT_ID = -10000
-
-# supports both user and chat ids
 IGNORED_IDS = {
     -10000
 }

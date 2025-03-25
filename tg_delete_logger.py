@@ -41,7 +41,23 @@ from telethon.tl.types import (
     Contact,
     UpdateReadMessagesContents,
 )
-import config
+from telegram_logger.config import (
+    API_ID,
+    API_HASH,
+    FILE_PASSWORD,
+    MAX_IN_MEMORY_FILE_SIZE,
+    SESSION_NAME,
+    LOG_CHAT_ID,
+    IGNORED_IDS,
+    SAVE_EDITED_MESSAGES,
+    DELETE_SENT_GIFS_FROM_SAVED,
+    DELETE_SENT_STICKERS_FROM_SAVED,
+    PERSIST_TIME_IN_DAYS_BOT,
+    PERSIST_TIME_IN_DAYS_USER,
+    PERSIST_TIME_IN_DAYS_CHANNEL,
+    PERSIST_TIME_IN_DAYS_GROUP,
+    RATE_LIMIT_NUM_MESSAGES
+)
 import file_encrypt
 
 logging.basicConfig(
@@ -56,7 +72,7 @@ TYPE_GROUP = 3
 TYPE_BOT = 4
 TYPE_UNKNOWN = 0
 
-client = TelegramClient("db/user", config.API_ID, config.API_HASH)
+client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
 my_id = -1
 sqlite_cursor: sqlite3.Cursor = None
 sqlite_connection: sqlite3.Connection = None

@@ -2,7 +2,7 @@ import io
 from os import stat
 from contextlib import contextmanager
 import pyAesCrypt
-import config
+from telegram_logger.config import FILE_PASSWORD
 
 BUFFER_SIZE = 1024 * 1024
 
