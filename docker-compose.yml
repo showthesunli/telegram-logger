@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  telegram-logger:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - /app/.venv
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - telegram-net
+
+networks:
+  telegram-net:
+    driver: bridge

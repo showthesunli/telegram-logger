@@ -3,9 +3,30 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Project files
 db/
 media/
 config.py
 .aider*
 *.log
 .env
+*.env.local
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Virtual environment
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
