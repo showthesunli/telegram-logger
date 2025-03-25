@@ -6,6 +6,7 @@ from telegram_logger.config import (
     SESSION_NAME,
     LOG_CHAT_ID,
     FORWARD_USER_IDS,
+    FORWARD_GROUP_IDS,
     IGNORED_IDS,
     PERSIST_TIME_IN_DAYS_USER,
     PERSIST_TIME_IN_DAYS_CHANNEL,
@@ -57,7 +58,8 @@ async def main():
             db=db,
             log_chat_id=LOG_CHAT_ID,
             ignored_ids=IGNORED_IDS,
-            forward_user_ids=FORWARD_USER_IDS
+            forward_user_ids=FORWARD_USER_IDS,
+            forward_group_ids=FORWARD_GROUP_IDS
         )
     ]
     

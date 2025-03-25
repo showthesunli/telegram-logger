@@ -12,10 +12,12 @@ from telegram_logger.config import LOG_CHAT_ID
 logger = logging.getLogger(__name__)
 
 class ForwardHandler(BaseHandler):
-    def __init__(self, client, db, log_chat_id, ignored_ids, forward_user_ids):
+    def __init__(self, client, db, log_chat_id, ignored_ids, forward_user_ids=None, forward_group_ids=None):
         super().__init__(client, db, log_chat_id, ignored_ids)
         self.forward_user_ids = forward_user_ids or []
+        self.forward_group_ids = forward_group_ids or []
         logger.info(f"ForwardHandler initialized with forward_user_ids: {self.forward_user_ids}")
+        logger.info(f"ForwardHandler initialized with forward_group_ids: {self.forward_group_ids}")
 
     async def handle_new_message(self, event):
         """处理新消息事件，这个方法名与client.py中的注册方法匹配"""
@@ -25,16 +27,23 @@ class ForwardHandler(BaseHandler):
             return None
             
         from_id = self._get_sender_id(event.message)
-        logger.info(f"ForwardHandler received message from user {from_id}")
+        chat_id = event.chat_id
+        logger.info(f"ForwardHandler received message from user {from_id} in chat {chat_id}")
         return await self.process(event)
 
     async def process(self, event: events.NewMessage.Event) -> Optional[Message]:
         """处理转发消息"""
         from_id = self._get_sender_id(event.message)
-        logger.info(f"处理来自用户 {from_id} 的消息，转发目标用户列表: {self.forward_user_ids}")
+        chat_id = event.chat_id
         
-        if from_id not in self.forward_user_ids:
-            logger.debug(f"用户 {from_id} 不在转发列表中，跳过")
+        # 检查是否来自目标用户或目标群组
+        is_target_user = from_id in self.forward_user_ids
+        is_target_group = chat_id in self.forward_group_ids
+        
+        logger.info(f"处理消息 - 用户ID: {from_id}, 聊天ID: {chat_id}, 是目标用户: {is_target_user}, 是目标群组: {is_target_group}")
+        
+        if not (is_target_user or is_target_group):
+            logger.debug(f"消息不是来自目标用户或群组，跳过")
             return None
 
         try:
@@ -42,7 +51,12 @@ class ForwardHandler(BaseHandler):
             mention_sender = await create_mention(self.client, from_id)
             mention_chat = await create_mention(self.client, event.chat_id, event.message.id)
             
-            text = f"**📨转发消息来自: **{mention_sender}\n"
+            # 根据来源构建不同的消息前缀
+            if is_target_user:
+                text = f"**📨转发用户消息来自: **{mention_sender}\n"
+            else:
+                text = f"**📨转发群组消息来自: **{mention_sender}\n"
+                
             text += f"在 {mention_chat}\n"
             
             if event.message.text:

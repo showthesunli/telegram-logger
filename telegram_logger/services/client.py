@@ -39,17 +39,29 @@ class TelegramClientService:
         for handler in self.handlers:
             # 特殊处理 ForwardHandler
             if isinstance(handler, ForwardHandler):
-                if not handler.forward_user_ids:
-                    logger.warning("ForwardHandler has empty forward_user_ids list")
-                    continue
-                    
-                # 为每个转发用户ID单独注册处理器
-                for user_id in handler.forward_user_ids:
-                    self.client.add_event_handler(
-                        handler.handle_new_message,
-                        events.NewMessage(from_users=user_id)
-                    )
-                logger.info(f"Registered ForwardHandler for users: {handler.forward_user_ids}")
+                # 检查是否有用户ID需要转发
+                if handler.forward_user_ids:
+                    # 为每个转发用户ID单独注册处理器
+                    for user_id in handler.forward_user_ids:
+                        self.client.add_event_handler(
+                            handler.handle_new_message,
+                            events.NewMessage(from_users=user_id)
+                        )
+                    logger.info(f"Registered ForwardHandler for users: {handler.forward_user_ids}")
+                
+                # 检查是否有群组ID需要转发
+                if handler.forward_group_ids:
+                    # 为每个转发群组ID单独注册处理器
+                    for group_id in handler.forward_group_ids:
+                        self.client.add_event_handler(
+                            handler.handle_new_message,
+                            events.NewMessage(chats=group_id)
+                        )
+                    logger.info(f"Registered ForwardHandler for groups: {handler.forward_group_ids}")
+                
+                # 如果没有配置任何转发目标，记录警告
+                if not (handler.forward_user_ids or handler.forward_group_ids):
+                    logger.warning("ForwardHandler has empty forward_user_ids and forward_group_ids lists")
             else:
                 # 处理其他类型的处理器
                 if hasattr(handler, 'handle_new_message'):
