@@ -78,17 +78,16 @@ db = DatabaseManager()
 
 
 async def get_chat_type(event: Event) -> int:
-    chat_type = TYPE_UNKNOWN
+    """Get message type from event"""
     if event.is_group:  # chats and megagroups
-        chat_type = TYPE_GROUP
+        return MSG_TYPE_MAP['group']
     elif event.is_channel:  # megagroups and channels
-        chat_type = TYPE_CHANNEL
+        return MSG_TYPE_MAP['channel']
     elif event.is_private:
         if (await event.get_sender()).bot:
-            chat_type = TYPE_BOT
-        else:
-            chat_type = TYPE_USER
-    return chat_type
+            return MSG_TYPE_MAP['bot']
+        return MSG_TYPE_MAP['user']
+    return 0  # unknown type
 
 
 async def new_message_handler(event: Union[NewMessage.Event, MessageEdited.Event]):
@@ -265,9 +264,9 @@ async def edited_deleted_handler(
         ):
             return
 
-        # 检查消息类型，如果是机器人消息则跳过
-        chat_type = message.get("type", TYPE_UNKNOWN)  # 从数据库记录中获取类型
-        if chat_type == TYPE_BOT:
+        # Check message type, skip bot messages
+        chat_type = message.msg_type
+        if chat_type == MSG_TYPE_MAP['bot']:
             logging.info(f"跳过机器人消息 - 发送者ID: {message['from_id']}")
             continue
 
@@ -571,7 +570,9 @@ async def delete_expired_messages():
             for filename in filenames:
                 file_path = os.path.join(dirpath, filename)
                 modified_time = datetime.fromtimestamp(os.path.getmtime(file_path))
-                expiry_time = now - timedelta(days=file_persist_days)
+                expiry_time = datetime.now() - timedelta(days=max(
+                    PERSIST_TIME_IN_DAYS_GROUP, PERSIST_TIME_IN_DAYS_CHANNEL
+                ))
                 if modified_time < expiry_time:
                     os.unlink(file_path)
                     num_files_deleted += 1
@@ -586,11 +587,10 @@ async def forward_user_messages_handler(event: NewMessage.Event):
     """处理特定用户的消息转发"""
     # 添加调试日志
     from_id = get_sender_id(event.message)
-    logging.info(f"收到消息 - 来自: {from_id}, 目标用户列表: {FORWARD_USER_IDS}")
-
     try:
-        # 检查消息是否来自目标用户
-        if from_id not in FORWARD_USER_IDS:
+        # Skip if no forward users configured
+        if not hasattr(config, "FORWARD_USER_IDS"):
+            return
             logging.debug(f"消息不是来自目标用户，忽略 - 来自: {from_id}")
             return
 
@@ -643,10 +643,10 @@ async def init():
     me = await client.get_me()
     my_id = me.id
 
-    # 添加转发用户消息的事件处理器
-    if hasattr(config, "FORWARD_USER_IDS") and FORWARD_USER_IDS:
-        # 为每个目标用户ID单独添加事件处理器
-        for user_id in FORWARD_USER_IDS:
+    # Add forward message handlers if configured
+    if hasattr(config, "FORWARD_USER_IDS"):
+        # Add handler for each forward user ID
+        for user_id in config.FORWARD_USER_IDS:
             client.add_event_handler(
                 forward_user_messages_handler, events.NewMessage(from_users=user_id)
             )
