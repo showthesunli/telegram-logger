@@ -1,7 +1,7 @@
 import logging
 import pickle
 from typing import Optional, Union, List, Dict, Any
-from telethon import events
+from telethon.events.common import EventCommon
 from telethon.tl.types import PeerUser, PeerChannel, PeerChat
 from telegram_logger.data.models import Message
 from telegram_logger.data.database import DatabaseManager
@@ -37,7 +37,7 @@ class BaseHandler:
         self._my_id = me.id
         logger.info(f"{self.__class__.__name__} initialized")
 
-    async def process(self, event: events.Event) -> Optional[Union[Message, List[Message]]]:
+    async def process(self, event: EventCommon) -> Optional[Union[Message, List[Message]]]:
         """Process event and return message object(s)"""
         raise NotImplementedError
 
@@ -91,22 +91,6 @@ class BaseHandler:
         if self._my_id is None:
             raise RuntimeError("Handler not initialized")
         return self._my_id
-import logging
-import pickle
-from abc import ABC, abstractmethod
-from typing import Optional, Any, Union, List
-from datetime import datetime
-from telethon import TelegramClient, events
-from telethon.tl.types import *
-from telegram_logger.data.database import DatabaseManager
-from telegram_logger.data.models import Message
-from telegram_logger.utils.media import save_media, retrieve_media
-from telegram_logger.utils.mentions import create_mention
-from telegram_logger.config import IGNORED_IDS, LOG_CHAT_ID
-
-logger = logging.getLogger(__name__)
-
-class BaseHandler(ABC):
     """Base handler class for all message handlers"""
     
     MSG_TYPE_MAP = {
@@ -171,27 +155,6 @@ class BaseHandler(ABC):
         if self._my_id is None:
             raise RuntimeError("Handler not initialized")
         return self._my_id
-import logging
-import pickle
-from contextlib import contextmanager
-from typing import Optional, Union, List, Dict, Any
-from datetime import datetime
-
-from telethon import TelegramClient, events
-from telethon.tl.types import PeerUser, PeerChannel, PeerChat
-
-from telegram_logger.data.database import DatabaseManager
-from telegram_logger.data.models import Message
-from telegram_logger.utils.media import save_media, retrieve_media
-from telegram_logger.config import (
-    FILE_PASSWORD,
-    LOG_CHAT_ID,
-    IGNORED_IDS
-)
-
-logger = logging.getLogger(__name__)
-
-class BaseHandler:
     """Base class for all message handlers providing common functionality"""
     
     MSG_TYPE_MAP = {
