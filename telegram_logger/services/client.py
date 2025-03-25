@@ -52,6 +52,38 @@ class TelegramClientService:
                     events.MessageDeleted()
                 )
 
+    async def health_check(self) -> dict:
+        """检查服务健康状态
+        
+        返回:
+            dict: 包含以下健康指标:
+                - connected (bool): 是否连接服务器
+                - handlers (int): 注册的事件处理器数量
+                - logged_in (bool): 是否完成登录
+                - uptime (float): 运行时间(秒)
+                - last_error (str): 最后错误信息(如果有)
+        """
+        try:
+            me = await self.client.get_me() if self._is_initialized else None
+            return {
+                'connected': await self.client.is_connected(),
+                'handlers': len(self.client.list_event_handlers()),
+                'logged_in': self._is_initialized,
+                'user_id': me.id if me else None,
+                'uptime': (time.time() - self._start_time) if hasattr(self, '_start_time') else 0,
+                'last_error': getattr(self, '_last_error', None)
+            }
+        except Exception as e:
+            self._last_error = str(e)
+            return {
+                'connected': False,
+                'handlers': 0,
+                'logged_in': False,
+                'user_id': None,
+                'uptime': 0,
+                'last_error': str(e)
+            }
+
     async def run(self):
         """Run client until disconnected"""
         await self.client.run_until_disconnected()
