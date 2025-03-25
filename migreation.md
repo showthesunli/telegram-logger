@@ -119,17 +119,19 @@ telegram_logger/
 
 5. **处理器模块**
    - ✅ ForwardHandler 已完成
-   - ⏳ NewMessageHandler 待迁移
-   - ⏳ EditDeleteHandler 待迁移
-   - 重构处理器以使用依赖注入而非全局变量
+   - ✅ NewMessageHandler 已完成
+   - ✅ EditDeleteHandler 已完成
+   - ✅ 重构处理器以使用依赖注入而非全局变量
 
 6. **服务模块**
-   - 创建客户端服务
-   - 实现清理服务
+   - ✅ ClientService 实现
+   - ✅ CleanupService 实现
+   - ⏳ 服务健康检查待实现
 
 7. **主模块**
-   - 创建应用程序入口点
-   - 连接所有模块
+   - ✅ 应用程序入口点
+   - ✅ 模块连接
+   - ⏳ 错误处理增强
 
 ### 4. 改进点
 
