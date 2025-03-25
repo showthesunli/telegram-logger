@@ -1,3 +1,4 @@
+import time
 from telethon import TelegramClient, events
 from typing import List, Optional
 import logging
@@ -18,6 +19,8 @@ class TelegramClientService:
         self.handlers = handlers
         self.log_chat_id = log_chat_id
         self._is_initialized = False
+        self._start_time = time.time()
+        self._last_error = None
 
     async def initialize(self) -> int:
         """Initialize client and return current user ID"""
