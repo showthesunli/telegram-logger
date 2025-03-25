@@ -1,8 +1,10 @@
 import sqlite3
 import os
+import shutil
 import logging
+from pathlib import Path
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Set
 from .models import Message
 
 logger = logging.getLogger(__name__)
@@ -91,14 +93,29 @@ class DatabaseManager:
         self, 
         persist_times: Dict[str, int]
     ) -> int:
-        """Delete expired messages by type"""
+        """Delete expired messages by type and their associated media files"""
         now = datetime.now()
         conditions = []
         params = []
+        deleted_files = 0
         
+        # 1. 获取所有过期的消息键(msgid_chatid)
+        expired_keys = set()
         for persist_type, days in persist_times.items():
             if persist_type not in self.MSG_TYPE_MAP:
                 logger.warning(f"未知的消息类型: {persist_type}")
+                continue
+            cutoff = now - timedelta(days=days)
+            cursor = self.conn.execute(
+                "SELECT id || '_' || chat_id as file_key FROM messages "
+                "WHERE type = ? AND created_time < ?",
+                (self.MSG_TYPE_MAP[persist_type], cutoff)
+            )
+            expired_keys.update(row["file_key"] for row in cursor)
+
+        # 2. 删除数据库记录
+        for persist_type, days in persist_times.items():
+            if persist_type not in self.MSG_TYPE_MAP:
                 continue
             cutoff = now - timedelta(days=days)
             conditions.append("(type = ? AND created_time < ?)")
@@ -106,8 +123,22 @@ class DatabaseManager:
         
         query = f"DELETE FROM messages WHERE {' OR '.join(conditions)}"
         self.conn.execute(query, params)
+        
+        # 3. 清理关联的媒体文件
+        if expired_keys:
+            media_dir = Path("media")
+            for file_key in expired_keys:
+                media_file = media_dir / file_key
+                try:
+                    if media_file.exists():
+                        media_file.unlink()
+                        deleted_files += 1
+                        logger.debug(f"Deleted media file: {file_key}")
+                except Exception as e:
+                    logger.error(f"Failed to delete {file_key}: {str(e)}")
+
         self.conn.commit()
-        return self.conn.total_changes
+        return self.conn.total_changes + deleted_files
 
     def _row_to_message(self, row) -> Message:
         """Convert database row to Message object"""
