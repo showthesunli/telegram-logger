@@ -7,7 +7,7 @@ from telegram_logger.config import DEBUG_MODE
 def configure_logging():
     """配置全局日志记录，自动按天轮转并保留1天日志"""
     level = logging.DEBUG if DEBUG_MODE else logging.INFO
-    
+
     # 设置每天午夜轮转日志，保留1个备份(当天+前一天)
     file_handler = TimedRotatingFileHandler(
         filename="tg_logger.log",
@@ -17,7 +17,7 @@ def configure_logging():
         encoding="utf-8",
     )
     file_handler.suffix = "%Y-%m-%d"  # 备份文件后缀格式
-    
+
     logging.basicConfig(
         level=level,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
