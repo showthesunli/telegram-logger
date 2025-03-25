@@ -53,6 +53,10 @@ class CleanupService:
                 except Exception as e:
                     logger.error(f"未知错误: {str(e)}", exc_info=True)
                     await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            logger.debug("清理任务被取消")
+        except Exception as e:
+            logger.critical(f"清理服务发生严重错误: {str(e)}", exc_info=True)
 
     def _is_disk_space_low(self) -> bool:
         """检查媒体目录所在磁盘空间是否不足(小于5GB)"""
