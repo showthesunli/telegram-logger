@@ -11,12 +11,6 @@ from telegram_logger.utils.media import save_media_as_file, retrieve_media_as_fi
 logger = logging.getLogger(__name__)
 
 class BaseHandler:
-    MSG_TYPE_MAP = {
-        'user': 1,
-        'channel': 2,
-        'group': 3,
-        'bot': 4
-    }
 
     def __init__(
         self, 

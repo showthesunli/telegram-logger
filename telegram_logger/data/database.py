@@ -97,10 +97,12 @@ class DatabaseManager:
         params = []
         
         for persist_type, days in persist_times.items():
-            self._validate_msg_type(persist_type)
+            if persist_type not in self.db.MSG_TYPE_MAP:
+                logger.warning(f"未知的消息类型: {persist_type}")
+                continue
             cutoff = now - timedelta(days=days)
             conditions.append("(type = ? AND created_time < ?)")
-            params.extend([self.MSG_TYPE_MAP[persist_type], cutoff])
+            params.extend([self.db.MSG_TYPE_MAP[persist_type], cutoff])
         
         query = f"DELETE FROM messages WHERE {' OR '.join(conditions)}"
         self.conn.execute(query, params)
