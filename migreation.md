@@ -171,16 +171,34 @@ telegram_logger/
 - 数据库模块
 - 工具模块(media.py, mentions.py, logging.py)
 - ForwardHandler处理器
+- NewMessageHandler处理器
+- EditDeleteHandler处理器
+- ClientService实现
+- CleanupService实现
 
 ⏳ 进行中模块:
-- NewMessageHandler迁移
-- EditDeleteHandler迁移
-- 服务模块实现
+- 主模块整合与测试
+- 文档完善
 
 ## 迁移注意事项
 
-1. 保持现有功能的完整性
-2. 确保数据库兼容性
-3. 在迁移过程中保留详细日志
-4. 考虑添加配置选项以启用/禁用特定功能
-5. 为新结构创建详细文档
+1. 主模块整合需要验证:
+   - 所有handler是否正确注册
+   - 服务是否正常启动
+   - 依赖注入是否工作正常
+
+2. 测试重点:
+   - 消息处理全流程(接收、存储、转发)
+   - 媒体文件加解密
+   - 定时清理任务
+   - 错误处理与恢复
+
+3. 性能优化:
+   - 数据库批量操作
+   - 媒体文件处理并发控制
+   - 内存使用监控
+
+4. 文档更新:
+   - 新API文档
+   - 配置说明
+   - 部署指南
