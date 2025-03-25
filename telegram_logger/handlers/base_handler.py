@@ -1,4 +1,5 @@
 import logging
+import pickle
 from typing import Optional, Union, List, Dict, Any
 from telethon import events
 from telethon.tl.types import PeerUser, PeerChannel, PeerChat
