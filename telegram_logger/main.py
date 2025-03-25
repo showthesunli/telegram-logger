@@ -24,6 +24,7 @@ from telegram_logger.utils.logging import configure_logging
 async def main():
     # Configure logging
     configure_logging()
+    logging.info("Starting Telegram Logger service...")
     
     # Initialize core components
     db = DatabaseManager()
@@ -59,16 +60,25 @@ async def main():
     
     # Run services
     try:
-        await asyncio.gather(
-            client_service.initialize(),
-            cleanup_service.start()
-        )
+        logging.info("Starting all services...")
+        user_id = await client_service.initialize()
+        await cleanup_service.start()
+        
+        logging.info("All services started successfully")
+        logging.info(f"Client ID: {user_id}")
+        logging.info("Cleanup service is running")
+        
         await client_service.run()
+    except Exception as e:
+        logging.critical(f"Service startup failed: {str(e)}")
+        raise
     except KeyboardInterrupt:
-        logging.info("Shutting down gracefully...")
+        logging.info("Received shutdown signal...")
     finally:
+        logging.info("Shutting down services...")
         await cleanup_service.stop()
         db.close()
+        logging.info("All services stopped")
 
 if __name__ == "__main__":
     asyncio.run(main())

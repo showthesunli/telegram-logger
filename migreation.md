@@ -175,10 +175,72 @@ telegram_logger/
 - EditDeleteHandler处理器
 - ClientService实现
 - CleanupService实现
+- 主模块整合
 
-⏳ 进行中模块:
-- 主模块整合与测试
-- 文档完善
+## 文档完善
+
+### 配置说明
+
+1. 必须配置项:
+   - `API_ID` 和 `API_HASH`: Telegram API凭证
+   - `SESSION_NAME`: 会话文件路径
+   - `FILE_PASSWORD`: 媒体文件加密密码
+
+2. 可选配置项:
+   ```python
+   # 消息保存期限(天)
+   PERSIST_TIME_IN_DAYS_USER = 30  
+   PERSIST_TIME_IN_DAYS_CHANNEL = 365
+   
+   # 功能开关
+   SAVE_EDITED_MESSAGES = False
+   DELETE_SENT_GIFS_FROM_SAVED = True
+   ```
+
+### 部署指南
+
+1. 安装依赖:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. 复制配置文件:
+   ```bash
+   cp config.py.example config.py
+   ```
+
+3. 运行:
+   ```bash
+   python -m telegram_logger.main
+   ```
+
+4. 系统服务配置示例:
+   ```ini
+   [Unit]
+   Description=Telegram Logger Service
+   
+   [Service]
+   ExecStart=/usr/bin/python3 -m telegram_logger.main
+   Restart=always
+   ```
+
+### 测试建议
+
+1. 单元测试:
+   ```bash
+   pytest tests/ -v
+   ```
+
+2. 集成测试:
+   - 验证消息处理全流程
+   - 测试媒体文件加解密
+   - 验证定时清理任务
+
+### 后续改进计划
+
+1. 添加配置验证
+2. 实现健康检查API
+3. 添加Prometheus指标监控
 
 ## 迁移注意事项
 
