@@ -10,7 +10,7 @@ BUFFER_SIZE = 1024 * 1024
 
 
 @contextmanager
-def encrypted(file_path, password=config.FILE_PASSWORD):
+def encrypted(file_path, password=FILE_PASSWORD):
     tmp_file = io.BytesIO()
     try:
         yield tmp_file
@@ -23,7 +23,7 @@ def encrypted(file_path, password=config.FILE_PASSWORD):
 
 
 @contextmanager
-def decrypted(file_path, password=config.FILE_PASSWORD):
+def decrypted(file_path, password=FILE_PASSWORD):
     tmp_file = io.BytesIO()
     try:
         with open(file_path, 'rb') as f_in:

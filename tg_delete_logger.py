@@ -122,7 +122,7 @@ async def new_message_handler(event: Union[NewMessage.Event, MessageEdited.Event
     msg_id = event.message.id
 
     if (
-        chat_id == config.LOG_CHAT_ID
+        chat_id == LOG_CHAT_ID
         and from_id == my_id
         and event.message.text
         and (
@@ -144,7 +144,7 @@ async def new_message_handler(event: Union[NewMessage.Event, MessageEdited.Event
                 await save_restricted_msg(msg_link)
             return
 
-    if from_id in config.IGNORED_IDS or chat_id in config.IGNORED_IDS:
+    if from_id in IGNORED_IDS or chat_id in IGNORED_IDS:
         return
 
     edited_time = 0
@@ -214,9 +214,9 @@ def load_messages_from_event(
     event: Union[MessageDeleted.Event, MessageEdited.Event, UpdateReadMessagesContents],
 ) -> List[Message]:
     if isinstance(event, MessageDeleted.Event):
-        ids = event.deleted_ids[: config.RATE_LIMIT_NUM_MESSAGES]
+        ids = event.deleted_ids[: RATE_LIMIT_NUM_MESSAGES]
     if isinstance(event, UpdateReadMessagesContents):
-        ids = event.messages[: config.RATE_LIMIT_NUM_MESSAGES]
+        ids = event.messages[: RATE_LIMIT_NUM_MESSAGES]
     elif isinstance(event, MessageEdited.Event):
         ids = [event.message.id]
 
@@ -302,7 +302,7 @@ async def edited_deleted_handler(
     ):
         return
 
-    if isinstance(event, MessageEdited.Event) and not config.SAVE_EDITED_MESSAGES:
+    if isinstance(event, MessageEdited.Event) and not SAVE_EDITED_MESSAGES:
         return
 
     messages = load_messages_from_event(event)
@@ -310,8 +310,8 @@ async def edited_deleted_handler(
 
     for message in messages:
         if (
-            message["from_id"] in config.IGNORED_IDS
-            or message["chat_id"] in config.IGNORED_IDS
+            message["from_id"] in IGNORED_IDS
+            or message["chat_id"] in IGNORED_IDS
         ):
             return
 
@@ -399,18 +399,18 @@ async def edited_deleted_handler(
                 or is_poll
             ):
                 sent_msg = await client.send_message(
-                    config.LOG_CHAT_ID, file=media_file
+                    LOG_CHAT_ID, file=media_file
                 )
                 await sent_msg.reply(text)
             elif is_instant_view:
-                await client.send_message(config.LOG_CHAT_ID, text)
+                await client.send_message(LOG_CHAT_ID, text)
             else:
-                await client.send_message(config.LOG_CHAT_ID, text, file=media_file)
+                await client.send_message(LOG_CHAT_ID, text, file=media_file)
 
-        if is_gif and config.DELETE_SENT_GIFS_FROM_SAVED:
+        if is_gif and DELETE_SENT_GIFS_FROM_SAVED:
             await delete_from_saved_gifs(message["media"].document)
 
-        if is_sticker and config.DELETE_SENT_STICKERS_FROM_SAVED:
+        if is_sticker and DELETE_SENT_STICKERS_FROM_SAVED:
             await delete_from_saved_stickers(message["media"].document)
 
     if isinstance(event, MessageDeleted.Event):
@@ -423,10 +423,10 @@ async def edited_deleted_handler(
         ids = [event.message.id]
         event_verb = "edited"
 
-    if len(ids) > config.RATE_LIMIT_NUM_MESSAGES and log_deleted_sender_ids:
+    if len(ids) > RATE_LIMIT_NUM_MESSAGES and log_deleted_sender_ids:
         await client.send_message(
-            config.LOG_CHAT_ID,
-            f"{len(ids)} messages {event_verb}. Logged {config.RATE_LIMIT_NUM_MESSAGES}.",
+            LOG_CHAT_ID,
+            f"{len(ids)} messages {event_verb}. Logged {RATE_LIMIT_NUM_MESSAGES}.",
         )
 
     logging.info(
@@ -472,7 +472,7 @@ async def save_restricted_msg(link: str):
             msg_id = int(parts[1])
         else:
             await client.send_message(
-                config.LOG_CHAT_ID, f"Could not parse link: {link}"
+                LOG_CHAT_ID, f"Could not parse link: {link}"
             )
             return
     else:
@@ -502,7 +502,7 @@ async def save_restricted_msg(link: str):
         else:
             await client.send_message("me", text)
     except Exception as e:
-        await client.send_message(config.LOG_CHAT_ID, str(e))
+        await client.send_message(LOG_CHAT_ID, str(e))
 
 
 async def save_media_as_file(msg: Message):
@@ -518,9 +518,9 @@ async def save_media_as_file(msg: Message):
         if msg.file:
             logging.info(f"文件大小: {msg.file.size} bytes")
 
-        if msg.file and msg.file.size > config.MAX_IN_MEMORY_FILE_SIZE:
+        if msg.file and msg.file.size > MAX_IN_MEMORY_FILE_SIZE:
             logging.warning(
-                f"文件太大无法保存 ({msg.file.size} bytes), 最大限制: {config.MAX_IN_MEMORY_FILE_SIZE} bytes"
+                f"文件太大无法保存 ({msg.file.size} bytes), 最大限制: {MAX_IN_MEMORY_FILE_SIZE} bytes"
             )
             raise Exception(f"File too large to save ({msg.file.size} bytes)")
 
@@ -601,11 +601,11 @@ async def delete_from_saved_stickers(sticker: Document):
 async def delete_expired_messages():
     while True:
         now = datetime.now()
-        time_user = now - timedelta(days=config.PERSIST_TIME_IN_DAYS_USER)
-        time_channel = now - timedelta(days=config.PERSIST_TIME_IN_DAYS_CHANNEL)
-        time_group = now - timedelta(days=config.PERSIST_TIME_IN_DAYS_GROUP)
-        time_bot = now - timedelta(days=config.PERSIST_TIME_IN_DAYS_BOT)
-        time_unknown = now - timedelta(days=config.PERSIST_TIME_IN_DAYS_GROUP)
+        time_user = now - timedelta(days=PERSIST_TIME_IN_DAYS_USER)
+        time_channel = now - timedelta(days=PERSIST_TIME_IN_DAYS_CHANNEL)
+        time_group = now - timedelta(days=PERSIST_TIME_IN_DAYS_GROUP)
+        time_bot = now - timedelta(days=PERSIST_TIME_IN_DAYS_BOT)
+        time_unknown = now - timedelta(days=PERSIST_TIME_IN_DAYS_GROUP)
 
         sqlite_cursor.execute(
             """DELETE FROM messages WHERE (type = ? and created_time < ?) OR
@@ -634,7 +634,7 @@ async def delete_expired_messages():
 
         num_files_deleted = 0
         file_persist_days = max(
-            config.PERSIST_TIME_IN_DAYS_GROUP, config.PERSIST_TIME_IN_DAYS_CHANNEL
+            PERSIST_TIME_IN_DAYS_GROUP, PERSIST_TIME_IN_DAYS_CHANNEL
         )
         for dirpath, dirnames, filenames in os.walk("media"):
             for filename in filenames:
@@ -655,11 +655,11 @@ async def forward_user_messages_handler(event: NewMessage.Event):
     """处理特定用户的消息转发"""
     # 添加调试日志
     from_id = get_sender_id(event.message)
-    logging.info(f"收到消息 - 来自: {from_id}, 目标用户列表: {config.FORWARD_USER_IDS}")
+    logging.info(f"收到消息 - 来自: {from_id}, 目标用户列表: {FORWARD_USER_IDS}")
 
     try:
         # 检查消息是否来自目标用户
-        if from_id not in config.FORWARD_USER_IDS:
+        if from_id not in FORWARD_USER_IDS:
             logging.debug(f"消息不是来自目标用户，忽略 - 来自: {from_id}")
             return
 
@@ -691,15 +691,15 @@ async def forward_user_messages_handler(event: NewMessage.Event):
                 with retrieve_media_as_file(
                     event.message.id, event.chat_id, event.message.media, noforwards
                 ) as media_file:
-                    await client.send_message(config.LOG_CHAT_ID, text, file=media_file)
+                    await client.send_message(LOG_CHAT_ID, text, file=media_file)
             else:
                 # 直接转发消息
                 await client.send_message(
-                    config.LOG_CHAT_ID, text, file=event.message.media
+                    LOG_CHAT_ID, text, file=event.message.media
                 )
         else:
             # 纯文本消息直接发送
-            await client.send_message(config.LOG_CHAT_ID, text)
+            await client.send_message(LOG_CHAT_ID, text)
 
         logging.info(f"消息转发成功 - 用户ID: {from_id}, 消息ID: {event.message.id}")
 
@@ -713,9 +713,9 @@ async def init():
     my_id = me.id
 
     # 添加转发用户消息的事件处理器
-    if hasattr(config, "FORWARD_USER_IDS") and config.FORWARD_USER_IDS:
+    if hasattr(config, "FORWARD_USER_IDS") and FORWARD_USER_IDS:
         # 为每个目标用户ID单独添加事件处理器
-        for user_id in config.FORWARD_USER_IDS:
+        for user_id in FORWARD_USER_IDS:
             client.add_event_handler(
                 forward_user_messages_handler, events.NewMessage(from_users=user_id)
             )
