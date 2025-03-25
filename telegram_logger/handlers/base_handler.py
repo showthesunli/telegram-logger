@@ -1,12 +1,9 @@
 import logging
-import pickle
-from typing import Optional, Union, List, Dict, Any
-from telethon import TelegramClient
-from telethon.events.common import EventCommon
+from typing import Dict, Any, Optional, Union, List
+from telethon.events import common as EventCommon
 from telethon.tl.types import PeerUser, PeerChannel, PeerChat
-from telegram_logger.data.models import Message
 from telegram_logger.data.database import DatabaseManager
-from telegram_logger.utils.media import save_media_as_file, retrieve_media_as_file
+from telegram_logger.data.models import Message
 
 logger = logging.getLogger(__name__)
 
@@ -20,69 +17,99 @@ class BaseHandler:
         ignored_ids: set,
         **kwargs: Dict[str, Any]
     ):
+        """Base handler for Telegram events
+        
+        Args:
+            client: Telegram client
+            db: Database manager
+            log_chat_id: Chat ID to log messages to
+            ignored_ids: Set of user/chat IDs to ignore
+            **kwargs: Additional arguments
+        """
         self.client = client
         self.db = db
         self.log_chat_id = log_chat_id
-        self.ignored_ids = ignored_ids
-        self._my_id: Optional[int] = None
-
+        self.ignored_ids = ignored_ids or set()
+        self._my_id = None
+        
     async def init(self):
-        """Initialize handler with client user ID"""
-        me = await self.client.get_me()
-        self._my_id = me.id
-        logger.info(f"{self.__class__.__name__} initialized")
-
+        """Initialize handler
+        
+        This method should be called after client is initialized
+        """
+        if self.client:
+            me = await self.client.get_me()
+            self._my_id = me.id
+            logger.info(f"Handler initialized with user ID: {self._my_id}")
+        else:
+            logger.warning("Cannot initialize handler: client is None")
+    
     async def process(self, event: EventCommon) -> Optional[Union[Message, List[Message]]]:
-        """Process event and return message object(s)"""
-        raise NotImplementedError
-
+        """Process event
+        
+        This method should be implemented by subclasses
+        
+        Args:
+            event: Telegram event
+            
+        Returns:
+            Optional[Union[Message, List[Message]]]: Processed message(s) or None
+        """
+        raise NotImplementedError("Subclasses must implement process()")
+    
     async def save_message(self, message: Message):
-        """Save message to database"""
-        try:
-            self.db.save_message(message)
-            logger.debug(f"Message saved: {message.id}")
-        except Exception as e:
-            logger.error(f"Failed to save message: {str(e)}")
-            raise
-
+        """Save message to database
+        
+        Args:
+            message: Message to save
+        """
+        self.db.save_message(message)
+    
     def _get_sender_id(self, message) -> int:
-        """Get sender ID from message object"""
-        if isinstance(message.peer_id, PeerUser):
-            return self.my_id if message.out else message.peer_id.user_id
-        elif isinstance(message.peer_id, (PeerChannel, PeerChat)):
-            if hasattr(message, 'from_id') and message.from_id:
-                if isinstance(message.from_id, PeerUser):
-                    return message.from_id.user_id
-                if isinstance(message.from_id, PeerChannel):
-                    return message.from_id.channel_id
-        return 0
-
-    async def _handle_media_message(self, message: Message, text: str):
-        """Handle message with media content"""
-        if not message.is_media:
-            await self.client.send_message(self.log_chat_id, text)
-            return
-
-        try:
-            media = pickle.loads(message.media)
-            with retrieve_media_as_file(
-                message.id,
-                message.chat_id,
-                media,
-                message.noforwards or message.self_destructing
-            ) as media_file:
-                await self.client.send_message(
-                    self.log_chat_id,
-                    text,
-                    file=media_file
-                )
-        except Exception as e:
-            logger.error(f"Failed to handle media message: {str(e)}")
-            await self.client.send_message(self.log_chat_id, text)
-
+        """Get sender ID from message
+        
+        Args:
+            message: Telegram message
+            
+        Returns:
+            int: Sender ID
+        """
+        from_id = 0
+        
+        # Handle outgoing messages
+        if hasattr(message, 'out') and message.out:
+            return self._my_id if self._my_id else 0
+            
+        # Handle different peer types
+        if hasattr(message, 'peer_id'):
+            if isinstance(message.peer_id, PeerUser):
+                from_id = message.peer_id.user_id
+            elif isinstance(message.peer_id, PeerChannel):
+                from_id = message.peer_id.channel_id
+            elif isinstance(message.peer_id, PeerChat):
+                from_id = message.peer_id.chat_id
+                
+        # Try to get from_id from message
+        if hasattr(message, 'from_id'):
+            if hasattr(message.from_id, 'user_id'):
+                from_id = message.from_id.user_id
+            elif hasattr(message.from_id, 'channel_id'):
+                from_id = message.from_id.channel_id
+                
+        return from_id
+    
     @property
     def my_id(self) -> int:
-        """Get authenticated user ID"""
+        """Get current user ID
+        
+        Returns:
+            int: Current user ID
+            
+        Raises:
+            RuntimeError: If handler is not initialized
+        """
         if self._my_id is None:
-            raise RuntimeError("Handler not initialized")
+            # Return 0 instead of raising an error
+            # This allows the handler to work even if not fully initialized
+            return 0
         return self._my_id

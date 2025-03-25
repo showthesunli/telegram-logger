@@ -19,6 +19,11 @@ class ForwardHandler(BaseHandler):
 
     async def handle_new_message(self, event):
         """处理新消息事件，这个方法名与client.py中的注册方法匹配"""
+        # 确保handler已初始化
+        if not self.client:
+            logger.error("Handler not initialized, client is None")
+            return None
+            
         from_id = self._get_sender_id(event.message)
         logger.info(f"ForwardHandler received message from user {from_id}")
         return await self.process(event)
@@ -47,7 +52,7 @@ class ForwardHandler(BaseHandler):
             if event.message.media:
                 await self._handle_media_message(event.message, text)
             else:
-                await self.client.send_message(LOG_CHAT_ID, text)
+                await self.client.send_message(self.log_chat_id, text)
 
             message = await self._create_message_object(event)
             await self.save_message(message)
@@ -59,27 +64,38 @@ class ForwardHandler(BaseHandler):
 
     async def _handle_media_message(self, message, text):
         """处理包含媒体的消息"""
-        noforwards = getattr(message.chat, 'noforwards', False) or \
-                    getattr(message, 'noforwards', False)
+        noforwards = False
+        try:
+            noforwards = getattr(message.chat, 'noforwards', False) or \
+                        getattr(message, 'noforwards', False)
+        except AttributeError:
+            pass
         
         if noforwards:
-            await save_media_as_file(self.client, message)
-            with retrieve_media_as_file(
-                message.id, 
-                message.chat_id, 
-                message.media, 
-                noforwards
-            ) as media_file:
-                await self.client.send_message(self.log_chat_id, text, file=media_file)
+            file_path = await save_media_as_file(self.client, message)
+            if file_path:
+                with retrieve_media_as_file(file_path, True) as media_file:
+                    await self.client.send_message(self.log_chat_id, text, file=media_file)
+            else:
+                await self.client.send_message(self.log_chat_id, text)
         else:
             await self.client.send_message(self.log_chat_id, text, file=message.media)
 
     async def _create_message_object(self, event):
         """创建消息对象"""
         from_id = self._get_sender_id(event.message)
-        noforwards = getattr(event.chat, 'noforwards', False) or \
-                    getattr(event.message, 'noforwards', False)
-        self_destructing = bool(getattr(getattr(event.message, 'media', None), 'ttl_seconds', False))
+        noforwards = False
+        try:
+            noforwards = getattr(event.chat, 'noforwards', False) or \
+                        getattr(event.message, 'noforwards', False)
+        except AttributeError:
+            pass
+            
+        self_destructing = False
+        try:
+            self_destructing = bool(getattr(getattr(event.message, 'media', None), 'ttl_seconds', False))
+        except AttributeError:
+            pass
         
         media = None
         if event.message.media:
