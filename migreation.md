@@ -113,16 +113,17 @@ telegram_logger/
 - 设置日志配置在 logging.py
 
 [当前进度]
-
-- 下一步应进行处理器模块拆分
+- 处理器模块部分完成(ForwardHandler已实现)
+- 主文件中仍包含NewMessageHandler和EditDeleteHandler待迁移
+- 下一步应完成剩余处理器迁移和服务模块实现
 
 5. **处理器模块**
-
-   - 将消息处理逻辑分离到各个处理器文件
+   - ✅ ForwardHandler 已完成
+   - ⏳ NewMessageHandler 待迁移
+   - ⏳ EditDeleteHandler 待迁移
    - 重构处理器以使用依赖注入而非全局变量
 
 6. **服务模块**
-
    - 创建客户端服务
    - 实现清理服务
 
@@ -161,6 +162,20 @@ telegram_logger/
 1. 为每个模块创建单元测试
 2. 使用模拟对象测试 Telegram API 交互
 3. 创建集成测试验证模块间交互
+
+## 当前模块状态
+
+✅ 已完成模块:
+- 项目结构创建
+- 配置模块
+- 数据库模块
+- 工具模块(media.py, mentions.py, logging.py)
+- ForwardHandler处理器
+
+⏳ 进行中模块:
+- NewMessageHandler迁移
+- EditDeleteHandler迁移
+- 服务模块实现
 
 ## 迁移注意事项
 
