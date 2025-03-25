@@ -93,11 +93,23 @@ class ForwardHandler(BaseHandler):
             id=event.message.id,
             from_id=from_id,
             chat_id=event.chat_id,
-            msg_type=await self._get_chat_type(event),
-            msg_text=event.message.message,
+            msg_type=await self.get_chat_type(event),
             media=media,
             noforwards=noforwards,
             self_destructing=self_destructing,
             created_time=datetime.now(),
-            edited_time=None
+            edited_time=None,
+            msg_text=event.message.message
         )
+        
+    async def get_chat_type(self, event):
+        """获取消息类型"""
+        if event.is_group:  # chats and megagroups
+            return 2  # group
+        elif event.is_channel:  # megagroups and channels
+            return 3  # channel
+        elif event.is_private:
+            if (await event.get_sender()).bot:
+                return 4  # bot
+            return 1  # user
+        return 0  # unknown type
