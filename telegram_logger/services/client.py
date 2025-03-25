@@ -3,6 +3,7 @@ from telethon import TelegramClient, events
 from typing import List, Optional
 import logging
 from telegram_logger.handlers.base_handler import BaseHandler
+from telegram_logger.handlers.forward_handler import ForwardHandler
 
 logger = logging.getLogger(__name__)
 
@@ -36,21 +37,36 @@ class TelegramClientService:
     def _register_handlers(self):
         """Register all event handlers"""
         for handler in self.handlers:
-            if hasattr(handler, 'handle_new_message'):
-                self.client.add_event_handler(
-                    handler.handle_new_message,
-                    events.NewMessage()
-                )
-            if hasattr(handler, 'handle_message_edited'):
-                self.client.add_event_handler(
-                    handler.handle_message_edited,
-                    events.MessageEdited()
-                )
-            if hasattr(handler, 'handle_message_deleted'):
-                self.client.add_event_handler(
-                    handler.handle_message_deleted,
-                    events.MessageDeleted()
-                )
+            # 特殊处理 ForwardHandler
+            if isinstance(handler, ForwardHandler):
+                if not handler.forward_user_ids:
+                    logger.warning("ForwardHandler has empty forward_user_ids list")
+                    continue
+                    
+                # 为每个转发用户ID单独注册处理器
+                for user_id in handler.forward_user_ids:
+                    self.client.add_event_handler(
+                        handler.handle_new_message,
+                        events.NewMessage(from_users=user_id)
+                    )
+                logger.info(f"Registered ForwardHandler for users: {handler.forward_user_ids}")
+            else:
+                # 处理其他类型的处理器
+                if hasattr(handler, 'handle_new_message'):
+                    self.client.add_event_handler(
+                        handler.handle_new_message,
+                        events.NewMessage()
+                    )
+                if hasattr(handler, 'handle_message_edited'):
+                    self.client.add_event_handler(
+                        handler.handle_message_edited,
+                        events.MessageEdited()
+                    )
+                if hasattr(handler, 'handle_message_deleted'):
+                    self.client.add_event_handler(
+                        handler.handle_message_deleted,
+                        events.MessageDeleted()
+                    )
 
     async def health_check(self) -> dict:
         """检查服务健康状态
