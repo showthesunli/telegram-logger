@@ -8,3 +8,4 @@ media/
 config.py
 .aider*
 *.log
+.env
