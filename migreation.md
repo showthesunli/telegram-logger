@@ -126,7 +126,7 @@ telegram_logger/
 6. **服务模块**
    - ✅ ClientService 实现
    - ✅ CleanupService 实现
-   - ⏳ 服务健康检查待实现
+   - ✅ 服务健康检查实现
 
 7. **主模块**
    - ✅ 应用程序入口点
@@ -175,7 +175,7 @@ telegram_logger/
 - ForwardHandler处理器
 - NewMessageHandler处理器
 - EditDeleteHandler处理器
-- ClientService实现
+- ClientService实现 (包含健康检查)
 - CleanupService实现
 - 主模块整合
 
@@ -183,6 +183,7 @@ telegram_logger/
 - 消息处理流程测试
 - 媒体文件加密/解密测试
 - 数据库操作测试
+- 服务健康检查测试
 
 ## 文档完善
 
