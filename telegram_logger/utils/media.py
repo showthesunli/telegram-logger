@@ -12,7 +12,7 @@ from telethon.tl.types import (
     MessageMediaPoll,
     Photo
 )
-from file_encrypt import encrypted, decrypted
+from .file_encrypt import encrypted, decrypted
 from telegram_logger.config import MAX_IN_MEMORY_FILE_SIZE, FILE_PASSWORD
 
 logger = logging.getLogger(__name__)
