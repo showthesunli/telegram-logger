@@ -43,4 +43,4 @@ COPY --from=builder /app /app
 WORKDIR /app
 
 # 4. 运行程序
-CMD ["uv", "run", "python", "-m", "telegram_logger.main"]
+CMD ["uv", "run", "main.py"]
