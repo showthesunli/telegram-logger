@@ -41,6 +41,7 @@ from telethon.tl.types import (
     Contact,
     UpdateReadMessagesContents,
 )
+from telegram_logger import config
 from telegram_logger.config import (
     API_ID,
     API_HASH,
@@ -590,7 +591,6 @@ async def forward_user_messages_handler(event: NewMessage.Event):
     try:
         # Skip if no forward users configured
         if not hasattr(config, "FORWARD_USER_IDS"):
-            return
             logging.debug(f"消息不是来自目标用户，忽略 - 来自: {from_id}")
             return
 
