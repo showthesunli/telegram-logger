@@ -8,8 +8,8 @@ from telegram_logger.config import MAX_IN_MEMORY_FILE_SIZE, FILE_PASSWORD
 
 logger = logging.getLogger(__name__)
 
-async def save_media(client, msg: 'Message') -> str:
-    """保存媒体文件到本地"""
+async def save_media_as_file(client, msg: 'Message') -> str:
+    """保存媒体文件到本地(带加密)"""
     file_path = f"media/{msg.id}_{msg.chat_id}"
     try:
         if msg.media:
@@ -25,9 +25,9 @@ async def save_media(client, msg: 'Message') -> str:
         logger.error(f"保存媒体失败: {str(e)}")
         raise
 
-@contextmanager
-def retrieve_media(file_path: str, is_restricted: bool):
-    """根据限制状态获取媒体文件"""
+@contextmanager 
+def retrieve_media_as_file(file_path: str, is_restricted: bool):
+    """根据限制状态获取媒体文件(带解密)"""
     try:
         if is_restricted and os.path.exists(file_path):
             with decrypted(file_path, FILE_PASSWORD) as f:
