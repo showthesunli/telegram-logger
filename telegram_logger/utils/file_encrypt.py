@@ -1,10 +1,13 @@
 import io
+import os
 from os import stat
 from contextlib import contextmanager
 import pyAesCrypt
-from telegram_logger.config import FILE_PASSWORD
+from dotenv import load_dotenv
 
+load_dotenv()
 BUFFER_SIZE = 1024 * 1024
+FILE_PASSWORD = os.getenv('FILE_ENCRYPTION_PASSWORD', 'default-weak-password')
 
 # this is meant to be more about obfuscation and less about security
 
