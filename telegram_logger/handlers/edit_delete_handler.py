@@ -71,11 +71,6 @@ class EditDeleteHandler(BaseHandler):
         """处理特殊媒体类型（GIF/贴纸）"""
         # 实现原有的GIF和贴纸处理逻辑
         pass
-import logging
-import pickle
-        """Process message edit or delete event"""
-        if isinstance(event, events.MessageEdited.Event) and not SAVE_EDITED_MESSAGES:
-            return []
 
         message_ids = self._get_message_ids(event)
         messages = self.db.get_messages(
