@@ -73,36 +73,6 @@ class EditDeleteHandler(BaseHandler):
         pass
 import logging
 import pickle
-from typing import List, Union
-from telethon import events
-from telethon.tl.types import (
-    Document,
-    DocumentAttributeAnimated,
-    DocumentAttributeSticker,
-    InputDocument
-)
-from telegram_logger.handlers.base_handler import BaseHandler
-from telegram_logger.data.models import Message
-from telegram_logger.utils.mentions import create_mention
-from telegram_logger.config import (
-    LOG_CHAT_ID,
-    IGNORED_IDS,
-    SAVE_EDITED_MESSAGES,
-    DELETE_SENT_GIFS_FROM_SAVED,
-    DELETE_SENT_STICKERS_FROM_SAVED,
-    RATE_LIMIT_NUM_MESSAGES
-)
-
-logger = logging.getLogger(__name__)
-
-
-class EditDeleteHandler(BaseHandler):
-    """Handler for edited and deleted messages"""
-    
-    async def process(
-        self,
-        event: Union[events.MessageEdited.Event, events.MessageDeleted.Event]
-    ) -> List[Message]:
         """Process message edit or delete event"""
         if isinstance(event, events.MessageEdited.Event) and not SAVE_EDITED_MESSAGES:
             return []
