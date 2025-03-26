@@ -2,7 +2,10 @@ import logging
 import sys
 import os
 from logging.handlers import TimedRotatingFileHandler
-from telegram_logger.config import DEBUG_MODE
+from dotenv import load_dotenv
+
+load_dotenv()
+DEBUG_MODE = os.getenv("DEBUG_MODE", "False") == "True"
 
 
 def configure_logging():
