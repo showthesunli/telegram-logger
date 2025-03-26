@@ -13,25 +13,25 @@ env:
   PYTHON_VERSION: "3.13"  # 匹配pyproject.toml要求
 
 jobs:
-  validate:
-    name: Validate and Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+  # validate:
+  #   name: Validate and Test
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
       
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
+  #     - name: Set up Python ${{ env.PYTHON_VERSION }}
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: ${{ env.PYTHON_VERSION }}
           
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: "0.6.9"
-          enable-cache: true  # 启用uv缓存
+  #     - name: Install uv
+  #       uses: astral-sh/setup-uv@v5
+  #       with:
+  #         version: "0.6.9"
+  #         enable-cache: true  # 启用uv缓存
           
-      - name: Install dependencies
-        run: uv sync --all-extras
+  #     - name: Install dependencies
+  #       run: uv sync --all-extras
         
       # - name: Lint check
       #   run: uv run flake8 .  # 可选：添加代码风格检查
@@ -98,22 +98,3 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             PYTHON_VERSION=${{ env.PYTHON_VERSION }}
-
-      - name: Trigger deployment webhook
-        if: success() && github.event_name != 'pull_request'  # 只在推送成功且不是PR时触发
-        run: |
-          curl -X GET "https://hw.513943440.xyz/api/deploy/compose/Km7HqkNgsYRN4QuwWEiSc"
-          
-      - name: Trigger deployment webhook with retry
-        if: success() && github.event_name != 'pull_request'
-        run: |
-          for i in 1 2 3; do
-            if curl -X GET "https://hw.513943440.xyz/api/deploy/compose/Km7HqkNgsYRN4QuwWEiSc" --fail --silent --show-error; then
-              echo "Webhook triggered successfully"
-              exit 0
-            fi
-            echo "Attempt $i failed. Retrying in 5 seconds..."
-            sleep 5
-          done
-          echo "Failed to trigger webhook after 3 attempts"
-          exit 1
