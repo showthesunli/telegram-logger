@@ -55,7 +55,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD python -c "import sys; sys.exit(0 if __import__('os').path.exists('/app/.venv') else 1)"
 
 # 6. 运行程序
-CMD ["python", "-m", "main.py"]
+CMD ["python", "main.py"]
 
 
 

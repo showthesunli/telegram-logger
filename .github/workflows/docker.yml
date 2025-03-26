@@ -98,3 +98,22 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+
+      - name: Trigger deployment webhook
+        if: success() && github.event_name != 'pull_request'  # 只在推送成功且不是PR时触发
+        run: |
+          curl -X GET "https://hw.513943440.xyz/api/deploy/compose/Km7HqkNgsYRN4QuwWEiSc"
+          
+      - name: Trigger deployment webhook with retry
+        if: success() && github.event_name != 'pull_request'
+        run: |
+          for i in 1 2 3; do
+            if curl -X GET "https://hw.513943440.xyz/api/deploy/compose/Km7HqkNgsYRN4QuwWEiSc" --fail --silent --show-error; then
+              echo "Webhook triggered successfully"
+              exit 0
+            fi
+            echo "Attempt $i failed. Retrying in 5 seconds..."
+            sleep 5
+          done
+          echo "Failed to trigger webhook after 3 attempts"
+          exit 1
