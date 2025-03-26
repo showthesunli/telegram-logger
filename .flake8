@@ -1,0 +1,47 @@
+[flake8]
+# 基本配置
+max-line-length = 120
+max-complexity = 18
+select = B,C,E,F,W,T4,B9
+
+# 忽略的规则
+ignore = 
+    E203,  # 空格在冒号前(与black格式化冲突)
+    E501,  # 行太长(由max-line-length控制)
+    W503,  # 运算符前换行(与black格式化冲突)
+    F405,  # 可能未定义的变量
+    B008,  # 函数调用默认参数使用可变对象
+
+# 排除检查的目录/文件
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    env,
+    .mypy_cache,
+    .pytest_cache,
+    migrations,
+    build,
+    dist,
+    docs,
+    tests,
+    *migrations*,
+    *.egg-info,
+    *.md,
+    *.txt,
+    *.json,
+    *.yml,
+    *.yaml
+
+# 每个文件的允许最大复杂度
+per-file-ignores = 
+    # 测试文件允许更高的复杂度
+    tests/*: C901
+    */tests/*: C901
+
+# 允许的导入顺序
+import-order-style = google
+
+# 允许的命名风格
+naming-style = snake_case
