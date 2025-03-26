@@ -11,3 +11,9 @@ dependencies = [
     "python-dotenv>=1.1.0",
     "telethon>=1.39.0",
 ]
+
+[dependency-groups]
+dev = [
+    "flake8>=7.1.2",
+    "mypy>=1.15.0",
+]
