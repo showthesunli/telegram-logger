@@ -47,14 +47,15 @@ WORKDIR /app
 
 # 4. 添加元数据标签
 LABEL org.opencontainers.image.source="https://github.com/username/telegram-delete-logger" \
-      org.opencontainers.image.description="Telegram Delete Logger" \
-      org.opencontainers.image.licenses="MIT"
+    org.opencontainers.image.description="Telegram Delete Logger" \
+    org.opencontainers.image.licenses="MIT"
 
 # 5. 健康检查
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD python -c "import sys; sys.exit(0 if __import__('os').path.exists('/app/.venv') else 1)"
 
 # 6. 运行程序
-CMD ["python", "-m", "telegram_delete_logger"]
+CMD ["python", "-m", "main.py"]
+
 
 

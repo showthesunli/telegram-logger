@@ -2,15 +2,16 @@ version: '3.8'
 
 services:
   telegram-logger:
-    build: .
-    env_file:
-      - .env
-    volumes:
-      - .:/app
-      - /app/.venv
+    image: ghcr.io/showthesunli/telegram-logger:latest
+    container_name: telegram-logger
     restart: unless-stopped
+    volumes:
+      - ../files/db:/app/db:rw         # 数据库目录
+      - ../files/media:/app/media:rw    # 媒体文件目录
+      - ../files/log:/app/log:rw        # 日志目录
+      - .env:/app/.env:ro               # 环境变量配置文件（只读）
     environment:
-      - PYTHONUNBUFFERED=1
+      - TZ=Asia/Shanghai               # 设置时区
     networks:
       - telegram-net
 
