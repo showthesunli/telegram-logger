@@ -7,7 +7,12 @@ from telethon import events
 from telethon.tl.types import Message
 from telegram_logger.handlers.base_handler import BaseHandler
 from telegram_logger.utils.media import save_media_as_file
-from telegram_logger.config import LOG_CHAT_ID, IGNORED_IDS
+import os
+from dotenv import load_dotenv
+
+load_dotenv() 
+LOG_CHAT_ID = int(os.getenv("LOG_CHAT_ID", "-1002268819123"))
+IGNORED_IDS = {int(x.strip()) for x in os.getenv("IGNORED_IDS", "-10000").split(",")}
 
 logger = logging.getLogger(__name__)
 

@@ -15,14 +15,16 @@ from telegram_logger.handlers.base_handler import BaseHandler
 from telegram_logger.utils.mentions import create_mention
 from telegram_logger.utils.media import retrieve_media_as_file
 from telegram_logger.data.models import Message
-from telegram_logger.config import (
-    LOG_CHAT_ID,
-    IGNORED_IDS,
-    SAVE_EDITED_MESSAGES,
-    DELETE_SENT_GIFS_FROM_SAVED,
-    DELETE_SENT_STICKERS_FROM_SAVED,
-    RATE_LIMIT_NUM_MESSAGES
-)
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+LOG_CHAT_ID = int(os.getenv("LOG_CHAT_ID", "-1002268819123"))
+IGNORED_IDS = {int(x.strip()) for x in os.getenv("IGNORED_IDS", "-10000").split(",")}
+SAVE_EDITED_MESSAGES = os.getenv("SAVE_EDITED_MESSAGES", "True") == "True"
+DELETE_SENT_GIFS_FROM_SAVED = os.getenv("DELETE_SENT_GIFS_FROM_SAVED", "True") == "True" 
+DELETE_SENT_STICKERS_FROM_SAVED = os.getenv("DELETE_SENT_STICKERS_FROM_SAVED", "True") == "True"
+RATE_LIMIT_NUM_MESSAGES = int(os.getenv("RATE_LIMIT_NUM_MESSAGES", "5"))
 
 logger = logging.getLogger(__name__)
 
