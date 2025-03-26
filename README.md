@@ -14,29 +14,36 @@
 ## 快速开始
 
 ### 环境要求
-- Python 3.8+
+
+- Python 3.13+
 - Telegram API 凭证 ([申请地址](https://my.telegram.org/))
 
 ### 安装步骤
+
 1. 克隆仓库
+
 ```bash
 git clone https://github.com/your-repo/telegram-logger.git
 cd telegram-logger
 ```
 
 2. 安装依赖
+
 ```bash
 pip install -r requirements.txt
 ```
 
 3. 配置环境变量
-复制 `.env.example` 为 `.env` 并修改：
+   复制 `.env.example` 为 `.env` 并修改：
+
 ```bash
 copy .env.example .env
 ```
 
 ### 配置文件说明
+
 编辑 `.env` 文件：
+
 ```ini
 # 必填项
 API_ID=你的API_ID
@@ -46,7 +53,7 @@ LOG_CHAT_ID=日志频道ID
 # 可选配置
 FILE_PASSWORD=文件加密密码
 IGNORED_IDS=-10000  # 忽略的聊天ID，逗号分隔
-FORWARD_USER_IDS=    # 要转发的用户ID，逗号分隔 
+FORWARD_USER_IDS=    # 要转发的用户ID，逗号分隔
 FORWARD_GROUP_IDS=   # 要转发的群组ID，逗号分隔
 
 # 消息保留时间(天)
@@ -56,6 +63,7 @@ PERSIST_TIME_IN_DAYS_CHANNEL=30
 ```
 
 ### 运行程序
+
 ```bash
 python main.py
 ```
@@ -63,27 +71,31 @@ python main.py
 ## 高级配置
 
 ### 消息转发设置
+
 - `FORWARD_MEDIA=True` 是否转发媒体
-- `FORWARD_EDITED=True` 是否转发编辑的消息  
+- `FORWARD_EDITED=True` 是否转发编辑的消息
 - `ADD_FORWARD_SOURCE=True` 是否添加转发来源
 
 ### 文件设置
+
 - `MAX_IN_MEMORY_FILE_SIZE=5242880` 内存中处理的最大文件大小(5MB)
 - `FILE_PASSWORD` 用于加密存储的媒体文件
 
 ## 常见问题
 
 **Q: 如何获取 LOG_CHAT_ID?**  
-A: 转发一条消息到 @username_to_id_bot 获取频道ID
+A: 转发一条消息到 @username_to_id_bot 获取频道 ID
 
 **Q: 为什么收不到转发消息?**  
 检查:
+
 1. 机器人是否有发送消息权限
 2. 目标频道是否已添加机器人为管理员
 
 ## 开发指南
 
 项目结构:
+
 ```
 telegram_logger/
 ├── data/          # 数据库相关
@@ -93,4 +105,5 @@ telegram_logger/
 ```
 
 ## 许可证
+
 MIT License
