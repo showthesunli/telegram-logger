@@ -87,25 +87,6 @@ class EditDeleteHandler(BaseHandler):
         # 实现原有的GIF和贴纸处理逻辑
         pass
 
-        message_ids = self._get_message_ids(event)
-        messages = self.db.get_messages(
-            chat_id=event.chat_id,
-            message_ids=message_ids
-        )
-        
-        valid_messages = [
-            msg for msg in messages 
-            if not (msg.from_id in IGNORED_IDS or 
-                   msg.chat_id in IGNORED_IDS or
-                   msg.msg_type == self.MSG_TYPE_MAP['bot'])
-        ]
-
-        for message in valid_messages:
-            await self._log_message(event, message)
-            await self._handle_special_media(message)
-
-        return valid_messages
-
     def _get_message_ids(self, event):
         """Get message IDs from event"""
         if isinstance(event, events.MessageDeleted.Event):
