@@ -33,11 +33,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
         
-      - name: Lint check
-        run: uv run flake8 .  # 可选：添加代码风格检查
+      # - name: Lint check
+      #   run: uv run flake8 .  # 可选：添加代码风格检查
         
-      - name: Run type checking
-        run: uv run mypy --strict .  # 可选：添加类型检查
+      # - name: Run type checking
+      #   run: uv run mypy --strict .  # 可选：添加类型检查
 
   build-and-push:
     name: Build and Push

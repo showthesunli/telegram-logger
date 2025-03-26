@@ -15,5 +15,6 @@ dependencies = [
 [dependency-groups]
 dev = [
     "flake8>=7.1.2",
+    "flake8-import-order>=0.18.2",
     "mypy>=1.15.0",
 ]
