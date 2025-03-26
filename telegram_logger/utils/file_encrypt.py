@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 BUFFER_SIZE = 1024 * 1024
-FILE_PASSWORD = os.getenv("FILE_PASSWORD", "default-weak-password")
+FILE_PASSWORD = os.getenv("FILE_PASSWORD", "default-weak-password")  # 使用 FILE_PASSWORD 环境变量
 
 # this is meant to be more about obfuscation and less about security
 
