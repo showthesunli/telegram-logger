@@ -16,8 +16,10 @@ WORKDIR /app
 # 4. 先只复制依赖管理文件
 COPY pyproject.toml uv.lock ./
 
-# 5. 安装依赖
+# 5. 创建虚拟环境并安装依赖
 RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv && \
+    . .venv/bin/activate && \
     uv pip install --no-deps -e .
 
 # 6. 复制剩余代码
@@ -25,6 +27,7 @@ COPY . .
 
 # 7. 完整安装并编译字节码
 RUN --mount=type=cache,target=/root/.cache/uv \
+    . .venv/bin/activate && \
     uv sync --frozen --compile-bytecode
 
 # 运行时阶段
@@ -53,4 +56,5 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 
 # 6. 运行程序
 CMD ["python", "-m", "telegram_delete_logger"]
+
 
