@@ -9,7 +9,12 @@ from telethon.tl.types import (
     Photo
 )
 from .file_encrypt import encrypted, decrypted
-from telegram_logger.config import MAX_IN_MEMORY_FILE_SIZE, FILE_PASSWORD
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+MAX_IN_MEMORY_FILE_SIZE = int(os.getenv("MAX_IN_MEMORY_FILE_SIZE", "5242880"))  # 默认5MB
+FILE_PASSWORD = os.getenv("FILE_PASSWORD", "default-weak-password")  # 统一使用 FILE_PASSWORD
 
 logger = logging.getLogger(__name__)
 
