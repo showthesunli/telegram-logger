@@ -2,7 +2,7 @@ import logging
 import re
 import pickle
 from datetime import datetime
-from typing import Union
+from typing import Union, Optional
 from telethon import events
 from telethon.tl.types import Message
 from telegram_logger.handlers.base_handler import BaseHandler

@@ -1,6 +1,6 @@
 import time
 from telethon import TelegramClient, events
-from typing import List, Optional
+from typing import List
 import logging
 from telegram_logger.handlers.base_handler import BaseHandler
 from telegram_logger.handlers.forward_handler import ForwardHandler

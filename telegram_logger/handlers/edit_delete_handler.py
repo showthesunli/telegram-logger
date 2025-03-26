@@ -1,6 +1,16 @@
 import logging
+import pickle
 from typing import List, Union
 from telethon import events
+from telethon.tl.types import (
+    DocumentAttributeAnimated,
+    DocumentAttributeSticker,
+    InputDocument
+)
+from telethon.tl.functions.messages import (
+    SaveGifRequest,
+    SaveRecentStickerRequest
+)
 from telegram_logger.handlers.base_handler import BaseHandler
 from telegram_logger.utils.mentions import create_mention
 from telegram_logger.utils.media import retrieve_media_as_file
@@ -10,7 +20,8 @@ from telegram_logger.config import (
     IGNORED_IDS,
     SAVE_EDITED_MESSAGES,
     DELETE_SENT_GIFS_FROM_SAVED,
-    DELETE_SENT_STICKERS_FROM_SAVED
+    DELETE_SENT_STICKERS_FROM_SAVED,
+    RATE_LIMIT_NUM_MESSAGES
 )
 
 logger = logging.getLogger(__name__)
@@ -41,14 +52,16 @@ class EditDeleteHandler(BaseHandler):
         return messages
 
     def _get_message_ids(self, event):
+        """Get message IDs from event"""
         if isinstance(event, events.MessageDeleted.Event):
-            return event.deleted_ids
+            return event.deleted_ids[:RATE_LIMIT_NUM_MESSAGES]
         return [event.message.id]
 
     def _should_process_message(self, message):
-        return not (message.from_id in IGNORED_IDS or 
+        """Check if message should be processed"""
+        return not (message.from_id in IGNORED_IDS or
                    message.chat_id in IGNORED_IDS or
-                   message.msg_type == 4)  # 4是bot消息类型
+                   message.msg_type == 4)  # 4 is bot message type
 
     async def _log_message(self, event, message):
         """记录删除/编辑的消息"""
