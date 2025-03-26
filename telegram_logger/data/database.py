@@ -26,15 +26,15 @@ class DatabaseManager:
         """Create database schema"""
         conn.execute("""
             CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER, 
-                from_id INTEGER, 
+                id INTEGER,
+                from_id INTEGER,
                 chat_id INTEGER,
-                type INTEGER, 
-                msg_text TEXT, 
-                media BLOB, 
-                noforwards INTEGER DEFAULT 0, 
-                self_destructing INTEGER DEFAULT 0, 
-                created_time TIMESTAMP, 
+                type INTEGER,
+                msg_text TEXT,
+                media BLOB,
+                noforwards INTEGER DEFAULT 0,
+                self_destructing INTEGER DEFAULT 0,
+                created_time TIMESTAMP,
                 edited_time TIMESTAMP,
                 PRIMARY KEY (chat_id, id, edited_time)
             )

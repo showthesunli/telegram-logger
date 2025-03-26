@@ -1,13 +1,12 @@
 import logging
 import pickle
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 from telethon import events
 from telegram_logger.handlers.base_handler import BaseHandler
 from telegram_logger.utils.mentions import create_mention
 from telegram_logger.data.models import Message
 from telegram_logger.utils.media import save_media_as_file, retrieve_media_as_file
-from telegram_logger.config import LOG_CHAT_ID
 
 logger = logging.getLogger(__name__)
 
