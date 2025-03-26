@@ -1,18 +1,28 @@
 import asyncio
 import logging
-from telegram_logger.config import (
-    API_ID,
-    API_HASH,
-    SESSION_NAME,
-    LOG_CHAT_ID,
-    FORWARD_USER_IDS,
-    FORWARD_GROUP_IDS,
-    IGNORED_IDS,
-    PERSIST_TIME_IN_DAYS_USER,
-    PERSIST_TIME_IN_DAYS_CHANNEL,
-    PERSIST_TIME_IN_DAYS_GROUP,
-    PERSIST_TIME_IN_DAYS_BOT
-)
+import os
+from dotenv import load_dotenv
+from typing import List, Dict
+
+# Load environment variables
+load_dotenv()
+
+# Configuration from environment variables
+API_ID = int(os.getenv('API_ID'))
+API_HASH = os.getenv('API_HASH')
+SESSION_NAME = os.getenv('SESSION_NAME', 'db/user')
+LOG_CHAT_ID = int(os.getenv('LOG_CHAT_ID', 0))
+
+# Parse comma-separated IDs into sets
+IGNORED_IDS = {int(x.strip()) for x in os.getenv('IGNORED_IDS', '-10000').split(',')}
+FORWARD_USER_IDS = [int(x.strip()) for x in os.getenv('FORWARD_USER_IDS', '').split(',') if x.strip()]
+FORWARD_GROUP_IDS = [int(x.strip()) for x in os.getenv('FORWARD_GROUP_IDS', '').split(',') if x.strip()]
+
+# Persistence times
+PERSIST_TIME_IN_DAYS_USER = int(os.getenv('PERSIST_TIME_IN_DAYS_USER', '1'))
+PERSIST_TIME_IN_DAYS_CHANNEL = int(os.getenv('PERSIST_TIME_IN_DAYS_CHANNEL', '1'))
+PERSIST_TIME_IN_DAYS_GROUP = int(os.getenv('PERSIST_TIME_IN_DAYS_GROUP', '1'))
+PERSIST_TIME_IN_DAYS_BOT = int(os.getenv('PERSIST_TIME_IN_DAYS_BOT', '1'))
 from telegram_logger.services.client import TelegramClientService
 from telegram_logger.services.cleanup import CleanupService
 from telegram_logger.handlers import (
