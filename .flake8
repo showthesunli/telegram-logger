@@ -11,6 +11,13 @@ ignore =
     W503,  # 运算符前换行(与black格式化冲突)
     F405,  # 可能未定义的变量
     B008,  # 函数调用默认参数使用可变对象
+    D100,  # 缺少模块文档字符串
+    D101,  # 缺少公共类文档字符串
+    D102,  # 缺少公共方法文档字符串
+    D103,  # 缺少公共函数文档字符串
+    D104,  # 缺少包文档字符串
+    E402,  # 模块级导入不在文件顶部
+    F403,  # 使用 'from module import *'
 
 # 排除检查的目录/文件
 exclude = 
@@ -36,12 +43,18 @@ exclude =
 
 # 每个文件的允许最大复杂度
 per-file-ignores = 
-    # 测试文件允许更高的复杂度
-    tests/*: C901
-    */tests/*: C901
+    # 测试文件允许更高的复杂度和特殊规则
+    tests/*: C901,D100,D101,D102,D103
+    */tests/*: C901,D100,D101,D102,D103
 
-# 允许的导入顺序
+# 导入顺序样式
 import-order-style = google
 
-# 允许的命名风格
+# 命名风格
 naming-style = snake_case
+
+# 引号样式
+inline-quotes = single
+multiline-quotes = single
+docstring-quotes = double
+avoid-escape = True
