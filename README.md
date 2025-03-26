@@ -27,10 +27,10 @@ git clone https://github.com/your-repo/telegram-logger.git
 cd telegram-logger
 ```
 
-2. 安装依赖
+2. 安装依赖 (使用 uv)
 
 ```bash
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 ```
 
 3. 配置环境变量
