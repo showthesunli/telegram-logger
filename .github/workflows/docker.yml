@@ -51,6 +51,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      # 设置 QEMU 用于多架构构建
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      # 设置 Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+            
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -82,7 +92,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64,linux/arm64  # 多架构支持
+          platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
