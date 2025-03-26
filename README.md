@@ -11,6 +11,30 @@
 - 🔒 数据库和文件加密存储
 - ⚙️ 高度可配置的消息处理规则
 
+## 前期准备
+
+### 获取 Telegram API 凭证
+
+1. 访问 [Telegram API 开发工具](https://my.telegram.org/apps)
+2. 登录你的 Telegram 账号
+3. 填写表单信息：
+   - App title：随意填写，如 `My Logger`
+   - Short name：随意填写，如 `mylogger`
+   - Platform：选择 `Desktop`
+   - Description：简单描述用途
+4. 提交后，你将获得：
+   - `api_id`：一串数字
+   - `api_hash`：一串字母数字组合
+5. 将这些值保存好，后续配置需要用到
+
+> **⚠️ 注意：** API 凭证关系账号安全，请勿分享给他人
+
+### 如何获取 ID
+
+用户、channel、group 的 ID 可以从 @username_to_id_test_bot 这个机器人获取
+
+> **⚠️ 注意：** 该机器人为第三方提供，不保证可用性。
+
 ## 快速开始
 
 ### 方式一：Docker Compose（推荐）
@@ -105,12 +129,13 @@ LOG_CHAT_ID=日志频道ID
 
 FILE_PASSWORD=文件加密密码
 IGNORED_IDS=-10000  # 忽略的聊天ID，逗号分隔
-FORWARD_USER_IDS=    # 要转发的用户ID，逗号分隔
+FORWARD_USER_IDS=    # 要转发的用户ID，channelID(俗称皮套)，逗号分隔
 FORWARD_GROUP_IDS=   # 要转发的群组ID，逗号分隔
 
-PERSIST_TIME_IN_DAYS_USER=7
-PERSIST_TIME_IN_DAYS_GROUP=30
-PERSIST_TIME_IN_DAYS_CHANNEL=30
+# 消息持久化时间（天）
+PERSIST_TIME_IN_DAYS_USER=1
+PERSIST_TIME_IN_DAYS_GROUP=1
+PERSIST_TIME_IN_DAYS_CHANNEL=1
 ```
 
 ### 运行程序
@@ -131,17 +156,6 @@ python main.py
 
 - `MAX_IN_MEMORY_FILE_SIZE=5242880` 内存中处理的最大文件大小(5MB)
 - `FILE_PASSWORD` 用于加密存储的媒体文件
-
-## 常见问题
-
-**Q: 如何获取 LOG_CHAT_ID?**  
-A: 转发一条消息到 @username_to_id_bot 获取频道 ID
-
-**Q: 为什么收不到转发消息?**  
-检查:
-
-1. 机器人是否有发送消息权限
-2. 目标频道是否已添加机器人为管理员
 
 ## 开发指南
 
@@ -203,3 +217,4 @@ networks:
 ## 许可证
 
 MIT License
+
