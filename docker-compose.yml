@@ -5,8 +5,10 @@ services:
     image: ghcr.io/showthesunli/telegram-logger:latest
     container_name: telegram-logger
     restart: unless-stopped
+    stdin_open: true # 保持标准输入开启以允许交互
+    tty: true        # 分配一个伪终端
     volumes:
-      - ./files/db:/app/db:rw # 数据库目录
+      - ./files/db:/app/db:rw # 数据库目录 (包含 session 文件)
       - ./files/media:/app/media:rw # 媒体文件目录
       - ./files/log:/app/log:rw # 日志目录
       - .env:/app/.env:ro # 环境变量配置文件（只读）

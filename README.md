@@ -52,7 +52,7 @@ cd telegram-logger
 cp .env.example .env
 ```
 
-编辑 `.env` 文件，填入必要的配置信息（参见[配置文件说明](#配置文件说明)）。
+编辑 `.env` 文件，填入必要的配置信息（参见[配置文件说明](#配置文件说明)）。**确保 `SESSION_NAME` 指向 `db/` 目录下的某个文件，例如 `db/user`**，这样会话文件会保存在挂载的卷中。
 
 3. 创建必要的目录结构
 
@@ -60,19 +60,43 @@ cp .env.example .env
 mkdir -p files/{db,media,log}
 ```
 
-4. 启动服务
+4. **首次启动与登录**
 
-```bash
-# 拉取最新镜像并启动
-docker compose pull
-docker compose up -d
+   首次运行需要进行交互式登录以授权 Telegram 客户端：
 
-# 查看日志
-docker compose logs -f
+   ```bash
+   # 拉取最新镜像
+   docker compose pull
 
-# 停止服务
-docker compose down
-```
+   # 在前台启动服务以进行登录
+   docker compose up
+   ```
+
+   终端会显示 Telethon 的登录提示。按照指示输入你的 **手机号码** (国际格式，例如 `+8612345678900`) 和 Telegram 发送给你的 **验证码**。
+
+   登录成功后，会话文件（例如 `files/db/user.session`）会被创建。你可以按 `Ctrl+C` 停止当前运行的服务。
+
+5. **正常启动服务**
+
+   完成首次登录后，你可以使用以下命令在后台启动服务：
+
+   ```bash
+   docker compose up -d
+   ```
+
+6. **其他常用命令**
+
+   ```bash
+   # 查看日志
+   docker compose logs -f
+
+   # 停止服务
+   docker compose down
+
+   # 更新镜像并重启
+   docker compose pull
+   docker compose up -d --force-recreate
+   ```
 
 ### 方式二：本地安装
 
@@ -126,6 +150,7 @@ cp .env.example .env
 API_ID=你的API_ID
 API_HASH=你的API_HASH
 LOG_CHAT_ID=日志频道ID
+SESSION_NAME=db/user # 会话文件路径，确保在 db 目录下
 
 FILE_PASSWORD=文件加密密码
 IGNORED_IDS=-10000  # 忽略的聊天ID，逗号分隔
@@ -144,6 +169,8 @@ PERSIST_TIME_IN_DAYS_CHANNEL=1
 ```bash
 python main.py
 ```
+
+首次运行时，程序会在终端提示输入手机号和验证码。
 
 ## 高级配置
 
@@ -176,7 +203,7 @@ telegram_logger/
 
 ```
 files/
-├── db/          # 数据库文件
+├── db/          # 数据库文件和 session 文件
 ├── media/       # 媒体文件存储
 └── log/         # 日志文件
 ```
@@ -185,7 +212,7 @@ files/
 
 Docker 配置中已设置以下目录映射：
 
-- `files/db`: 存储数据库文件
+- `files/db`: 存储数据库文件 (`messages.db`) 和 Telegram 会话文件 (例如 `user.session`)
 - `files/media`: 存储下载的媒体文件
 - `files/log`: 存储日志文件
 
@@ -199,10 +226,12 @@ services:
     image: ghcr.io/showthesunli/telegram-logger:latest
     container_name: telegram-logger
     restart: unless-stopped
+    stdin_open: true # 允许交互式登录
+    tty: true        # 分配伪终端
     env_file:
-      - .env
+      - .env # 从 .env 文件加载环境变量
     environment:
-      - TZ=Asia/Shanghai
+      - TZ=Asia/Shanghai # 设置容器时区
     volumes:
       - ./files/db:/app/db:rw
       - ./files/media:/app/media:rw
