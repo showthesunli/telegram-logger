@@ -50,15 +50,31 @@ class ForwardHandler(BaseHandler):
             return None
 
         try:
+            # 获取发送者实体信息
+            sender_entity = None
+            sender_name = ""
+            try:
+                sender_entity = await self.client.get_entity(from_id)
+                if sender_entity:
+                    sender_name = f"{sender_entity.first_name or ''}"
+                    if sender_entity.last_name:
+                        sender_name += f" {sender_entity.last_name}"
+                    sender_name = sender_name.strip()
+            except Exception as e:
+                logger.warning(f"获取发送者实体信息失败 (ID: {from_id}): {e}")
+
             # 创建消息内容
             mention_sender = await create_mention(self.client, from_id)
             mention_chat = await create_mention(self.client, event.chat_id, event.message.id)
 
+            # 组合显示姓名和用户名
+            sender_display = f"{sender_name} ({mention_sender})" if sender_name else mention_sender
+
             # 根据来源构建不同的消息前缀
             if is_target_user:
-                text = f"**📨转发用户消息来自: **{mention_sender}\n"
+                text = f"**📨转发用户消息来自: **{sender_display}\n"
             else:
-                text = f"**📨转发群组消息来自: **{mention_sender}\n"
+                text = f"**📨转发群组消息来自: **{sender_display}\n"
 
             text += f"在 {mention_chat}\n"
 
@@ -123,13 +139,6 @@ class ForwardHandler(BaseHandler):
                 # 发送带有错误信息的文本消息到日志频道
                 await self.client.send_message(self.log_chat_id, text + f"\n\n⚠️ 处理媒体时出错: {e}")
             finally:
-                # 可选：如果需要，可以在这里添加清理逻辑，例如删除临时的加密文件
-                # if file_path and os.path.exists(file_path):
-                #     try:
-                #         os.remove(file_path)
-                #         logger.info(f"已删除临时加密文件: {file_path}")
-                #     except OSError as e:
-                #         logger.error(f"删除临时文件失败 {file_path}: {e}")
                 pass # 暂时不加删除逻辑
 
         else:
