@@ -80,6 +80,10 @@ IGNORED_IDS = {int(x.strip()) for x in os.getenv('IGNORED_IDS', '-10000').split(
 FORWARD_USER_IDS = [int(x.strip()) for x in os.getenv('FORWARD_USER_IDS', '').split(',') if x.strip()]
 FORWARD_GROUP_IDS = [int(x.strip()) for x in os.getenv('FORWARD_GROUP_IDS', '').split(',') if x.strip()]
 
+# Read Markdown format setting
+FORWARDER_USE_MARKDOWN = os.getenv('FORWARDER_USE_MARKDOWN', 'False').lower() == 'true'
+logger.info(f"Forwarder Markdown format setting from env: {FORWARDER_USE_MARKDOWN}")
+
 # Persistence times
 PERSIST_TIME_IN_DAYS_USER = int(os.getenv('PERSIST_TIME_IN_DAYS_USER', '1'))
 PERSIST_TIME_IN_DAYS_CHANNEL = int(os.getenv('PERSIST_TIME_IN_DAYS_CHANNEL', '1'))
@@ -131,7 +135,8 @@ async def main():
             log_chat_id=LOG_CHAT_ID,
             ignored_ids=IGNORED_IDS,
             forward_user_ids=FORWARD_USER_IDS,
-            forward_group_ids=FORWARD_GROUP_IDS
+            forward_group_ids=FORWARD_GROUP_IDS,
+            use_markdown_format=FORWARDER_USE_MARKDOWN
         )
     ]
     

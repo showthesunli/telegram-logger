@@ -13,12 +13,14 @@ from telegram_logger.utils.media import save_media_as_file, retrieve_media_as_fi
 logger = logging.getLogger(__name__)
 
 class ForwardHandler(BaseHandler):
-    def __init__(self, client, db, log_chat_id, ignored_ids, forward_user_ids=None, forward_group_ids=None):
+    def __init__(self, client, db, log_chat_id, ignored_ids, forward_user_ids=None, forward_group_ids=None, use_markdown_format: bool = False):
         super().__init__(client, db, log_chat_id, ignored_ids)
         self.forward_user_ids = forward_user_ids or []
         self.forward_group_ids = forward_group_ids or []
+        self.use_markdown_format = use_markdown_format
         logger.info(f"ForwardHandler initialized with forward_user_ids: {self.forward_user_ids}")
         logger.info(f"ForwardHandler initialized with forward_group_ids: {self.forward_group_ids}")
+        logger.info(f"ForwardHandler Markdown format enabled: {self.use_markdown_format}")
 
     async def handle_new_message(self, event):
         """处理新消息事件，这个方法名与client.py中的注册方法匹配"""
@@ -67,7 +69,10 @@ class ForwardHandler(BaseHandler):
             if event.message.media:
                 await self._handle_media_message(event.message, text)
             else:
-                await self.client.send_message(self.log_chat_id, text)
+                final_text = text
+                if self.use_markdown_format:
+                    final_text = f"```markdown\n{text}\n```"
+                await self.client.send_message(self.log_chat_id, final_text)
 
             message = await self._create_message_object(event)
             await self.save_message(message)
