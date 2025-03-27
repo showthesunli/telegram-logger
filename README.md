@@ -131,6 +131,7 @@ FILE_PASSWORD=文件加密密码
 IGNORED_IDS=-10000  # 忽略的聊天ID，逗号分隔
 FORWARD_USER_IDS=    # 要转发的用户ID，channelID(俗称皮套)，逗号分隔
 FORWARD_GROUP_IDS=   # 要转发的群组ID，逗号分隔
+FORWARDER_USE_MARKDOWN=False # 是否对转发的消息使用 Markdown 代码块格式 (True/False)
 
 # 消息持久化时间（天）
 PERSIST_TIME_IN_DAYS_USER=1
