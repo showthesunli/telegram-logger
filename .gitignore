@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 
 # Project files
+log/
 db/
 media/
 config.py
