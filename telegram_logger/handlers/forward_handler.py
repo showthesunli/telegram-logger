@@ -269,20 +269,38 @@ class ForwardHandler(BaseHandler):
 
                 if is_sticker:
                     # 对于贴纸，先发送文本信息，再单独发送贴纸
+                    logger.debug(f"处理贴纸消息. use_markdown_format: {self.use_markdown_format}")
+                    logger.debug(f"传入的 text_content (可能已转换链接): {text_content[:200]}...") # Log beginning of text
 
                     # 1. 发送文本信息
+                    text_sent_successfully = False # 标记文本是否成功发送
                     try:
+                        # 根据 use_markdown_format 决定是否包裹文本
+                        text_for_sticker_info = text_content # Start with the original content
+                        if self.use_markdown_format:
+                            text_for_sticker_info = f"```markdown\n{text_content}\n```"
+                        
+                        logger.debug(f"准备发送的贴纸文本信息 (text_for_sticker_info): {text_for_sticker_info[:200]}...")
+
                         # 始终使用 Markdown 解析模式发送文本
-                        await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md')
-                        logger.info(f"已发送贴纸的文本信息到日志频道. Markdown包裹: {self.use_markdown_format}")
+                        logger.info("尝试发送贴纸的文本信息...")
+                        await self.client.send_message(self.log_chat_id, text_for_sticker_info, parse_mode='md')
+                        logger.info(f"成功发送贴纸的文本信息到日志频道. Markdown包裹: {self.use_markdown_format}")
+                        text_sent_successfully = True # 标记成功
                     except errors.MessageTooLongError:
                         logger.warning("贴纸的文本信息过长，尝试发送截断版本。")
                         try:
                             # 尝试发送截断后的文本
-                            truncated_text = f"{text_content[:4000]}...\n[Original message too long]"
+                            # 注意：需要重新应用 markdown 包裹（如果需要）
+                            truncated_original_text = f"{text_content[:4000]}...\n[Original message too long]"
+                            truncated_text_to_send = truncated_original_text
                             if self.use_markdown_format:
-                                truncated_text = f"```markdown\n{truncated_text}\n```"
-                            await self.client.send_message(self.log_chat_id, truncated_text, parse_mode='md')
+                                truncated_text_to_send = f"```markdown\n{truncated_original_text}\n```"
+                            
+                            logger.info("尝试发送截断的贴纸文本信息...")
+                            await self.client.send_message(self.log_chat_id, truncated_text_to_send, parse_mode='md')
+                            logger.info("成功发送截断的贴纸文本信息。")
+                            text_sent_successfully = True # 标记成功（即使是截断的）
                         except Exception as e_trunc:
                             logger.error(f"发送截断的贴纸文本信息失败: {e_trunc}")
                             # 发送一个简单的错误提示
@@ -293,13 +311,19 @@ class ForwardHandler(BaseHandler):
                         await self.client.send_message(self.log_chat_id, f"⚠️ Error sending text part for sticker: {type(e_text).__name__}", parse_mode='md')
 
                     # 2. 单独发送贴纸文件 (无标题)
-                    try:
-                        await self.client.send_file(self.log_chat_id, message.media)
-                        logger.info("已单独发送贴纸文件到日志频道.")
-                    except Exception as e_sticker:
-                        logger.error(f"发送贴纸文件时出错: {e_sticker}", exc_info=True)
-                        # 发送错误通知
-                        await self.client.send_message(self.log_chat_id, f"⚠️ Error sending sticker file: {type(e_sticker).__name__}", parse_mode='md')
+                    # 仅在文本信息发送成功（或尝试发送但失败有记录）后发送贴纸，确保不会只有贴纸
+                    if text_sent_successfully:
+                        try:
+                            logger.info("尝试发送贴纸文件...")
+                            await self.client.send_file(self.log_chat_id, message.media)
+                            logger.info("成功发送贴纸文件到日志频道.")
+                        except Exception as e_sticker:
+                            logger.error(f"发送贴纸文件时出错: {e_sticker}", exc_info=True)
+                            # 发送错误通知
+                            await self.client.send_message(self.log_chat_id, f"⚠️ Error sending sticker file: {type(e_sticker).__name__}", parse_mode='md')
+                    else:
+                         logger.warning("由于贴纸的文本信息未能成功发送，跳过发送贴纸文件，以避免孤立的贴纸。")
+
 
                 else:
                     # 对于非贴纸的普通媒体，保持原有逻辑：文本和媒体一起发送
