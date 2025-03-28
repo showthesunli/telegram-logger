@@ -48,7 +48,7 @@ class ForwardHandler(BaseHandler):
         logger.info(f"处理消息 - 用户ID: {from_id}, 聊天ID: {chat_id}, 是目标用户: {is_target_user}, 是目标群组: {is_target_group}")
 
         if not (is_target_user or is_target_group):
-            logger.debug(f"消息不是来自目标用户或群组，跳过")
+            logger.debug("消息不是来自目标用户或群组，跳过")
             return None
 
         try:
