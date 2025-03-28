@@ -261,14 +261,14 @@ class ForwardHandler(BaseHandler):
                     is_sticker = any(isinstance(attr, DocumentAttributeSticker) for attr in message.media.attributes)
 
                 if is_sticker:
-                    final_text_to_send = text_content # 使用传入的（可能已转换链接的）文本
-                    if self.use_markdown_format:
-                        final_text_to_send = f"```markdown\n{text_content}\n```"
-                    
+                    # 对于贴纸，始终使用原始文本（可能包含链接转换后的内容）作为标题
+                    # 不再根据 use_markdown_format 进行 Markdown 代码块包裹
+                    final_text_to_send = text_content 
+
                     # 将文本信息作为标题与贴纸一起发送
-                    # 始终使用 Markdown 解析模式，以便 ```markdown ... ``` 生效
+                    # 仍然使用 Markdown 解析模式，以支持标题中可能存在的链接（如提及）
                     await self.client.send_file(self.log_chat_id, message.media, caption=final_text_to_send, parse_mode='md')
-                    logger.info(f"已发送贴纸及其文本信息到日志频道. Markdown包裹: {self.use_markdown_format}")
+                    logger.info(f"已发送贴纸及其文本信息到日志频道. (Markdown包裹已禁用)")
 
                 else:
                     # 对于非贴纸的普通媒体，保持原有逻辑：文本和媒体一起发送
