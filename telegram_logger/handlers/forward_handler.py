@@ -261,18 +261,14 @@ class ForwardHandler(BaseHandler):
                     is_sticker = any(isinstance(attr, DocumentAttributeSticker) for attr in message.media.attributes)
 
                 if is_sticker:
-                    # 对于贴纸，先发送贴纸本身
-                    await self.client.send_file(self.log_chat_id, message.media)
-                    logger.info(f"已发送贴纸到日志频道.")
-
-                    # 然后单独发送文本信息
                     final_text_to_send = text_content # 使用传入的（可能已转换链接的）文本
                     if self.use_markdown_format:
                         final_text_to_send = f"```markdown\n{text_content}\n```"
-
-                    # 始终使用 Markdown 解析模式发送文本
-                    await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md')
-                    logger.info(f"已发送贴纸的文本信息到日志频道. Markdown包裹: {self.use_markdown_format}")
+                    
+                    # 将文本信息作为标题与贴纸一起发送
+                    # 始终使用 Markdown 解析模式，以便 ```markdown ... ``` 生效
+                    await self.client.send_file(self.log_chat_id, message.media, caption=final_text_to_send, parse_mode='md')
+                    logger.info(f"已发送贴纸及其文本信息到日志频道. Markdown包裹: {self.use_markdown_format}")
 
                 else:
                     # 对于非贴纸的普通媒体，保持原有逻辑：文本和媒体一起发送
