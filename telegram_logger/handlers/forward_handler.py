@@ -1,6 +1,7 @@
 import logging
 import pickle
 import os # 导入 os 模块以备将来可能的清理操作
+import re # 导入 re 模块用于链接转换
 from datetime import datetime
 from typing import Optional, Union, List, Dict, Any
 from telethon import events, errors
@@ -129,19 +130,35 @@ class ForwardHandler(BaseHandler):
             text += "\n===================="
             # --- 结构化纯文本构建结束 ---
 
+            # --- 如果 use_markdown_format 为 True，转换链接格式 ---
+            original_text_for_markdown = text # 保留一份原始文本用于可能的 Markdown 包裹
+            if self.use_markdown_format:
+                try:
+                    # 正则表达式查找 Markdown 链接 [text](url) 并替换为 text (url)
+                    # 应用于将要被包裹在 ```markdown ... ``` 中的文本
+                    original_text_for_markdown = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'\1 (\2)', original_text_for_markdown)
+                    logger.debug("已将 Markdown 链接转换为纯文本格式，用于 Markdown 代码块")
+                except Exception as re_err:
+                    logger.warning(f"转换 Markdown 链接时出错: {re_err}")
+            # --- 链接转换结束 ---
+
 
             # 处理发送逻辑
             if event.message.media:
                 # 对于有媒体的消息，调用 _handle_media_message
                 # 它将根据 use_markdown_format 决定是否包裹文本
-                await self._handle_media_message(event.message, text)
+                # 传递转换过链接格式的文本（如果 use_markdown_format 为 True）
+                text_to_send_with_media = original_text_for_markdown if self.use_markdown_format else text
+                await self._handle_media_message(event.message, text_to_send_with_media)
             else:
                 # 对于纯文本消息
-                final_text_to_send = text
+                final_text_to_send = text # 默认使用原始文本
                 if self.use_markdown_format:
-                    # 仅当标记为 True 时，包裹纯文本消息
-                    final_text_to_send = f"```markdown\n{text}\n```"
+                    # 仅当标记为 True 时，包裹转换过链接格式的文本
+                    final_text_to_send = f"```markdown\n{original_text_for_markdown}\n```"
                 
+                # 如果 use_markdown_format 为 True，parse_mode 必须为 None
+                # 如果 use_markdown_format 为 False，我们仍然使用原始文本中的 Markdown (parse_mode='md')
                 await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md' if not self.use_markdown_format else None)
                 logger.info(f"成功发送纯文本转发消息到日志频道. Markdown包裹: {self.use_markdown_format}")
 
@@ -162,9 +179,10 @@ class ForwardHandler(BaseHandler):
                 logger.error(f"发送错误通知到日志频道失败: {send_err}")
             return None
 
-    async def _handle_media_message(self, message: TelethonMessage, text: str):
+    async def _handle_media_message(self, message: TelethonMessage, text_content: str):
         """
         处理包含媒体的消息。
+        接收已经根据 use_markdown_format 可能转换过链接的 text_content。
         根据 self.use_markdown_format 决定是否包裹文本。
         """
         noforwards = False
@@ -177,7 +195,8 @@ class ForwardHandler(BaseHandler):
         except AttributeError:
             pass # noforwards 保持 False
 
-        final_text_to_send = text # 从传入的结构化文本开始
+        # text_content 已经是转换过链接（如果需要）的文本
+        final_text_to_send = text_content # 从传入的文本开始
 
         if noforwards:
             try:
@@ -195,14 +214,16 @@ class ForwardHandler(BaseHandler):
 
                             # 根据 use_markdown_format 决定是否包裹文本
                             if self.use_markdown_format:
-                                final_text_to_send = f"```markdown\n{text}\n```"
+                                final_text_to_send = f"```markdown\n{text_content}\n```" # 包裹传入的（可能已转换链接的）文本
 
+                            # 发送时，如果 use_markdown_format 为 True，parse_mode 必须为 None
                             await self.client.send_message(self.log_chat_id, final_text_to_send, file=media_file, parse_mode='md' if not self.use_markdown_format else None)
                             logger.info(f"成功发送带受限媒体的消息到日志频道. Markdown包裹: {self.use_markdown_format}")
                         else:
                             logger.warning(f"无法检索或解密媒体文件: {file_path}")
                             error_note = "\n  Error: Failed to retrieve/decrypt media file.\n"
-                            final_text_to_send = text + error_note + "\n====================" # 在原始文本末尾追加错误
+                            # 在原始（可能已转换链接的）文本末尾追加错误
+                            final_text_to_send = text_content + error_note + "\n===================="
 
                             if self.use_markdown_format:
                                 final_text_to_send = f"```markdown\n{final_text_to_send}\n```" # 包裹含错误的文本
@@ -211,7 +232,7 @@ class ForwardHandler(BaseHandler):
                 else:
                     logger.warning("save_media_as_file 未能成功保存受限文件，仅发送文本")
                     error_note = "\n  Error: Failed to save restricted media file.\n"
-                    final_text_to_send = text + error_note + "\n===================="
+                    final_text_to_send = text_content + error_note + "\n===================="
 
                     if self.use_markdown_format:
                         final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
@@ -221,7 +242,7 @@ class ForwardHandler(BaseHandler):
             except Exception as e:
                 logger.error(f"处理受保护媒体时出错: {e}", exc_info=True)
                 error_note = f"\n  Error: Exception during restricted media handling - {type(e).__name__}: {e}\n"
-                final_text_to_send = text + error_note + "\n===================="
+                final_text_to_send = text_content + error_note + "\n===================="
 
                 if self.use_markdown_format:
                     final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
@@ -241,8 +262,9 @@ class ForwardHandler(BaseHandler):
             try:
                 # 根据 use_markdown_format 决定是否包裹文本
                 if self.use_markdown_format:
-                    final_text_to_send = f"```markdown\n{text}\n```"
+                    final_text_to_send = f"```markdown\n{text_content}\n```" # 包裹传入的（可能已转换链接的）文本
 
+                # 发送时，如果 use_markdown_format 为 True，parse_mode 必须为 None
                 await self.client.send_message(self.log_chat_id, final_text_to_send, file=message.media, parse_mode='md' if not self.use_markdown_format else None)
                 logger.info(f"成功发送带非受保护媒体的消息到日志频道. Markdown包裹: {self.use_markdown_format}")
             except errors.MediaCaptionTooLongError:
@@ -252,7 +274,7 @@ class ForwardHandler(BaseHandler):
                      await self.client.send_message(self.log_chat_id, file=message.media)
                      # 单独发送文本（可能截断或修改）
                      caption_warning = "\n  Warning: Original caption was too long and might be truncated or omitted.\n"
-                     final_text_to_send = text + caption_warning + "\n===================="
+                     final_text_to_send = text_content + caption_warning + "\n===================="
                      if self.use_markdown_format:
                          final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
                      await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md' if not self.use_markdown_format else None)
@@ -260,7 +282,7 @@ class ForwardHandler(BaseHandler):
                  except Exception as e_fallback:
                      logger.error(f"发送非受保护媒体（无标题回退）时出错: {e_fallback}", exc_info=True)
                      error_note = f"\n  Error: Exception during non-restricted media fallback - {type(e_fallback).__name__}: {e_fallback}\n"
-                     final_text_to_send = text + error_note + "\n===================="
+                     final_text_to_send = text_content + error_note + "\n===================="
                      if self.use_markdown_format:
                          final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
                      await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md' if not self.use_markdown_format else None)
@@ -268,7 +290,7 @@ class ForwardHandler(BaseHandler):
             except Exception as e:
                 logger.error(f"发送非受保护媒体时出错: {e}", exc_info=True)
                 error_note = f"\n  Error: Exception during non-restricted media handling - {type(e).__name__}: {e}\n"
-                final_text_to_send = text + error_note + "\n===================="
+                final_text_to_send = text_content + error_note + "\n===================="
 
                 if self.use_markdown_format:
                     final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
