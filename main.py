@@ -60,7 +60,7 @@ def check_env_variables():
 
 # 加载环境变量
 load_dotenv()
-print(f"DEBUG: Raw FORWARD_GROUP_IDS from os.getenv after load_dotenv: {os.getenv('FORWARD_GROUP_IDS')}")
+logger.debug(f"Raw FORWARD_GROUP_IDS from os.getenv after load_dotenv: {os.getenv('FORWARD_GROUP_IDS')}")
 
 # 检查环境变量
 check_env_variables()
@@ -80,14 +80,14 @@ except ValueError as e:
 IGNORED_IDS = {int(x.strip()) for x in os.getenv('IGNORED_IDS', '-10000').split(',')}
 
 raw_forward_user_ids = os.getenv('FORWARD_USER_IDS', '')
-print(f"DEBUG: Raw FORWARD_USER_IDS before parsing: {raw_forward_user_ids}")
+logger.debug(f"Raw FORWARD_USER_IDS before parsing: {raw_forward_user_ids}")
 FORWARD_USER_IDS = [int(x.strip()) for x in raw_forward_user_ids.split(',') if x.strip()]
-print(f"DEBUG: Parsed FORWARD_USER_IDS: {FORWARD_USER_IDS}")
+logger.debug(f"Parsed FORWARD_USER_IDS: {FORWARD_USER_IDS}")
 
 raw_forward_group_ids = os.getenv('FORWARD_GROUP_IDS', '')
-print(f"DEBUG: Raw FORWARD_GROUP_IDS before parsing: {raw_forward_group_ids}")
+logger.debug(f"Raw FORWARD_GROUP_IDS before parsing: {raw_forward_group_ids}")
 FORWARD_GROUP_IDS = [int(x.strip()) for x in raw_forward_group_ids.split(',') if x.strip()]
-print(f"DEBUG: Parsed FORWARD_GROUP_IDS: {FORWARD_GROUP_IDS}")
+logger.debug(f"Parsed FORWARD_GROUP_IDS: {FORWARD_GROUP_IDS}")
 
 # Read Markdown format setting
 FORWARDER_USE_MARKDOWN = os.getenv('FORWARDER_USE_MARKDOWN', 'False').lower() == 'true'
