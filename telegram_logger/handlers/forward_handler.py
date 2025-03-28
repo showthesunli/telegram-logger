@@ -257,8 +257,15 @@ class ForwardHandler(BaseHandler):
             try:
                 # 检查是否是贴纸
                 is_sticker = False
+                media_attributes = None # 用于日志记录
                 if hasattr(message.media, 'attributes'):
-                    is_sticker = any(isinstance(attr, DocumentAttributeSticker) for attr in message.media.attributes)
+                    media_attributes = message.media.attributes # 获取属性列表
+                    is_sticker = any(isinstance(attr, DocumentAttributeSticker) for attr in media_attributes)
+
+                # 添加详细日志
+                logger.debug(f"媒体类型检查: is_sticker = {is_sticker}")
+                logger.debug(f"媒体对象: {message.media}")
+                logger.debug(f"媒体属性: {media_attributes}")
 
                 if is_sticker:
                     # 对于贴纸，先发送文本信息，再单独发送贴纸
