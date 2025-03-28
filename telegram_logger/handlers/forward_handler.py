@@ -257,15 +257,22 @@ class ForwardHandler(BaseHandler):
             try:
                 # 检查是否是贴纸
                 is_sticker = False
-                media_attributes = None # 用于日志记录
-                if hasattr(message.media, 'attributes'):
-                    media_attributes = message.media.attributes # 获取属性列表
-                    is_sticker = any(isinstance(attr, DocumentAttributeSticker) for attr in media_attributes)
+                doc_attributes_for_log = None # 用于记录实际检查的属性
+                media_obj_for_log = message.media # 用于记录原始媒体对象
+
+                # 导入 MessageMediaDocument (如果尚未导入)
+                from telethon.tl.types import MessageMediaDocument
+
+                if isinstance(message.media, MessageMediaDocument):
+                    doc = getattr(message.media, 'document', None)
+                    if doc and hasattr(doc, 'attributes'):
+                        doc_attributes_for_log = doc.attributes # 获取文档的属性列表
+                        is_sticker = any(isinstance(attr, DocumentAttributeSticker) for attr in doc.attributes)
 
                 # 添加详细日志
                 logger.debug(f"媒体类型检查: is_sticker = {is_sticker}")
-                logger.debug(f"媒体对象: {message.media}")
-                logger.debug(f"媒体属性: {media_attributes}")
+                logger.debug(f"媒体对象: {media_obj_for_log}")
+                logger.debug(f"检查的文档属性: {doc_attributes_for_log}") # 记录实际检查的属性
 
                 if is_sticker:
                     # 对于贴纸，先发送文本信息，再单独发送贴纸
