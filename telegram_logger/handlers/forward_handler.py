@@ -52,28 +52,10 @@ class ForwardHandler(BaseHandler):
             return None
 
         try:
-            # 获取发送者实体信息
-            sender_entity = None
-            sender_name = ""
-            try:
-                sender_entity = await self.client.get_entity(from_id)
-                if sender_entity:
-                    sender_name = f"{sender_entity.first_name or ''}"
-                    if sender_entity.last_name:
-                        sender_name += f" {sender_entity.last_name}"
-                    sender_name = sender_name.strip()
-            except (errors.UsernameInvalidError, errors.ChannelPrivateError, ValueError, TypeError) as e:
-                logger.warning(f"获取发送者实体信息失败 (ID: {from_id}): {e}")
-            except Exception as e:
-                logger.error(f"获取发送者实体信息时发生意外错误 (ID: {from_id}): {e}", exc_info=True)
-
-
-            # 创建提及链接 (即使获取实体失败，也尝试创建基于 ID 的链接)
+            # 创建提及链接
+            # create_mention should ideally return a formatted string like "[Name](link)" or "[ID](link)"
             mention_sender = await create_mention(self.client, from_id)
             mention_chat = await create_mention(self.client, event.chat_id, event.message.id)
-
-            # 组合显示姓名和用户名
-            sender_display = f"{sender_name} ({mention_sender})" if sender_name else mention_sender
 
             # 获取时间戳
             timestamp = event.message.date.strftime('%Y-%m-%d %H:%M:%S UTC') # 使用UTC以保持一致
@@ -84,7 +66,8 @@ class ForwardHandler(BaseHandler):
 
             source_label = "USER" if is_target_user else "GROUP/CHANNEL"
             text += f"TYPE: {source_label}\n"
-            text += f"FROM: {sender_display}\n"
+            # Use mention_sender directly, assuming it contains the best representation (Name+Link or ID+Link)
+            text += f"FROM: {mention_sender}\n"
             text += f"CHAT: {mention_chat}\n"
             text += f"TIME: {timestamp}\n\n"
             text += "--------------------\n"
