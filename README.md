@@ -60,28 +60,42 @@ cp .env.example .env
 mkdir -p files/{db,media,log}
 ```
 
-4. **首次启动与登录**
+4. **首次启动与交互式登录**
 
-   首次运行需要进行交互式登录以授权 Telegram 客户端：
+   **重要提示:** 首次运行或会话文件 (`.session`) 失效时，需要进行**交互式登录**以授权 Telegram 客户端。`docker compose up` 命令**不适用于**此交互过程。你需要使用 `docker compose run` 来完成首次登录。
+
+   a. **拉取最新镜像:**
+      ```bash
+      docker compose pull
+      ```
+
+   b. **(可选) 清理旧会话:** 如果你不确定之前的会话状态，可以先删除旧的 `.session` 文件 (例如 `files/db/user.session`)，以确保进行全新的登录流程。
+      ```bash
+      # 示例：删除名为 user 的会话文件
+      rm ./files/db/user.session
+      ```
+
+   c. **执行交互式登录:** 使用 `docker compose run` 启动一个临时容器，并将你的终端连接到它，以便输入登录信息。
+      ```bash
+      docker compose run --rm telegram-logger
+      ```
+      *   `--rm` 参数表示容器在退出后会自动删除。
+      *   执行此命令后，终端会显示 Telethon 的登录提示。按照指示输入你的 **手机号码** (国际格式，例如 `+8612345678900`)、Telegram 发送给你的 **验证码**，以及可能的**两步验证密码**。
+
+   d. **验证会话文件:** 登录成功后，检查你的本地 `./files/db/` 目录下是否已生成或更新了 `.session` 文件 (文件名基于你的 `SESSION_NAME` 配置，例如 `user.session`)。
+
+5. **正常启动服务 (非首次)**
+
+   完成首次交互式登录并生成 `.session` 文件后，你可以使用标准的 `docker compose up` 命令来启动服务。服务将使用已保存的会话文件自动登录。
 
    ```bash
-   # 拉取最新镜像
-   docker compose pull
-
-   # 在前台启动服务以进行登录
-   docker compose up
-   ```
-
-   终端会显示 Telethon 的登录提示。按照指示输入你的 **手机号码** (国际格式，例如 `+8612345678900`) 和 Telegram 发送给你的 **验证码**。
-
-   登录成功后，会话文件（例如 `files/db/user.session`）会被创建。你可以按 `Ctrl+C` 停止当前运行的服务。
-
-5. **正常启动服务**
-
-   完成首次登录后，你可以使用以下命令在后台启动服务：
-
-   ```bash
+   # 在后台启动服务
    docker compose up -d
+   ```
+   或者
+   ```bash
+   # 在前台启动服务并查看日志
+   docker compose up
    ```
 
 6. **其他常用命令**
