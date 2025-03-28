@@ -157,9 +157,8 @@ class ForwardHandler(BaseHandler):
                     # 仅当标记为 True 时，包裹转换过链接格式的文本
                     final_text_to_send = f"```markdown\n{original_text_for_markdown}\n```"
                 
-                # 如果 use_markdown_format 为 True，parse_mode 必须为 None
-                # 如果 use_markdown_format 为 False，我们仍然使用原始文本中的 Markdown (parse_mode='md')
-                await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md' if not self.use_markdown_format else None)
+                # 始终使用 Markdown 解析模式，以便 Telegram 能识别 ```markdown ... ``` 块
+                await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md')
                 logger.info(f"成功发送纯文本转发消息到日志频道. Markdown包裹: {self.use_markdown_format}")
 
 
@@ -216,8 +215,8 @@ class ForwardHandler(BaseHandler):
                             if self.use_markdown_format:
                                 final_text_to_send = f"```markdown\n{text_content}\n```" # 包裹传入的（可能已转换链接的）文本
 
-                            # 发送时，如果 use_markdown_format 为 True，parse_mode 必须为 None
-                            await self.client.send_message(self.log_chat_id, final_text_to_send, file=media_file, parse_mode='md' if not self.use_markdown_format else None)
+                            # 始终使用 Markdown 解析模式
+                            await self.client.send_message(self.log_chat_id, final_text_to_send, file=media_file, parse_mode='md')
                             logger.info(f"成功发送带受限媒体的消息到日志频道. Markdown包裹: {self.use_markdown_format}")
                         else:
                             logger.warning(f"无法检索或解密媒体文件: {file_path}")
@@ -228,7 +227,8 @@ class ForwardHandler(BaseHandler):
                             if self.use_markdown_format:
                                 final_text_to_send = f"```markdown\n{final_text_to_send}\n```" # 包裹含错误的文本
 
-                            await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md' if not self.use_markdown_format else None)
+                            # 始终使用 Markdown 解析模式
+                            await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md')
                 else:
                     logger.warning("save_media_as_file 未能成功保存受限文件，仅发送文本")
                     error_note = "\n  Error: Failed to save restricted media file.\n"
@@ -237,7 +237,8 @@ class ForwardHandler(BaseHandler):
                     if self.use_markdown_format:
                         final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
 
-                    await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md' if not self.use_markdown_format else None)
+                    # 始终使用 Markdown 解析模式
+                    await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md')
 
             except Exception as e:
                 logger.error(f"处理受保护媒体时出错: {e}", exc_info=True)
@@ -247,7 +248,8 @@ class ForwardHandler(BaseHandler):
                 if self.use_markdown_format:
                     final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
 
-                await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md' if not self.use_markdown_format else None)
+                # 始终使用 Markdown 解析模式
+                await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md')
             finally:
                 # 可以在这里添加清理逻辑，例如删除临时的 file_path
                 # if file_path and os.path.exists(file_path):
@@ -264,8 +266,8 @@ class ForwardHandler(BaseHandler):
                 if self.use_markdown_format:
                     final_text_to_send = f"```markdown\n{text_content}\n```" # 包裹传入的（可能已转换链接的）文本
 
-                # 发送时，如果 use_markdown_format 为 True，parse_mode 必须为 None
-                await self.client.send_message(self.log_chat_id, final_text_to_send, file=message.media, parse_mode='md' if not self.use_markdown_format else None)
+                # 始终使用 Markdown 解析模式
+                await self.client.send_message(self.log_chat_id, final_text_to_send, file=message.media, parse_mode='md')
                 logger.info(f"成功发送带非受保护媒体的消息到日志频道. Markdown包裹: {self.use_markdown_format}")
             except errors.MediaCaptionTooLongError:
                  logger.warning(f"媒体标题过长，尝试不带标题发送媒体.")
@@ -277,7 +279,8 @@ class ForwardHandler(BaseHandler):
                      final_text_to_send = text_content + caption_warning + "\n===================="
                      if self.use_markdown_format:
                          final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
-                     await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md' if not self.use_markdown_format else None)
+                     # 始终使用 Markdown 解析模式
+                     await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md')
 
                  except Exception as e_fallback:
                      logger.error(f"发送非受保护媒体（无标题回退）时出错: {e_fallback}", exc_info=True)
@@ -285,7 +288,8 @@ class ForwardHandler(BaseHandler):
                      final_text_to_send = text_content + error_note + "\n===================="
                      if self.use_markdown_format:
                          final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
-                     await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md' if not self.use_markdown_format else None)
+                     # 始终使用 Markdown 解析模式
+                     await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md')
 
             except Exception as e:
                 logger.error(f"发送非受保护媒体时出错: {e}", exc_info=True)
@@ -295,7 +299,8 @@ class ForwardHandler(BaseHandler):
                 if self.use_markdown_format:
                     final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
 
-                await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md' if not self.use_markdown_format else None)
+                # 始终使用 Markdown 解析模式
+                await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md')
 
 
     async def _create_message_object(self, event: events.NewMessage.Event) -> Optional[Message]:
