@@ -261,14 +261,38 @@ class ForwardHandler(BaseHandler):
                     is_sticker = any(isinstance(attr, DocumentAttributeSticker) for attr in message.media.attributes)
 
                 if is_sticker:
-                    # 对于贴纸，始终使用原始文本（可能包含链接转换后的内容）作为标题
-                    # 不再根据 use_markdown_format 进行 Markdown 代码块包裹
-                    final_text_to_send = text_content 
+                    # 对于贴纸，先发送文本信息，再单独发送贴纸
 
-                    # 将文本信息作为标题与贴纸一起发送
-                    # 仍然使用 Markdown 解析模式，以支持标题中可能存在的链接（如提及）
-                    await self.client.send_file(self.log_chat_id, message.media, caption=final_text_to_send, parse_mode='md')
-                    logger.info(f"已发送贴纸及其文本信息到日志频道. (Markdown包裹已禁用)")
+                    # 1. 发送文本信息
+                    try:
+                        # 始终使用 Markdown 解析模式发送文本
+                        await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md')
+                        logger.info(f"已发送贴纸的文本信息到日志频道. Markdown包裹: {self.use_markdown_format}")
+                    except errors.MessageTooLongError:
+                        logger.warning("贴纸的文本信息过长，尝试发送截断版本。")
+                        try:
+                            # 尝试发送截断后的文本
+                            truncated_text = f"{text_content[:4000]}...\n[Original message too long]"
+                            if self.use_markdown_format:
+                                truncated_text = f"```markdown\n{truncated_text}\n```"
+                            await self.client.send_message(self.log_chat_id, truncated_text, parse_mode='md')
+                        except Exception as e_trunc:
+                            logger.error(f"发送截断的贴纸文本信息失败: {e_trunc}")
+                            # 发送一个简单的错误提示
+                            await self.client.send_message(self.log_chat_id, "⚠️ Error: Text content for sticker was too long and could not be sent.", parse_mode='md')
+                    except Exception as e_text:
+                        logger.error(f"发送贴纸的文本信息时出错: {e_text}", exc_info=True)
+                        # 发送错误通知
+                        await self.client.send_message(self.log_chat_id, f"⚠️ Error sending text part for sticker: {type(e_text).__name__}", parse_mode='md')
+
+                    # 2. 单独发送贴纸文件 (无标题)
+                    try:
+                        await self.client.send_file(self.log_chat_id, message.media)
+                        logger.info("已单独发送贴纸文件到日志频道.")
+                    except Exception as e_sticker:
+                        logger.error(f"发送贴纸文件时出错: {e_sticker}", exc_info=True)
+                        # 发送错误通知
+                        await self.client.send_message(self.log_chat_id, f"⚠️ Error sending sticker file: {type(e_sticker).__name__}", parse_mode='md')
 
                 else:
                     # 对于非贴纸的普通媒体，保持原有逻辑：文本和媒体一起发送
@@ -285,11 +309,8 @@ class ForwardHandler(BaseHandler):
                  try:
                      # 如果是贴纸，这里不应该发生，因为我们是分开处理的
                      # 但为了健壮性，如果真的在这里捕获到，只记录错误，因为贴纸已发送
-                     if is_sticker:
-                         logger.error("MediaCaptionTooLongError 发生在贴纸处理逻辑中，这不符合预期。文本可能未发送。")
-                     else:
-                         # 非贴纸的回退逻辑保持不变
-                         await self.client.send_message(self.log_chat_id, file=message.media)
+                     # 非贴纸的回退逻辑保持不变
+                     await self.client.send_message(self.log_chat_id, file=message.media)
                      # 单独发送文本（可能截断或修改）
                      caption_warning = "\n  Warning: Original caption was too long and might be truncated or omitted.\n"
                      final_text_to_send = text_content + caption_warning + "\n===================="
@@ -311,8 +332,6 @@ class ForwardHandler(BaseHandler):
                 logger.error(f"发送非受保护媒体时出错: {e}", exc_info=True)
                 error_note = f"\n  Error: Exception during non-restricted media handling - {type(e).__name__}: {e}\n"
                 # 如果是贴纸且发送文本时出错
-                if is_sticker:
-                    error_note += "  Note: Sticker might have been sent, but text info failed.\n"
                 final_text_to_send = text_content + error_note + "\n===================="
 
                 if self.use_markdown_format:
