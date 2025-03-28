@@ -5,7 +5,7 @@ import re # 导入 re 模块用于链接转换
 from datetime import datetime
 from typing import Optional, Union, List, Dict, Any
 from telethon import events, errors
-from telethon.tl.types import Message as TelethonMessage
+from telethon.tl.types import Message as TelethonMessage, DocumentAttributeSticker
 from telegram_logger.handlers.base_handler import BaseHandler
 from telegram_logger.utils.mentions import create_mention
 from telegram_logger.data.models import Message
@@ -88,8 +88,18 @@ class ForwardHandler(BaseHandler):
             if event.message.media:
                 media_section += "\n--------------------\n"
                 media_section += "MEDIA:\n"
-                media_type = type(event.message.media).__name__.replace("MessageMedia", "")
-                media_filename = _get_filename(event.message.media)
+                # 检查是否是贴纸
+                is_sticker = False
+                if hasattr(event.message.media, 'attributes'):
+                    is_sticker = any(isinstance(attr, DocumentAttributeSticker) for attr in event.message.media.attributes)
+
+                if is_sticker:
+                    media_type = "Sticker"
+                    media_filename = None # 贴纸通常没有用户可见的文件名
+                else:
+                    media_type = type(event.message.media).__name__.replace("MessageMedia", "")
+                    media_filename = _get_filename(event.message.media)
+
                 media_section += f"  Type: {media_type}\n"
                 if media_filename:
                     media_section += f"  Filename: {media_filename}\n"
@@ -245,18 +255,45 @@ class ForwardHandler(BaseHandler):
 
         else: # 非受保护内容 (noforwards is False)
             try:
-                # 根据 use_markdown_format 决定是否包裹文本
-                if self.use_markdown_format:
-                    final_text_to_send = f"```markdown\n{text_content}\n```" # 包裹传入的（可能已转换链接的）文本
+                # 检查是否是贴纸
+                is_sticker = False
+                if hasattr(message.media, 'attributes'):
+                    is_sticker = any(isinstance(attr, DocumentAttributeSticker) for attr in message.media.attributes)
 
-                # 始终使用 Markdown 解析模式
-                await self.client.send_message(self.log_chat_id, final_text_to_send, file=message.media, parse_mode='md')
-                logger.info(f"成功发送带非受保护媒体的消息到日志频道. Markdown包裹: {self.use_markdown_format}")
+                if is_sticker:
+                    # 对于贴纸，先发送贴纸本身
+                    await self.client.send_file(self.log_chat_id, message.media)
+                    logger.info(f"已发送贴纸到日志频道.")
+
+                    # 然后单独发送文本信息
+                    final_text_to_send = text_content # 使用传入的（可能已转换链接的）文本
+                    if self.use_markdown_format:
+                        final_text_to_send = f"```markdown\n{text_content}\n```"
+
+                    # 始终使用 Markdown 解析模式发送文本
+                    await self.client.send_message(self.log_chat_id, final_text_to_send, parse_mode='md')
+                    logger.info(f"已发送贴纸的文本信息到日志频道. Markdown包裹: {self.use_markdown_format}")
+
+                else:
+                    # 对于非贴纸的普通媒体，保持原有逻辑：文本和媒体一起发送
+                    if self.use_markdown_format:
+                        final_text_to_send = f"```markdown\n{text_content}\n```" # 包裹传入的（可能已转换链接的）文本
+                    else:
+                        final_text_to_send = text_content # 使用原始（可能已转换链接的）文本
+
+                    # 始终使用 Markdown 解析模式
+                    await self.client.send_message(self.log_chat_id, final_text_to_send, file=message.media, parse_mode='md')
+                    logger.info(f"成功发送带非受保护媒体的消息到日志频道. Markdown包裹: {self.use_markdown_format}")
             except errors.MediaCaptionTooLongError:
                  logger.warning(f"媒体标题过长，尝试不带标题发送媒体.")
                  try:
-                     # 尝试只发送文件
-                     await self.client.send_message(self.log_chat_id, file=message.media)
+                     # 如果是贴纸，这里不应该发生，因为我们是分开处理的
+                     # 但为了健壮性，如果真的在这里捕获到，只记录错误，因为贴纸已发送
+                     if is_sticker:
+                         logger.error("MediaCaptionTooLongError 发生在贴纸处理逻辑中，这不符合预期。文本可能未发送。")
+                     else:
+                         # 非贴纸的回退逻辑保持不变
+                         await self.client.send_message(self.log_chat_id, file=message.media)
                      # 单独发送文本（可能截断或修改）
                      caption_warning = "\n  Warning: Original caption was too long and might be truncated or omitted.\n"
                      final_text_to_send = text_content + caption_warning + "\n===================="
@@ -277,6 +314,9 @@ class ForwardHandler(BaseHandler):
             except Exception as e:
                 logger.error(f"发送非受保护媒体时出错: {e}", exc_info=True)
                 error_note = f"\n  Error: Exception during non-restricted media handling - {type(e).__name__}: {e}\n"
+                # 如果是贴纸且发送文本时出错
+                if is_sticker:
+                    error_note += "  Note: Sticker might have been sent, but text info failed.\n"
                 final_text_to_send = text_content + error_note + "\n===================="
 
                 if self.use_markdown_format:
