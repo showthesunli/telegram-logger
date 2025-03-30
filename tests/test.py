@@ -119,7 +119,7 @@ async def process_message_link(link: str):
         await client.send_file(
             target_entity,
             file=source_message.media,
-            caption=f"媒体来源: {source_entity_title} (消息ID: {message_id})\n原始链接: https://t.me/{identifier}/{message_id}"
+            caption=f"媒体来源: {source_entity_title} (消息ID: {message_id})\n原始链接: https://t.me/{identifier}/{message_id}",
         )
 
         logging.info(f"成功将媒体从消息 {message_id} 发送到 {target_entity_title}")
