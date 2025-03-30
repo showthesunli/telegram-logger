@@ -6,9 +6,15 @@ from dotenv import load_dotenv
 from telethon import TelegramClient, events, errors
 
 # --- 配置 ---
-logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+# 将基础日志级别设置为 DEBUG，并为 telethon logger 也设置 DEBUG
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s') # 原配置
+logging.basicConfig(level=logging.DEBUG, # 设置为 DEBUG
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s') # 添加 logger 名称
+
+# 可选：如果你只想看 Telethon 的 DEBUG 日志，而保持你自己的代码为 INFO
+# logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# logging.getLogger('telethon').setLevel(logging.DEBUG)
+
 load_dotenv()
 
 API_ID = os.getenv("API_ID")
