@@ -115,14 +115,11 @@ async def process_message_link(link: str):
         logging.info(f"尝试直接发送消息 {message_id} 的媒体到 {target_entity_title}")
         caption = f"媒体来源: {source_entity_title} / {message_id}\n原始链接: https://t.me/{identifier}/{message_id}"
 
-        # 直接传递 source_message 或 source_message.media
-        # Telethon 会尝试处理文件引用或必要的后台传输
-        # 使用 forward_messages 方法发送媒体文件
-        # 可否将上面获取到的媒体文件直接发送到 target_entity? AI?
-        await client.forward_messages(
+        # 直接发送媒体文件到目标聊天
+        await client.send_file(
             target_entity,
-            # source_message,
-            file=source_message.media,  # 使用 file 参数传递媒体对象
+            file=source_message.media,
+            caption=f"媒体来源: {source_entity_title} (消息ID: {message_id})\n原始链接: https://t.me/{identifier}/{message_id}"
         )
 
         logging.info(f"成功将媒体从消息 {message_id} 发送到 {target_entity_title}")
