@@ -1,7 +1,7 @@
 import os
 import re
 import logging
-import tempfile  # 用于创建临时文件
+# import tempfile  # 不再需要显式下载到临时文件
 from dotenv import load_dotenv
 from telethon import TelegramClient, events, errors
 
@@ -60,7 +60,7 @@ async def process_message_link(link: str):
 
     logging.info(f"开始处理链接: identifier={identifier}, message_id={message_id}")
 
-    downloaded_file_path = None  # 初始化下载路径变量
+    # downloaded_file_path = None  # 不再需要
     success = False  # 标记处理是否成功
     try:
         # 1. 获取源 Chat Entity
@@ -110,56 +110,15 @@ async def process_message_link(link: str):
             # await event.reply(f"错误：无法访问目标日志频道 '{LOG_CHAT_ID}'。") # 不再回复事件
             return False
 
-        # 5. 下载媒体文件
-        logging.info(f"尝试下载消息 {message_id} 的媒体...")
-        # 使用 download_media 方法，它能处理受限内容的下载（如果账号有权限查看）
-        # 它会返回下载文件的路径
-        # 使用 tempfile 确保临时文件被妥善处理
-        # 使用 try...finally 确保即使下载失败也能尝试删除临时文件句柄（如果已创建）
-        tmp_file_handle = tempfile.NamedTemporaryFile(delete=False)
-        try:
-            downloaded_file_path = await client.download_media(
-                source_message.media, file=tmp_file_handle.name  # 指定下载路径
-            )
-            # 关闭文件句柄，以便后续操作（如发送和删除）
-            tmp_file_handle.close()
-        except Exception as download_err:
-            logging.error(f"下载媒体时发生错误: {download_err}")
-            tmp_file_handle.close()  # 确保关闭
-            # 尝试删除可能已创建的空文件
-            if os.path.exists(tmp_file_handle.name):
-                os.remove(tmp_file_handle.name)
-            # await event.reply(f"错误：下载媒体文件失败: {download_err}") # 不再回复
-            return False  # 下载失败
-
-        if not downloaded_file_path or not os.path.exists(downloaded_file_path):
-            logging.error(f"下载媒体失败，文件路径无效或文件不存在。")
-            # 尝试给出更具体的错误原因
-            if isinstance(
-                source_message.media,
-                (
-                    getattr(errors, "MediaUnavailableError", type(None)),
-                    getattr(errors, "WebpageMediaEmptyError", type(None)),
-                ),
-            ):
-                logging.error(
-                    f"错误详情：无法下载该媒体。源频道可能开启了严格的内容保护，禁止了媒体的下载，或者媒体本身已不可用。"
-                )
-                # await event.reply(f"错误：无法下载该媒体。源频道可能开启了严格的内容保护，禁止了媒体的下载，或者媒体本身已不可用。") # 不再回复
-            else:
-                # await event.reply(f"错误：下载媒体文件失败。") # 不再回复
-                pass  # 日志已记录
-            return False  # 停止执行
-
-        logging.info(f"媒体已成功下载到临时文件: {downloaded_file_path}")
-
-        # 6. 发送（上传）媒体到目标频道 (LOG_CHAT_ID)
-        logging.info(f"尝试将下载的媒体发送到 {target_entity_title}")
+        # 5. 直接尝试发送媒体对象，而不是下载
+        logging.info(f"尝试直接发送消息 {message_id} 的媒体到 {target_entity_title}")
         caption = f"媒体来源: {source_entity_title} / {message_id}\n原始链接: https://t.me/{identifier}/{message_id}"
 
+        # 直接传递 source_message 或 source_message.media
+        # Telethon 会尝试处理文件引用或必要的后台传输
         await client.send_file(
             target_entity,
-            downloaded_file_path,
+            source_message.media, # <--- 关键改动：直接使用媒体对象
             caption=caption,
             # 对于视频和动图，尝试保留一些属性
             supports_streaming=getattr(
@@ -190,11 +149,11 @@ async def process_message_link(link: str):
         logging.error(f"运行脚本的账户不是源频道/群组 '{identifier}' 的成员。")
         # await event.reply(f"错误：我需要先加入源 '{identifier}' 才能访问其消息。") # 不再回复
     except errors.MediaUnavailableError:
-        # 这个错误可能在 get_messages 或 download_media 时发生
+        # 这个错误现在更可能在 send_file 时发生 (如果直接引用失败且无法下载)
         logging.error(
-            f"无法访问或下载来自消息 {message_id} 的媒体。可能是源频道开启了严格的内容保护，或媒体已过期/删除。"
+            f"无法访问或发送来自消息 {message_id} 的媒体。可能是源频道开启了严格的内容保护，或媒体已过期/删除。"
         )
-        # await event.reply(f"错误：无法获取或下载该媒体。源频道可能开启了严格的内容保护，禁止了媒体的保存和转发，或者媒体本身已不可用。") # 不再回复
+        # await event.reply(f"错误：无法获取或发送该媒体。源频道可能开启了严格的内容保护，禁止了媒体的保存和转发，或者媒体本身已不可用。") # 不再回复
     except (ValueError, TypeError) as e:
         # 通常是 get_entity 失败或 ID 格式错误
         logging.error(f"无法解析标识符 '{identifier}' 或 '{LOG_CHAT_ID}': {e}")
@@ -203,13 +162,13 @@ async def process_message_link(link: str):
         logging.exception(f"处理链接时发生未知错误: {e}")  # 使用 exception 记录堆栈跟踪
         # await event.reply(f"处理链接时发生未知错误: {e}") # 不再回复
     finally:
-        # 清理下载的临时文件
-        if downloaded_file_path and os.path.exists(downloaded_file_path):
-            try:
-                os.remove(downloaded_file_path)
-                logging.info(f"已删除临时文件: {downloaded_file_path}")
-            except OSError as e:
-                logging.error(f"删除临时文件 {downloaded_file_path} 时出错: {e}")
+        # 不再需要清理临时文件
+        # if downloaded_file_path and os.path.exists(downloaded_file_path):
+        #     try:
+        #         os.remove(downloaded_file_path)
+        #         logging.info(f"已删除临时文件: {downloaded_file_path}")
+        #     except OSError as e:
+        #         logging.error(f"删除临时文件 {downloaded_file_path} 时出错: {e}")
         return success  # 返回处理结果
 
 
