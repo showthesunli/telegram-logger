@@ -5,6 +5,7 @@ import logging
 # import tempfile  # 不再需要显式下载到临时文件
 from dotenv import load_dotenv
 from telethon import TelegramClient, events, errors
+from telethon.tl.types import InputMediaDocument, InputDocument, InputMediaPhoto, InputPhoto
 
 # --- 配置 ---
 # 将基础日志级别设置为 DEBUG，并为 telethon logger 也设置 DEBUG
@@ -81,7 +82,6 @@ async def process_message_link(link: str):
             # await event.reply(f"错误：在源 '{source_entity_title}' 中找不到消息 ID {message_id}。") # 不再回复事件
             return False
 
-        # 这里直接获取媒体文件的 fileid，并在第五步中直接通过fileid发送，而不是通过media发送 AI!
         source_message = (
             source_messages  # get_messages with single ID returns the message itself
         )
@@ -124,10 +124,36 @@ async def process_message_link(link: str):
                 f"准备发送媒体 - 类型: {type(source_message.media)}, 大小: {getattr(source_message.media, 'size', '未知')} bytes"
             )
 
-            # 直接发送媒体文件到目标聊天
+            # 获取媒体文件ID并发送
+            if hasattr(source_message.media, 'document'):
+                file_id = source_message.media.document.id
+                access_hash = source_message.media.document.access_hash
+                file_reference = source_message.media.document.file_reference
+                file = InputMediaDocument(
+                    id=InputDocument(
+                        id=file_id,
+                        access_hash=access_hash,
+                        file_reference=file_reference
+                    )
+                )
+            elif hasattr(source_message.media, 'photo'):
+                file_id = source_message.media.photo.id
+                access_hash = source_message.media.photo.access_hash
+                file_reference = source_message.media.photo.file_reference
+                file = InputMediaPhoto(
+                    id=InputPhoto(
+                        id=file_id,
+                        access_hash=access_hash,
+                        file_reference=file_reference
+                    )
+                )
+            else:
+                raise ValueError("不支持的媒体类型")
+
+            # 使用文件ID发送媒体
             await client.send_file(
                 target_entity,
-                file=source_message.media,
+                file=file,
                 caption=caption,
             )
             logging.info(f"成功发送媒体到 {target_entity_title}")
