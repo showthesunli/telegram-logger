@@ -5,7 +5,12 @@ import logging
 # import tempfile  # 不再需要显式下载到临时文件
 from dotenv import load_dotenv
 from telethon import TelegramClient, events, errors
-from telethon.tl.types import InputMediaDocument, InputDocument, InputMediaPhoto, InputPhoto
+from telethon.tl.types import (
+    InputMediaDocument,
+    InputDocument,
+    InputMediaPhoto,
+    InputPhoto,
+)
 
 # --- 配置 ---
 # 将基础日志级别设置为 DEBUG，并为 telethon logger 也设置 DEBUG
@@ -120,12 +125,13 @@ async def process_message_link(link: str):
                 f"原始链接: https://t.me/{identifier}/{message_id}"
             )
 
-            logging.debug(
+            logging.info(
                 f"准备发送媒体 - 类型: {type(source_message.media)}, 大小: {getattr(source_message.media, 'size', '未知')} bytes"
             )
 
             # 获取媒体文件ID并发送
-            if hasattr(source_message.media, 'document'):
+            # 这里打印出日志 AI!
+            if hasattr(source_message.media, "document"):
                 file_id = source_message.media.document.id
                 access_hash = source_message.media.document.access_hash
                 file_reference = source_message.media.document.file_reference
@@ -133,10 +139,10 @@ async def process_message_link(link: str):
                     id=InputDocument(
                         id=file_id,
                         access_hash=access_hash,
-                        file_reference=file_reference
+                        file_reference=file_reference,
                     )
                 )
-            elif hasattr(source_message.media, 'photo'):
+            elif hasattr(source_message.media, "photo"):
                 file_id = source_message.media.photo.id
                 access_hash = source_message.media.photo.access_hash
                 file_reference = source_message.media.photo.file_reference
@@ -144,7 +150,7 @@ async def process_message_link(link: str):
                     id=InputPhoto(
                         id=file_id,
                         access_hash=access_hash,
-                        file_reference=file_reference
+                        file_reference=file_reference,
                     )
                 )
             else:
