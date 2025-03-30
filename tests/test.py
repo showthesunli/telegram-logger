@@ -130,10 +130,11 @@ async def process_message_link(link: str):
             )
 
             # 获取媒体文件ID并发送
-            # 这里打印出日志 AI!
+            logging.info(f"获取媒体文件信息 - 媒体类型: {type(source_message.media).__name__}")
             if hasattr(source_message.media, "document"):
                 file_id = source_message.media.document.id
                 access_hash = source_message.media.document.access_hash
+                logging.info(f"文档文件信息 - ID: {file_id}, 访问哈希: {access_hash}")
                 file_reference = source_message.media.document.file_reference
                 file = InputMediaDocument(
                     id=InputDocument(
@@ -145,6 +146,7 @@ async def process_message_link(link: str):
             elif hasattr(source_message.media, "photo"):
                 file_id = source_message.media.photo.id
                 access_hash = source_message.media.photo.access_hash
+                logging.info(f"图片文件信息 - ID: {file_id}, 访问哈希: {access_hash}")
                 file_reference = source_message.media.photo.file_reference
                 file = InputMediaPhoto(
                     id=InputPhoto(
