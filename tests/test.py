@@ -113,46 +113,66 @@ async def process_message_link(link: str):
 
         # 5. 直接尝试发送媒体对象，而不是下载
         logging.info(f"尝试直接发送消息 {message_id} 的媒体到 {target_entity_title}")
-        caption = f"媒体来源: {source_entity_title} / {message_id}\n原始链接: https://t.me/{identifier}/{message_id}"
-
-        # 直接发送媒体文件到目标聊天
-        await client.send_file(
-            target_entity,
-            file=source_message.media,
-            caption=f"媒体来源: {source_entity_title} (消息ID: {message_id})\n原始链接: https://t.me/{identifier}/{message_id}",
-        )
+        try:
+            caption = (
+                f"媒体来源: {source_entity_title} (消息ID: {message_id})\n"
+                f"原始链接: https://t.me/{identifier}/{message_id}"
+            )
+            
+            logging.debug(f"准备发送媒体 - 类型: {type(source_message.media)}, 大小: {getattr(source_message.media, 'size', '未知')} bytes")
+            
+            # 直接发送媒体文件到目标聊天
+            await client.send_file(
+                target_entity,
+                file=source_message.media,
+                caption=caption,
+            )
+            logging.info(f"成功发送媒体到 {target_entity_title}")
+        except Exception as e:
+            logging.error(
+                f"发送媒体时发生错误 (消息ID: {message_id}, 目标: {target_entity_title})。"
+                f"媒体类型: {type(source_message.media).__name__}, 错误详情: {str(e)}"
+            )
+            raise  # 重新抛出异常以便外层捕获处理
 
         logging.info(f"成功将媒体从消息 {message_id} 发送到 {target_entity_title}")
         # await event.reply(f"成功将链接指向的媒体发送到日志频道 '{target_entity_title}'。") # 不再回复
         success = True  # 标记成功
 
     except errors.FloodWaitError as e:
-        logging.error(f"触发 Telegram Flood Wait: 需等待 {e.seconds} 秒")
-        # await event.reply(f"错误：操作过于频繁，请等待 {e.seconds} 秒后再试。") # 不再回复
-    except (errors.ChannelPrivateError, errors.ChatForbiddenError):
+        logging.error(f"触发 Telegram Flood Wait: 需等待 {e.seconds} 秒 (错误详情: {str(e)})")
+    except errors.ChannelPrivateError:
         logging.error(
-            f"无法访问源频道/群组 '{identifier}'，可能是私有的、你不在其中或已被禁止访问。"
+            f"无法访问私有频道/群组 '{identifier}' (消息ID: {message_id})。错误详情: 该频道/群组是私有的，需要邀请才能加入。"
         )
-        # await event.reply(f"错误：无法访问源 '{identifier}'。它可能是私有的，你没有加入，或者我被禁止访问。") # 不再回复
-    except errors.ChatAdminRequiredError:
-        # 这个错误理论上应该在获取 target_entity 时或发送时捕获
-        logging.error(f"没有权限向目标频道 '{LOG_CHAT_ID}' 发送消息。")
-        # await event.reply(f"错误：我没有权限向目标日志频道 '{target_entity_title}' 发送消息。请检查我是不是成员并且有发送媒体的权限。") # 不再回复
+    except errors.ChatForbiddenError:
+        logging.error(
+            f"访问被禁止的频道/群组 '{identifier}' (消息ID: {message_id})。错误详情: 您已被禁止访问或该频道/群组不存在。"
+        )
+    except errors.ChatAdminRequiredError as e:
+        logging.error(
+            f"权限不足，无法向目标频道 '{LOG_CHAT_ID}' 发送消息 (消息ID: {message_id})。"
+            f"错误详情: {str(e)}。需要管理员权限或发送媒体权限。"
+        )
     except errors.UserNotParticipantError:
-        logging.error(f"运行脚本的账户不是源频道/群组 '{identifier}' 的成员。")
-        # await event.reply(f"错误：我需要先加入源 '{identifier}' 才能访问其消息。") # 不再回复
-    except errors.MediaUnavailableError:
-        # 这个错误现在更可能在 send_file 时发生 (如果直接引用失败且无法下载)
         logging.error(
-            f"无法访问或发送来自消息 {message_id} 的媒体。可能是源频道开启了严格的内容保护，或媒体已过期/删除。"
+            f"账户未加入源频道/群组 '{identifier}' (消息ID: {message_id})。错误详情: 需要先加入该频道/群组才能访问消息。"
         )
-        # await event.reply(f"错误：无法获取或发送该媒体。源频道可能开启了严格的内容保护，禁止了媒体的保存和转发，或者媒体本身已不可用。") # 不再回复
+    except errors.MediaUnavailableError as e:
+        logging.error(
+            f"无法访问或发送来自消息 {message_id} 的媒体 (频道: {identifier})。"
+            f"错误详情: {str(e)}。可能原因: 1) 源频道开启了严格的内容保护 2) 媒体已过期/删除 3) 没有下载权限"
+        )
     except (ValueError, TypeError) as e:
-        # 通常是 get_entity 失败或 ID 格式错误
-        logging.error(f"无法解析标识符 '{identifier}' 或 '{LOG_CHAT_ID}': {e}")
-        # await event.reply(f"错误：无法找到源或目标。请检查链接和 LOG_CHAT_ID 是否正确。({e})") # 不再回复
+        logging.error(
+            f"无效的标识符格式 '{identifier}' 或 '{LOG_CHAT_ID}' (消息ID: {message_id})。"
+            f"错误详情: {str(e)}。请检查: 1) 链接格式是否正确 2) LOG_CHAT_ID 是否有效"
+        )
     except Exception as e:
-        logging.exception(f"处理链接时发生未知错误: {e}")  # 使用 exception 记录堆栈跟踪
+        logging.exception(
+            f"处理链接时发生未预期的错误 (消息ID: {message_id}, 频道: {identifier})。"
+            f"错误类型: {type(e).__name__}, 错误详情: {str(e)}"
+        )
         # await event.reply(f"处理链接时发生未知错误: {e}") # 不再回复
     finally:
         # 不再需要清理临时文件
