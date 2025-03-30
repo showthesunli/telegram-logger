@@ -1,6 +1,7 @@
 import os
 import re
 import logging
+
 # import tempfile  # 不再需要显式下载到临时文件
 from dotenv import load_dotenv
 from telethon import TelegramClient, events, errors
@@ -116,9 +117,10 @@ async def process_message_link(link: str):
 
         # 直接传递 source_message 或 source_message.media
         # Telethon 会尝试处理文件引用或必要的后台传输
+        # 使用 send_message 尝试转发媒体文件 AI!
         await client.send_file(
             target_entity,
-            source_message.media, # <--- 关键改动：直接使用媒体对象
+            source_message.media,  # <--- 关键改动：直接使用媒体对象
             caption=caption,
             # 对于视频和动图，尝试保留一些属性
             supports_streaming=getattr(
