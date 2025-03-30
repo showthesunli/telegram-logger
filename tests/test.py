@@ -81,6 +81,7 @@ async def process_message_link(link: str):
             # await event.reply(f"错误：在源 '{source_entity_title}' 中找不到消息 ID {message_id}。") # 不再回复事件
             return False
 
+        # 这里直接获取媒体文件的 fileid，并在第五步中直接通过fileid发送，而不是通过media发送 AI!
         source_message = (
             source_messages  # get_messages with single ID returns the message itself
         )
@@ -118,9 +119,11 @@ async def process_message_link(link: str):
                 f"媒体来源: {source_entity_title} (消息ID: {message_id})\n"
                 f"原始链接: https://t.me/{identifier}/{message_id}"
             )
-            
-            logging.debug(f"准备发送媒体 - 类型: {type(source_message.media)}, 大小: {getattr(source_message.media, 'size', '未知')} bytes")
-            
+
+            logging.debug(
+                f"准备发送媒体 - 类型: {type(source_message.media)}, 大小: {getattr(source_message.media, 'size', '未知')} bytes"
+            )
+
             # 直接发送媒体文件到目标聊天
             await client.send_file(
                 target_entity,
@@ -140,7 +143,9 @@ async def process_message_link(link: str):
         success = True  # 标记成功
 
     except errors.FloodWaitError as e:
-        logging.error(f"触发 Telegram Flood Wait: 需等待 {e.seconds} 秒 (错误详情: {str(e)})")
+        logging.error(
+            f"触发 Telegram Flood Wait: 需等待 {e.seconds} 秒 (错误详情: {str(e)})"
+        )
     except errors.ChannelPrivateError:
         logging.error(
             f"无法访问私有频道/群组 '{identifier}' (消息ID: {message_id})。错误详情: 该频道/群组是私有的，需要邀请才能加入。"
