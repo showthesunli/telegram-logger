@@ -117,10 +117,10 @@ async def process_message_link(link: str):
 
         # 直接传递 source_message 或 source_message.media
         # Telethon 会尝试处理文件引用或必要的后台传输
-        # 使用 send_message 尝试发送媒体文件
+        # 使用 forword_messages 尝试发送媒体文件 AI!
         await client.send_message(
             target_entity,
-            message=caption, # 使用 message 参数传递标题
+            message=caption,  # 使用 message 参数传递标题
             file=source_message.media,  # 使用 file 参数传递媒体对象
         )
 
