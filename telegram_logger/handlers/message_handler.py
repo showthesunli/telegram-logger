@@ -97,7 +97,6 @@ class NewMessageHandler(BaseHandler):
             ),
         )
 
-    # 为什么这个函数没有实现？ AI!
     async def _save_restricted_messages(self, link: str):
         """保存受限消息"""
         # 实现类似原save_restricted_msg的功能
