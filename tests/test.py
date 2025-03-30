@@ -117,18 +117,11 @@ async def process_message_link(link: str):
 
         # 直接传递 source_message 或 source_message.media
         # Telethon 会尝试处理文件引用或必要的后台传输
-        # 使用 send_message 尝试转发媒体文件 AI!
-        await client.send_file(
+        # 使用 send_message 尝试发送媒体文件
+        await client.send_message(
             target_entity,
-            source_message.media,  # <--- 关键改动：直接使用媒体对象
-            caption=caption,
-            # 对于视频和动图，尝试保留一些属性
-            supports_streaming=getattr(
-                source_message.media, "supports_streaming", False
-            ),
-            # duration=getattr(source_message.media, 'duration', None), # 可能需要更复杂的属性提取
-            # width=getattr(source_message.media, 'width', None),
-            # height=getattr(source_message.media, 'height', None),
+            message=caption, # 使用 message 参数传递标题
+            file=source_message.media,  # 使用 file 参数传递媒体对象
         )
 
         logging.info(f"成功将媒体从消息 {message_id} 发送到 {target_entity_title}")
