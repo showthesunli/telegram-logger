@@ -1,11 +1,12 @@
-
 # --- 导入 ---
 import logging
 import pickle
+
 # 如果不再直接使用 os, re, traceback，则移除
 from typing import Optional, Union, List, Dict, Any
 from telethon import events, errors
-from telethon.tl.types import Message as TelethonMessage # 如果类型提示需要，则保留
+from telethon.tl.types import Message as TelethonMessage  # 如果类型提示需要，则保留
+
 # 如果 LogSender 处理了特定错误类型，则移除
 # from telethon.errors import MessageTooLongError, MediaCaptionTooLongError
 
@@ -19,8 +20,12 @@ from .log_sender import LogSender
 from .media_handler import RestrictedMediaHandler
 
 # 如果仍然需要 utils 导入（例如，用于 _create_message_object），则保留
-from telegram_logger.utils.media import save_media_as_file # 如果在 _create_message_object 中使用，则保留
-from telegram_logger.utils.mentions import create_mention # 如果在 _create_message_object 中使用，则保留
+from telegram_logger.utils.media import (
+    save_media_as_file,
+)  # 如果在 _create_message_object 中使用，则保留
+from telegram_logger.utils.mentions import (
+    create_mention,
+)  # 如果在 _create_message_object 中使用，则保留
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +40,7 @@ class ForwardHandler(BaseHandler):
         forward_user_ids=None,
         forward_group_ids=None,
         use_markdown_format: bool = False,
-        **kwargs: Dict[str, Any] # 添加 **kwargs 以匹配 BaseHandler（如果需要）
+        **kwargs: Dict[str, Any],  # 添加 **kwargs 以匹配 BaseHandler（如果需要）
     ):
         # 正确调用 super().__init__
         super().__init__(client, db, log_chat_id, ignored_ids, **kwargs)
@@ -49,40 +54,26 @@ class ForwardHandler(BaseHandler):
         self.formatter = MessageFormatter(client, use_markdown_format)
         self.sender = LogSender(client, log_chat_id)
         self.media_handler = RestrictedMediaHandler(client)
+        logger.info(f"ForwardHandler 初始化，转发用户 ID: {self.forward_user_ids}")
+        logger.info(f"ForwardHandler 初始化，转发群组 ID: {self.forward_group_ids}")
         logger.info(
-            f"ForwardHandler 初始化，转发用户 ID: {self.forward_user_ids}"
-        )
-        logger.info(
-            f"ForwardHandler 初始化，转发群组 ID: {self.forward_group_ids}"
-        )
-        logger.info(
-            f"ForwardHandler 初始化，使用 Markdown 格式: {self.use_markdown_format}" # <- 修改这一行
+            f"ForwardHandler 初始化，使用 Markdown 格式: {self.use_markdown_format}"  # <- 修改这一行
         )
 
     def set_client(self, client):
         """设置 Telethon 客户端实例并更新内部组件。"""
-        super().set_client(client) # 调用父类的方法设置 self.client
+        super().set_client(client)  # 调用父类的方法设置 self.client
         # 更新依赖客户端的内部组件
-        if hasattr(self, 'sender') and self.sender:
+        if hasattr(self, "sender") and self.sender:
             self.sender.client = client
             logger.debug("ForwardHandler 中 LogSender 的客户端已更新")
-        if hasattr(self, 'formatter') and self.formatter:
+        if hasattr(self, "formatter") and self.formatter:
             self.formatter.client = client
             logger.debug("ForwardHandler 中 MessageFormatter 的客户端已更新")
-        if hasattr(self, 'media_handler') and self.media_handler:
+        if hasattr(self, "media_handler") and self.media_handler:
             self.media_handler.client = client
             logger.debug("ForwardHandler 中 RestrictedMediaHandler 的客户端已更新")
         logger.debug(f"{self.__class__.__name__} 的客户端已设置")
-
-    # --- 移除旧的私有辅助方法 ---
-    # 移除: _format_forward_message_text
-    # 移除: _is_sticker (现在在 formatter 中)
-    # 移除: _has_noforwards (现在在 formatter 中)
-    # 移除: _send_to_log_channel (现在在 sender 中)
-    # 移除: _send_sticker_message
-    # 移除: _send_restricted_media
-    # 移除: _send_non_restricted_media
-    # 移除: _send_forwarded_message
 
     # --- 保留 handle_new_message ---
     async def handle_new_message(self, event):
@@ -91,11 +82,9 @@ class ForwardHandler(BaseHandler):
             logger.error("Handler 未初始化，client 为 None")
             return None
 
-        from_id = self._get_sender_id(event.message) # 使用 BaseHandler 的方法
+        from_id = self._get_sender_id(event.message)  # 使用 BaseHandler 的方法
         chat_id = event.chat_id
-        logger.info(
-            f"ForwardHandler 收到来自用户 {from_id} 在聊天 {chat_id} 中的消息"
-        )
+        logger.info(f"ForwardHandler 收到来自用户 {from_id} 在聊天 {chat_id} 中的消息")
         # 调用重构后的 process 方法
         return await self.process(event)
 
@@ -126,7 +115,11 @@ class ForwardHandler(BaseHandler):
 
             # 准备要发送的文本（如果需要，应用 markdown 代码块）
             # 如果启用了 markdown，formatted_text 已经转换了链接
-            text_to_send = f"```markdown\n{formatted_text}\n```" if self.use_markdown_format else formatted_text
+            text_to_send = (
+                f"```markdown\n{formatted_text}\n```"
+                if self.use_markdown_format
+                else formatted_text
+            )
 
             # 2. 根据媒体类型处理发送
             message = event.message
@@ -143,13 +136,19 @@ class ForwardHandler(BaseHandler):
                 if is_sticker:
                     logger.info("处理贴纸消息。")
                     # 首先发送文本部分（可能带有 markdown）
-                    text_sent = await self.sender.send_message(text=text_to_send, parse_mode=parse_mode)
+                    text_sent = await self.sender.send_message(
+                        text=text_to_send, parse_mode=parse_mode
+                    )
                     if text_sent:
                         # 发送带有空标题的贴纸文件
-                        sticker_sent = await self.sender.send_message(text="", file=message.media)
+                        sticker_sent = await self.sender.send_message(
+                            text="", file=message.media
+                        )
                         if not sticker_sent:
                             logger.error("发送文本后未能发送贴纸文件。")
-                            await self.sender._send_minimal_error("⚠️ 注意：未能发送贴纸文件本身。") # 使用 sender 的辅助方法
+                            await self.sender._send_minimal_error(
+                                "⚠️ 注意：未能发送贴纸文件本身。"
+                            )  # 使用 sender 的辅助方法
                     else:
                         logger.warning("由于文本部分发送失败，跳过贴纸文件。")
 
@@ -159,17 +158,23 @@ class ForwardHandler(BaseHandler):
                     error_note = ""
                     try:
                         # 使用 media handler 的上下文管理器
-                        async with self.media_handler.prepare_media(message) as media_file:
-                            logger.info(f"尝试发送解密文件: {getattr(media_file, 'name', 'unknown')}")
+                        async with self.media_handler.prepare_media(
+                            message
+                        ) as media_file:
+                            logger.info(
+                                f"尝试发送解密文件: {getattr(media_file, 'name', 'unknown')}"
+                            )
                             # 发送可能带有 markdown 格式的文本
                             media_sent = await self.sender.send_message(
                                 text=text_to_send,
                                 file=media_file,
-                                parse_mode=parse_mode
+                                parse_mode=parse_mode,
                             )
                     except Exception as e:
                         logger.error(f"准备或发送受限媒体失败: {e}", exc_info=True)
-                        error_note = f"\n  错误：处理受限媒体时发生异常 - {type(e).__name__}\n"
+                        error_note = (
+                            f"\n  错误：处理受限媒体时发生异常 - {type(e).__name__}\n"
+                        )
 
                     # 如果媒体发送失败，则仅发送带有错误注释的文本
                     if not media_sent:
@@ -177,23 +182,27 @@ class ForwardHandler(BaseHandler):
                         # 在 markdown 包装之前，将错误注释添加到 *原始* 格式化文本中
                         text_with_error = formatted_text + error_note
                         # 如果需要，将 markdown 格式应用于组合的文本+错误
-                        final_text = f"```markdown\n{text_with_error}\n```" if self.use_markdown_format else text_with_error
-                        await self.sender.send_message(text=final_text, parse_mode=parse_mode)
+                        final_text = (
+                            f"```markdown\n{text_with_error}\n```"
+                            if self.use_markdown_format
+                            else text_with_error
+                        )
+                        await self.sender.send_message(
+                            text=final_text, parse_mode=parse_mode
+                        )
 
                 else:
                     # 非受限、非贴纸媒体
                     logger.info("处理非受限媒体。")
                     await self.sender.send_message(
-                        text=text_to_send,
-                        file=message.media,
-                        parse_mode=parse_mode
+                        text=text_to_send, file=message.media, parse_mode=parse_mode
                     )
 
             # 3. 创建并保存数据库消息对象（在此处保留此逻辑）
             db_message = await self._create_message_object(event)
             if db_message:
-                await self.save_message(db_message) # 使用 BaseHandler 的 save_message
-            return db_message # 返回创建的数据库对象
+                await self.save_message(db_message)  # 使用 BaseHandler 的 save_message
+            return db_message  # 返回创建的数据库对象
 
         except Exception as e:
             logger.error(f"处理或转发消息时发生严重错误: {str(e)}", exc_info=True)
@@ -204,7 +213,7 @@ class ForwardHandler(BaseHandler):
                 await self.sender.send_message(error_message, parse_mode="md")
             except Exception as send_err:
                 logger.error(f"发送错误通知到日志频道失败: {send_err}")
-            return None # 表示失败
+            return None  # 表示失败
 
     # --- 保留 _create_message_object 和 get_chat_type ---
     # (确保 pickle, save_media_as_file 等导入存在，如果需要)
@@ -238,10 +247,14 @@ class ForwardHandler(BaseHandler):
                 if noforwards or self_destructing:
                     try:
                         # 如果 RestrictedMediaHandler 没有缓存/重用，这可能会再次下载
-                        media_path = await save_media_as_file(self.client, event.message)
-                        logger.info(f"媒体文件尝试保存于: {media_path} (用于数据库记录)")
+                        media_path = await save_media_as_file(
+                            self.client, event.message
+                        )
+                        logger.info(
+                            f"媒体文件尝试保存于: {media_path} (用于数据库记录)"
+                        )
                     except Exception as save_err:
-                         logger.warning(f"为数据库记录保存媒体文件失败: {save_err}")
+                        logger.warning(f"为数据库记录保存媒体文件失败: {save_err}")
 
                 # 序列化媒体对象（考虑替代方案）
                 try:
@@ -263,7 +276,7 @@ class ForwardHandler(BaseHandler):
                 from_id=from_id,
                 chat_id=event.chat_id,
                 msg_type=chat_type_code,
-                media=media_content, # 存储 pickled 媒体
+                media=media_content,  # 存储 pickled 媒体
                 noforwards=noforwards,
                 self_destructing=self_destructing,
                 created_time=event.message.date,
@@ -286,17 +299,17 @@ class ForwardHandler(BaseHandler):
                 logger.warning(f"获取私聊发送者信息失败: {e}. 默认为 user.")
                 return 1
         elif event.is_group:
-             # 涵盖超级群组和基本群组
-             return 2
+            # 涵盖超级群组和基本群组
+            return 2
         elif event.is_channel:
-             # 如果 is_group 未捕获，则特别涵盖广播频道
-             # 检查它是否明确是广播频道
-             if hasattr(event.chat, "broadcast") and event.chat.broadcast:
-                 return 3 # 广播频道
-             # 如果是超级群组（通常也被 is_group 捕获，但为了安全起见检查）
-             elif hasattr(event.chat, "megagroup") and event.chat.megagroup:
-                 return 2 # 超级群组视为群组
-             else:
-                 # 如果未明确识别为广播/超级群组，则为默认频道情况
-                 return 3 # 频道
+            # 如果 is_group 未捕获，则特别涵盖广播频道
+            # 检查它是否明确是广播频道
+            if hasattr(event.chat, "broadcast") and event.chat.broadcast:
+                return 3  # 广播频道
+            # 如果是超级群组（通常也被 is_group 捕获，但为了安全起见检查）
+            elif hasattr(event.chat, "megagroup") and event.chat.megagroup:
+                return 2  # 超级群组视为群组
+            else:
+                # 如果未明确识别为广播/超级群组，则为默认频道情况
+                return 3  # 频道
         return 0  # 未知类型
