@@ -100,6 +100,7 @@ class MessageFormatter:
 
     # 获取发送者 ID 的辅助函数，假设 BaseHandler._get_sender_id 逻辑简单
     # 或者如果需要，直接将 sender_id 传递给 format_message
+    # 这个函数好像有错误，只要from_id是一个chanel，就会出错，帮我修改 AI!
     def _get_sender_id(self, message: TelethonMessage) -> int:
         """从消息中获取发送者 ID。"""
         if message.from_id:
