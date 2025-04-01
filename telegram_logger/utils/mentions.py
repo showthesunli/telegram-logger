@@ -21,6 +21,7 @@ def _format_channel_mention(entity, msg_id: int) -> str:
     return f"( {entity.title} )[ t.me/c/{chat_id}/{msg_id or 1} ]"
 
 
+# 能否类似于超链接一样，显示的是first_name，点击后跳转到tg://user?id=1234567890？ AI!
 def _format_user_mention(entity, msg_id: int) -> str:
     """格式化用户提及，优先使用 username，其次 first_name，最后 id"""
     if entity.username:
