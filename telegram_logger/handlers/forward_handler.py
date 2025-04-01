@@ -121,8 +121,8 @@ class ForwardHandler(BaseHandler):
             if not message.media:
                 # 纯文本消息
                 logger.info("发送纯文本消息。")
-                # 删除 parse_mode
-                await self.sender.send_message(text=text_to_send)  # <- 修改这里
+                # 添加 parse_mode="md"
+                await self.sender.send_message(text=text_to_send, parse_mode="md")
             else:
                 # 带媒体的消息
                 # 使用 formatter 的辅助方法检查类型
