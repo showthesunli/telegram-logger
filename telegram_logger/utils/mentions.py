@@ -21,15 +21,11 @@ def _format_channel_mention(entity, msg_id: int) -> str:
     return f"( {entity.title} )[ t.me/c/{chat_id}/{msg_id or 1} ]"
 
 
-# 能否类似于超链接一样，显示的是first_name，点击后跳转到tg://user?id=1234567890？ AI!
 def _format_user_mention(entity, msg_id: int) -> str:
-    """格式化用户提及，优先使用 username，其次 first_name，最后 id"""
-    if entity.username:
-        # 优先使用 @username 进行提及 (Telegram 会自动链接)
-        return f"@{entity.username}"
-    elif entity.first_name:
-        # 其次使用 first_name 进行 Markdown 链接提及
-        return f"[{entity.first_name}](tg://user?id={entity.id})"
-    else:
-        # 如果都没有，则使用 id 作为链接文本
-        return f"[{entity.id}](tg://user?id={entity.id})"
+    """
+    格式化用户提及为 Markdown 超链接。
+    显示用户的 first_name（如果可用），否则显示用户 ID。
+    链接指向 tg://user?id=<user_id>。
+    """
+    display_name = entity.first_name if entity.first_name else str(entity.id)
+    return f"[{display_name}](tg://user?id={entity.id})"
