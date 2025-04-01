@@ -21,6 +21,7 @@ def _format_channel_mention(entity, msg_id: int) -> str:
     return f"( {entity.title} )[ t.me/c/{chat_id}/{msg_id or 1} ]"
 
 
+# 改为 Markdown 超链接 AI!
 def _format_user_mention(entity, msg_id: int) -> str:
     """
     格式化用户提及为 Markdown 超链接。
