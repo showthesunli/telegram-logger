@@ -98,26 +98,46 @@ class MessageFormatter:
             )
             return False
 
-    # 获取发送者 ID 的辅助函数，假设 BaseHandler._get_sender_id 逻辑简单
-    # 或者如果需要，直接将 sender_id 传递给 format_message
-    # 这个函数好像有错误，只要from_id是一个chanel，就会出错，帮我修改 AI!
+    # 获取发送者 ID 的辅助函数
     def _get_sender_id(self, message: TelethonMessage) -> int:
-        """从消息中获取发送者 ID。"""
+        """从消息中获取发送者 ID（用户或频道）。"""
+        sender_id = 0 # 默认值
+
         if message.from_id:
-            # 对于设置了 from_id 的用户消息或频道帖子
-            peer_id = getattr(message.from_id, "user_id", None)
-            if peer_id:
-                return peer_id
-        # 对于频道中没有特定作者的消息或其他情况
-        peer = getattr(message, "peer_id", None)
-        if peer:
-            peer_id = getattr(
-                peer,
-                "channel_id",
-                getattr(peer, "chat_id", getattr(peer, "user_id", None)),
-            )
-            if peer_id:
-                return peer_id
-        # 回退或发送者信息不可用
-        logger.warning(f"无法确定消息 {message.id} 的发送者 ID")
-        return 0  # 或者抛出错误，或者返回一个特定的占位符 ID
+            # 尝试获取 user_id (适用于普通用户)
+            sender_id = getattr(message.from_id, 'user_id', None)
+            if sender_id:
+                return sender_id
+
+            # 如果不是用户，尝试获取 channel_id (适用于频道身份发送的消息)
+            # Telethon 的 channel_id 通常是负数，我们直接返回它
+            sender_id = getattr(message.from_id, 'channel_id', None)
+            if sender_id:
+                return sender_id
+
+        # 如果 from_id 不存在或无法从中提取 ID (例如匿名管理员、旧消息)，
+        # 尝试从 peer_id 获取。注意：这通常是 *聊天* ID，不一定是 *发送者* ID。
+        # 这种回退逻辑的准确性有限，但作为最后的尝试。
+        if not sender_id and message.peer_id:
+            peer = message.peer_id
+            # 优先检查 channel_id，然后是 chat_id，最后是 user_id
+            sender_id = getattr(peer, 'channel_id', None)
+            if sender_id:
+                # logger.debug(f"从 peer_id 获取到 channel_id: {sender_id} 作为消息 {message.id} 的回退发送者")
+                return sender_id
+            sender_id = getattr(peer, 'chat_id', None)
+            if sender_id:
+                # logger.debug(f"从 peer_id 获取到 chat_id: {sender_id} 作为消息 {message.id} 的回退发送者")
+                return sender_id # 注意：这可能是群组 ID
+            sender_id = getattr(peer, 'user_id', None)
+            if sender_id:
+                # logger.debug(f"从 peer_id 获取到 user_id: {sender_id} 作为消息 {message.id} 的回退发送者")
+                return sender_id
+
+        # 如果所有尝试都失败了
+        if not sender_id:
+            logger.warning(f"无法确定消息 {message.id} 的发送者 ID，将返回 0")
+            return 0
+
+        # 理论上不应到达这里，因为前面的 return 会退出
+        return sender_id
