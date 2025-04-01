@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class MessageFormatter:
     def __init__(self, client):
         self.client = client
-        logger.info("MessageFormatter 已初始化。") # <- 可选：更新日志消息
+        logger.info("MessageFormatter 已初始化。")  # <- 可选：更新日志消息
 
     async def format_message(self, event: events.NewMessage.Event) -> str:
         """格式化日志消息的文本内容。"""
@@ -36,14 +36,13 @@ class MessageFormatter:
         # 第 2 部分：消息内容
         message_text = event.message.text or getattr(event.message, "caption", None)
         if message_text:
-            text += message_text # <- 确保这行存在且没有缩进
+            text += message_text  # <- 确保这行存在且没有缩进
         else:
             text += "[无文本内容或标题]"
 
         # 第 3 部分：媒体信息部分
         media_section = self._format_media_info(event.message)
         text += media_section
-        text += "\n===================="
         return text
 
     def _format_media_info(self, message: TelethonMessage) -> str:
@@ -54,7 +53,7 @@ class MessageFormatter:
             media_section += "MEDIA:\n"
             is_sticker = self._is_sticker(message)
             media_type = (
-                "Sticker" # 贴纸
+                "Sticker"  # 贴纸
                 if is_sticker
                 else type(message.media).__name__.replace("MessageMedia", "")
             )
@@ -71,9 +70,7 @@ class MessageFormatter:
 
             ttl_seconds = getattr(getattr(message, "media", None), "ttl_seconds", None)
             if ttl_seconds:
-                media_section += (
-                    f"  注意: 阅后即焚媒体 (TTL: {ttl_seconds}秒)。\n"
-                )
+                media_section += f"  注意: 阅后即焚媒体 (TTL: {ttl_seconds}秒)。\n"
         return media_section
 
     def _is_sticker(self, message: TelethonMessage) -> bool:

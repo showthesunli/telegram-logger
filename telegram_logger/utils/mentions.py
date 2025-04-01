@@ -19,7 +19,7 @@ async def create_mention(client, entity_id: int, msg_id: int = None) -> str:
 def _format_channel_mention(entity, msg_id: int) -> str:
     """格式化频道/群组提及为 MarkdownV2 格式"""
     chat_id = str(entity.id).replace("-100", "")
-    return f"[{entity.title}](t.me/c/{chat_id}/{msg_id or 1})"
+    return f"{entity.title}(t.me/c/{chat_id}/{msg_id or 1})"
 
 
 def _format_user_mention(entity, msg_id: int) -> str:
@@ -31,7 +31,7 @@ def _format_user_mention(entity, msg_id: int) -> str:
 
     # 使用 MarkdownV2 格式
     return (
-        f"[{display_name}](@{entity.username})"
+        f"{display_name}(@{entity.username})"
         if entity.username
-        else f"[{display_name}](tg://user?id={entity.id})"
+        else f"{display_name}(tg://user?id={entity.id})"
     )
