@@ -16,11 +16,9 @@ async def create_mention(client, entity_id: int, msg_id: int = None) -> str:
         return str(entity_id)
 
 
-# 使用和 _format_user_mention 一样的格式 来处理频道和群组提及 AI!
 def _format_channel_mention(entity, msg_id: int) -> str:
-    """格式化频道/群组提及为 Markdown 超链接"""
+    """格式化频道/群组提及为 MarkdownV2 格式"""
     chat_id = str(entity.id).replace("-100", "")
-    # 使用标准的 Markdown 链接格式
     return f"[{entity.title}](t.me/c/{chat_id}/{msg_id or 1})"
 
 
