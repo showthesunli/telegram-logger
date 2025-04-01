@@ -21,8 +21,9 @@ def _format_channel_mention(entity, msg_id: int) -> str:
     return f"( {entity.title} )[ t.me/c/{chat_id}/{msg_id or 1} ]"
 
 
-# 修改这个格式，telegram 没有正常渲染 AI!
 def _format_user_mention(entity, msg_id: int) -> str:
+    """格式化用户提及"""
     if entity.username:
         return f"[@{entity.username}](t.me/{entity.username})"
-    return f"( {entity.first_name} )[ tg://user?id={entity.id} ]"
+    # 使用 Markdown 链接格式提及用户
+    return f"[{entity.first_name}](tg://user?id={entity.id})"
