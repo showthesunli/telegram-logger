@@ -56,6 +56,7 @@ class ForwardHandler(BaseHandler):
             f"ForwardHandler initialized with forward_group_ids: {self.forward_group_ids}"
         )
         logger.info(
+            f"ForwardHandler initialized with use_markdown_format: {self.use_markdown_format}" # <- 修改这一行
         )
 
     # --- Remove old private helper methods ---
