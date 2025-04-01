@@ -1,4 +1,5 @@
 import logging
+from typing import Union # <- 添加这行
 from telethon.tl.types import User, Channel, Chat
 
 logger = logging.getLogger(__name__)
