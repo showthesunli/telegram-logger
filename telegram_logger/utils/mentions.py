@@ -27,8 +27,18 @@ def _format_user_mention(entity, msg_id: int) -> str:
     """
     格式化用户提及为Telegram原生格式
     格式化用户提及为 MarkdownV2 格式。
-    显示用户的 first_name（如果可用），否则显示用户 ID。
+    显示用户的 first_name + last_name（如果可用），否则显示 first_name，
+    再否则显示用户 ID。如果用户有 username，则附加 @username。
     """
-    display_name = entity.first_name if entity.first_name else str(entity.id)
+    if entity.first_name and entity.last_name:
+        display_name = f"{entity.first_name} {entity.last_name}"
+    elif entity.first_name:
+        display_name = entity.first_name
+    else:
+        display_name = str(entity.id)
+
+    if entity.username:
+        display_name += f" @{entity.username}"
+
     # 使用 MarkdownV2 格式
     return f'[{display_name}](tg://user?id={entity.id})'
