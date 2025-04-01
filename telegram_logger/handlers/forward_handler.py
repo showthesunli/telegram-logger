@@ -60,28 +60,19 @@ class ForwardHandler(BaseHandler):
             # 获取时间戳
             timestamp = event.message.date.strftime('%Y-%m-%d %H:%M:%S UTC') # 使用UTC以保持一致
 
-            # --- 构建结构化纯文本 ---
-            text = "FORWARDED MESSAGE\n"
-            text += "====================\n\n"
-
-            source_label = "USER" if is_target_user else "GROUP/CHANNEL"
-            text += f"TYPE: {source_label}\n"
-            # Use mention_sender directly, assuming it contains the best representation (Name+Link or ID+Link)
-            text += f"FROM: {mention_sender}\n"
-            text += f"CHAT: {mention_chat}\n"
-            text += f"TIME: {timestamp}\n\n"
-            text += "--------------------\n"
-            text += "CONTENT:\n\n"
-
+            # --- 第一部分: 消息来源信息 ---
+            text = f"{mention_sender} 在 {mention_chat} 中，于 {timestamp}，发言：\n\n"
+            
+            # --- 第二部分: 消息内容 ---
             if event.message.text:
-                text += f"{event.message.text}\n" # 保留原始文本换行
+                text += f"```markdown\n{event.message.text}\n```" # 使用markdown格式包裹内容
             else:
                 # 尝试获取媒体标题
                 caption = getattr(event.message, 'caption', None)
                 if caption:
-                    text += f"{caption}\n" # 保留原始标题换行
+                    text += f"```markdown\n{caption}\n```" # 使用markdown格式包裹媒体标题
                 else:
-                    text += "[No text content or caption]\n"
+                    text += "[No text content or caption]"
 
             # 处理媒体指示 (纯文本)
             media_section = ""
