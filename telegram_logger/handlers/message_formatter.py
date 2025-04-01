@@ -8,10 +8,11 @@ from telegram_logger.utils.media import _get_filename # Keep this import if need
 logger = logging.getLogger(__name__)
 
 class MessageFormatter:
-    def __init__(self, client, use_markdown_format: bool = False):
+    def __init__(self, client): # <- 移除 use_markdown_format 参数
         self.client = client
-        self.use_markdown_format = use_markdown_format
-        logger.info(f"MessageFormatter initialized. Markdown format enabled: {self.use_markdown_format}")
+        # self.use_markdown_format = use_markdown_format # <- 删除这一行
+        # logger.info(f"MessageFormatter initialized. Markdown format enabled: {self.use_markdown_format}") # <- 删除这一行
+        logger.info("MessageFormatter initialized.") # <- 可选：更新日志消息
 
     async def format_message(self, event: events.NewMessage.Event) -> str:
         """Formats the text content for the log message."""
@@ -28,17 +29,17 @@ class MessageFormatter:
         # Part 2: Message content
         message_text = event.message.text or getattr(event.message, "caption", None)
         if message_text:
-            # Apply link conversion *before* wrapping in code block if markdown is used
-            # Note: The actual wrapping ``` happens in the sender/handler based on use_markdown_format
-            if self.use_markdown_format:
-                try:
-                    # Convert [text](url) to text (url) for better readability in code blocks
-                    message_text = re.sub(
-                        r"\[([^\]]+)\]\(([^)]+)\)", r"\1 (\2)", message_text
-                    )
-                except Exception as re_err:
-                    logger.warning(f"转换 Markdown 链接时出错: {re_err}")
-            text += message_text # Add the (potentially converted) text directly
+            # 移除 Markdown 相关逻辑
+            # if self.use_markdown_format: # <- 删除这行 if
+            #     try:
+            #         # Convert [text](url) to text (url) for better readability in code blocks
+            #         message_text = re.sub(
+            #             r"\[([^\]]+)\]\(([^)]+)\)", r"\1 (\2)", message_text
+            #         )
+            #     except Exception as re_err:
+            #         logger.warning(f"转换 Markdown 链接时出错: {re_err}")
+            # text += message_text # Add the (potentially converted) text directly # <- 删除这行注释（如果存在）
+            text += message_text # <- 确保这行存在且没有缩进
         else:
             text += "[No text content or caption]"
 
