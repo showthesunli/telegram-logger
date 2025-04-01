@@ -1,22 +1,29 @@
 import logging
 import re
 from telethon import events
-from telethon.tl.types import Message as TelethonMessage, DocumentAttributeSticker, MessageMediaDocument
+from telethon.tl.types import (
+    Message as TelethonMessage,
+    DocumentAttributeSticker,
+    MessageMediaDocument,
+)
 from telegram_logger.utils.mentions import create_mention
-from telegram_logger.utils.media import _get_filename # Keep this import if needed for media info
+from telegram_logger.utils.media import (
+    _get_filename,
+)
 
 logger = logging.getLogger(__name__)
 
+
 class MessageFormatter:
-    def __init__(self, client): # <- 移除 use_markdown_format 参数
+    def __init__(self, client):
         self.client = client
-        # self.use_markdown_format = use_markdown_format # <- 删除这一行
-        # logger.info(f"MessageFormatter initialized. Markdown format enabled: {self.use_markdown_format}") # <- 删除这一行
-        logger.info("MessageFormatter initialized.") # <- 可选：更新日志消息
+        logger.info("MessageFormatter initialized.")  # <- 可选：更新日志消息
 
     async def format_message(self, event: events.NewMessage.Event) -> str:
         """Formats the text content for the log message."""
-        from_id = self._get_sender_id(event.message) # Assuming _get_sender_id is accessible or passed
+        from_id = self._get_sender_id(
+            event.message
+        )  # Assuming _get_sender_id is accessible or passed
         mention_sender = await create_mention(self.client, from_id)
         mention_chat = await create_mention(
             self.client, event.chat_id, event.message.id
@@ -29,17 +36,7 @@ class MessageFormatter:
         # Part 2: Message content
         message_text = event.message.text or getattr(event.message, "caption", None)
         if message_text:
-            # 移除 Markdown 相关逻辑
-            # if self.use_markdown_format: # <- 删除这行 if
-            #     try:
-            #         # Convert [text](url) to text (url) for better readability in code blocks
-            #         message_text = re.sub(
-            #             r"\[([^\]]+)\]\(([^)]+)\)", r"\1 (\2)", message_text
-            #         )
-            #     except Exception as re_err:
-            #         logger.warning(f"转换 Markdown 链接时出错: {re_err}")
-            # text += message_text # Add the (potentially converted) text directly # <- 删除这行注释（如果存在）
-            text += message_text # <- 确保这行存在且没有缩进
+            text += message_text  # <- 确保这行存在且没有缩进
         else:
             text += "[No text content or caption]"
 
@@ -56,7 +53,11 @@ class MessageFormatter:
             media_section += "\n--------------------\n"
             media_section += "MEDIA:\n"
             is_sticker = self._is_sticker(message)
-            media_type = "Sticker" if is_sticker else type(message.media).__name__.replace("MessageMedia", "")
+            media_type = (
+                "Sticker"
+                if is_sticker
+                else type(message.media).__name__.replace("MessageMedia", "")
+            )
             # Use the imported _get_filename or define it locally if preferred
             media_filename = None if is_sticker else _get_filename(message.media)
 
@@ -70,7 +71,9 @@ class MessageFormatter:
 
             ttl_seconds = getattr(getattr(message, "media", None), "ttl_seconds", None)
             if ttl_seconds:
-                media_section += f"  Note: Self-destructing media (TTL: {ttl_seconds}s).\n"
+                media_section += (
+                    f"  Note: Self-destructing media (TTL: {ttl_seconds}s).\n"
+                )
         return media_section
 
     def _is_sticker(self, message: TelethonMessage) -> bool:
@@ -78,17 +81,24 @@ class MessageFormatter:
         if isinstance(message.media, MessageMediaDocument):
             doc = getattr(message.media, "document", None)
             if doc and hasattr(doc, "attributes"):
-                return any(isinstance(attr, DocumentAttributeSticker) for attr in doc.attributes)
+                return any(
+                    isinstance(attr, DocumentAttributeSticker)
+                    for attr in doc.attributes
+                )
         return False
 
     def _has_noforwards(self, message: TelethonMessage) -> bool:
         """Checks if the message or its chat has noforwards set."""
         try:
-            chat_noforwards = getattr(message.chat, "noforwards", False) if message.chat else False
+            chat_noforwards = (
+                getattr(message.chat, "noforwards", False) if message.chat else False
+            )
             message_noforwards = getattr(message, "noforwards", False)
             return chat_noforwards or message_noforwards
         except AttributeError:
-            logger.warning("AttributeError checking noforwards, defaulting to False", exc_info=True)
+            logger.warning(
+                "AttributeError checking noforwards, defaulting to False", exc_info=True
+            )
             return False
 
     # Helper to get sender ID, assuming BaseHandler._get_sender_id logic is simple
@@ -97,15 +107,19 @@ class MessageFormatter:
         """Gets the sender ID from a message."""
         if message.from_id:
             # For user messages or channel posts where from_id is set
-            peer_id = getattr(message.from_id, 'user_id', None)
+            peer_id = getattr(message.from_id, "user_id", None)
             if peer_id:
                 return peer_id
         # For messages in channels without specific author or other cases
-        peer = getattr(message, 'peer_id', None)
+        peer = getattr(message, "peer_id", None)
         if peer:
-            peer_id = getattr(peer, 'channel_id', getattr(peer, 'chat_id', getattr(peer, 'user_id', None)))
+            peer_id = getattr(
+                peer,
+                "channel_id",
+                getattr(peer, "chat_id", getattr(peer, "user_id", None)),
+            )
             if peer_id:
                 return peer_id
         # Fallback or if sender info is unavailable
         logger.warning(f"Could not determine sender ID for message {message.id}")
-        return 0 # Or raise an error, or return a specific placeholder ID
+        return 0  # Or raise an error, or return a specific placeholder ID
