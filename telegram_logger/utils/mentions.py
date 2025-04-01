@@ -26,7 +26,9 @@ def _format_channel_mention(entity, msg_id: int) -> str:
 def _format_user_mention(entity, msg_id: int) -> str:
     """
     格式化用户提及为Telegram原生格式
+    格式化用户提及为 MarkdownV2 格式。
     显示用户的 first_name（如果可用），否则显示用户 ID。
     """
     display_name = entity.first_name if entity.first_name else str(entity.id)
-    return f'<a href="tg://user?id={entity.id}">{display_name}</a>'
+    # 使用 MarkdownV2 格式
+    return f'[{display_name}](tg://user?id={entity.id})'
