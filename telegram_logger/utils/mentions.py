@@ -21,6 +21,7 @@ def _format_channel_mention(entity, msg_id: int) -> str:
     return f"( {entity.title} )[ t.me/c/{chat_id}/{msg_id or 1} ]"
 
 
+# 提及改为使用 @username 进行链接 AI!
 def _format_user_mention(entity, msg_id: int) -> str:
     """格式化用户提及，优先使用 first_name，其次 username，最后 id"""
     if entity.first_name:
