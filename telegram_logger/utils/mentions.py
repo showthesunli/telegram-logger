@@ -23,12 +23,10 @@ def _format_channel_mention(entity, msg_id: int) -> str:
     return f"[{entity.title}](t.me/c/{chat_id}/{msg_id or 1})"
 
 
-# 这里没有被 telegram 正常渲染 AI!
 def _format_user_mention(entity, msg_id: int) -> str:
     """
-    格式化用户提及为 Markdown 超链接。
+    格式化用户提及为Telegram原生格式
     显示用户的 first_name（如果可用），否则显示用户 ID。
-    链接指向 tg://user?id=<user_id>。
     """
     display_name = entity.first_name if entity.first_name else str(entity.id)
-    return f"[{display_name}](tg://user?id={entity.id})"
+    return f'<a href="tg://user?id={entity.id}">{display_name}</a>'
