@@ -39,7 +39,7 @@ class ForwardHandler(BaseHandler):
         ignored_ids,
         forward_user_ids=None,
         forward_group_ids=None,
-        use_markdown_format: bool = False,
+        # use_markdown_format: bool = False, # <- 删除这一行
         **kwargs: Dict[str, Any],  # 添加 **kwargs 以匹配 BaseHandler（如果需要）
     ):
         # 正确调用 super().__init__
@@ -47,18 +47,18 @@ class ForwardHandler(BaseHandler):
 
         self.forward_user_ids = forward_user_ids or []
         self.forward_group_ids = forward_group_ids or []
-        # 如果此类中的逻辑需要，则保留 use_markdown_format
-        self.use_markdown_format = use_markdown_format
+        # self.use_markdown_format = use_markdown_format # <- 删除这一行
 
         # 实例化辅助类
-        self.formatter = MessageFormatter(client, use_markdown_format)
+        # 删除 use_markdown_format 参数
+        self.formatter = MessageFormatter(client) # <- 修改这里
         self.sender = LogSender(client, log_chat_id)
         self.media_handler = RestrictedMediaHandler(client)
         logger.info(f"ForwardHandler 初始化，转发用户 ID: {self.forward_user_ids}")
         logger.info(f"ForwardHandler 初始化，转发群组 ID: {self.forward_group_ids}")
-        logger.info(
-            f"ForwardHandler 初始化，使用 Markdown 格式: {self.use_markdown_format}"  # <- 修改这一行
-        )
+        # logger.info( # <- 删除这个日志记录块
+        #     f"ForwardHandler 初始化，使用 Markdown 格式: {self.use_markdown_format}"
+        # )
 
     def set_client(self, client):
         """设置 Telethon 客户端实例并更新内部组件。"""
@@ -110,23 +110,19 @@ class ForwardHandler(BaseHandler):
             # 如果 use_markdown_format 为 true，formatter 会在内部处理链接转换
             formatted_text = await self.formatter.format_message(event)
 
-            # 确定发送时的解析模式
-            parse_mode = "md" if self.use_markdown_format else None
+            # 删除 parse_mode
+            # parse_mode = "md" if self.use_markdown_format else None # <- 删除这一行
 
-            # 准备要发送的文本（如果需要，应用 markdown 代码块）
-            # 如果启用了 markdown，formatted_text 已经转换了链接
-            text_to_send = (
-                f"```markdown\n{formatted_text}\n```"
-                if self.use_markdown_format
-                else formatted_text
-            )
+            # 准备要发送的文本 (移除 markdown 代码块)
+            text_to_send = formatted_text # <- 修改这里
 
             # 2. 根据媒体类型处理发送
             message = event.message
             if not message.media:
                 # 纯文本消息
                 logger.info("发送纯文本消息。")
-                await self.sender.send_message(text=text_to_send, parse_mode=parse_mode)
+                # 删除 parse_mode
+                await self.sender.send_message(text=text_to_send) # <- 修改这里
             else:
                 # 带媒体的消息
                 # 使用 formatter 的辅助方法检查类型
@@ -135,9 +131,9 @@ class ForwardHandler(BaseHandler):
 
                 if is_sticker:
                     logger.info("处理贴纸消息。")
-                    # 首先发送文本部分（可能带有 markdown）
+                    # 删除 parse_mode
                     text_sent = await self.sender.send_message(
-                        text=text_to_send, parse_mode=parse_mode
+                        text=text_to_send # <- 修改这里
                     )
                     if text_sent:
                         # 发送带有空标题的贴纸文件
@@ -164,11 +160,11 @@ class ForwardHandler(BaseHandler):
                             logger.info(
                                 f"尝试发送解密文件: {getattr(media_file, 'name', 'unknown')}"
                             )
-                            # 发送可能带有 markdown 格式的文本
+                            # 删除 parse_mode
                             media_sent = await self.sender.send_message(
                                 text=text_to_send,
                                 file=media_file,
-                                parse_mode=parse_mode,
+                                # parse_mode=parse_mode, # <- 删除这一行
                             )
                     except Exception as e:
                         logger.error(f"准备或发送受限媒体失败: {e}", exc_info=True)
@@ -181,21 +177,19 @@ class ForwardHandler(BaseHandler):
                         logger.warning("由于错误，仅为受限媒体发送文本。")
                         # 在 markdown 包装之前，将错误注释添加到 *原始* 格式化文本中
                         text_with_error = formatted_text + error_note
-                        # 如果需要，将 markdown 格式应用于组合的文本+错误
-                        final_text = (
-                            f"```markdown\n{text_with_error}\n```"
-                            if self.use_markdown_format
-                            else text_with_error
-                        )
+                        # 移除 markdown 格式
+                        final_text = text_with_error # <- 修改这里
+                        # 删除 parse_mode
                         await self.sender.send_message(
-                            text=final_text, parse_mode=parse_mode
+                            text=final_text # <- 修改这里
                         )
 
                 else:
                     # 非受限、非贴纸媒体
                     logger.info("处理非受限媒体。")
+                    # 删除 parse_mode
                     await self.sender.send_message(
-                        text=text_to_send, file=message.media, parse_mode=parse_mode
+                        text=text_to_send, file=message.media # <- 修改这里
                     )
 
             # 3. 创建并保存数据库消息对象（在此处保留此逻辑）
@@ -206,11 +200,12 @@ class ForwardHandler(BaseHandler):
 
         except Exception as e:
             logger.error(f"处理或转发消息时发生严重错误: {str(e)}", exc_info=True)
-            # 尝试使用 sender 发送错误通知
+            # 尝试使用 sender 发送错误通知 (移除 markdown)
             try:
-                error_message = f"⚠️ **错误:** 处理消息 {event.message.id} (来自 chat {event.chat_id}) 时出错。\n\n`{type(e).__name__}: {str(e)}`"
-                # 使用 sender，确保为 markdown 设置了 parse_mode
-                await self.sender.send_message(error_message, parse_mode="md")
+                # 移除 markdown 格式
+                error_message = f"⚠️ 错误: 处理消息 {event.message.id} (来自 chat {event.chat_id}) 时出错。\n\n{type(e).__name__}: {str(e)}" # <- 修改这里
+                # 删除 parse_mode
+                await self.sender.send_message(error_message) # <- 修改这里
             except Exception as send_err:
                 logger.error(f"发送错误通知到日志频道失败: {send_err}")
             return None  # 表示失败

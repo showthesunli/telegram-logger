@@ -89,10 +89,6 @@ logger.debug(f"Raw FORWARD_GROUP_IDS before parsing: {raw_forward_group_ids}")
 FORWARD_GROUP_IDS = [int(x.strip()) for x in raw_forward_group_ids.split(',') if x.strip()]
 logger.debug(f"Parsed FORWARD_GROUP_IDS: {FORWARD_GROUP_IDS}")
 
-# Read Markdown format setting
-FORWARDER_USE_MARKDOWN = os.getenv('FORWARDER_USE_MARKDOWN', 'False').lower() == 'true'
-logger.info(f"Forwarder Markdown format setting from env: {FORWARDER_USE_MARKDOWN}")
-
 # Persistence times
 PERSIST_TIME_IN_DAYS_USER = int(os.getenv('PERSIST_TIME_IN_DAYS_USER', '1'))
 PERSIST_TIME_IN_DAYS_CHANNEL = int(os.getenv('PERSIST_TIME_IN_DAYS_CHANNEL', '1'))
@@ -145,7 +141,7 @@ async def main():
             ignored_ids=IGNORED_IDS,
             forward_user_ids=FORWARD_USER_IDS,
             forward_group_ids=FORWARD_GROUP_IDS,
-            use_markdown_format=FORWARDER_USE_MARKDOWN
+            # use_markdown_format=FORWARDER_USE_MARKDOWN # <- 删除这一行
         )
     ]
     
