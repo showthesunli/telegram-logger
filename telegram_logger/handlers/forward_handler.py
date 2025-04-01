@@ -59,6 +59,21 @@ class ForwardHandler(BaseHandler):
             f"ForwardHandler initialized with use_markdown_format: {self.use_markdown_format}" # <- 修改这一行
         )
 
+    def set_client(self, client):
+        """设置 Telethon 客户端实例并更新内部组件。"""
+        super().set_client(client) # 调用父类的方法设置 self.client
+        # 更新依赖客户端的内部组件
+        if hasattr(self, 'sender') and self.sender:
+            self.sender.client = client
+            logger.debug("Updated client for LogSender in ForwardHandler")
+        if hasattr(self, 'formatter') and self.formatter:
+            self.formatter.client = client
+            logger.debug("Updated client for MessageFormatter in ForwardHandler")
+        if hasattr(self, 'media_handler') and self.media_handler:
+            self.media_handler.client = client
+            logger.debug("Updated client for RestrictedMediaHandler in ForwardHandler")
+        logger.debug(f"Client set for {self.__class__.__name__}")
+
     # --- Remove old private helper methods ---
     # Remove: _format_forward_message_text
     # Remove: _is_sticker (now in formatter)

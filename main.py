@@ -160,14 +160,34 @@ async def main():
     
     cleanup_service = CleanupService(db, persist_times)
     
-    # Inject client dependency
-    for handler in handlers:
-        handler.client = client_service.client
+    # Client dependency will be injected after client initialization
     
     # Run services
     try:
         logging.info("Starting all services...")
         user_id = await client_service.initialize()
+
+        # Inject client dependency using set_client method AFTER client is initialized
+        logger.info("Injecting client dependency into handlers...")
+        if client_service.client: # 确保客户端已成功初始化
+            for handler in handlers:
+                try:
+                    # 调用 set_client 方法注入客户端
+                    handler.set_client(client_service.client)
+                    logger.debug(f"Client injected into handler: {type(handler).__name__}")
+                except AttributeError:
+                     logger.warning(f"Handler {type(handler).__name__} does not have a set_client method. Setting .client directly.")
+                     # 提供备用方案，尽管我们期望 set_client 存在
+                     if hasattr(handler, 'client'):
+                         handler.client = client_service.client
+                except Exception as e:
+                    logger.error(f"Failed to inject client into handler {type(handler).__name__}: {e}", exc_info=True)
+        else:
+            logger.error("Client initialization failed, cannot inject client into handlers.")
+            # 根据需要处理客户端初始化失败的情况，例如退出程序
+            # sys.exit(1)
+        logger.info("Client dependency injection complete.")
+
         await cleanup_service.start()
         
         logging.info("All services started successfully")
