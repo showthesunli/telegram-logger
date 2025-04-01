@@ -2,10 +2,12 @@ import logging
 import pickle
 import os  # 导入 os 模块以备将来可能的清理操作
 import re  # 导入 re 模块用于链接转换
+import traceback # For detailed error logging
 from datetime import datetime
 from typing import Optional, Union, List, Dict, Any
 from telethon import events, errors
-from telethon.tl.types import Message as TelethonMessage, DocumentAttributeSticker
+from telethon.tl.types import Message as TelethonMessage, DocumentAttributeSticker, MessageMediaDocument
+from telethon.errors import MessageTooLongError, MediaCaptionTooLongError
 from telegram_logger.handlers.base_handler import BaseHandler
 from telegram_logger.utils.mentions import create_mention
 from telegram_logger.data.models import Message
@@ -44,6 +46,275 @@ class ForwardHandler(BaseHandler):
         logger.info(
             f"ForwardHandler Markdown format enabled: {self.use_markdown_format}"
         )
+
+    # --- 新增的辅助方法 ---
+
+    async def _format_forward_message_text(self, event: events.NewMessage.Event) -> str:
+        """Formats the text content for the forwarded message."""
+        from_id = self._get_sender_id(event.message)
+        mention_sender = await create_mention(self.client, from_id)
+        mention_chat = await create_mention(
+            self.client, event.chat_id, event.message.id
+        )
+        timestamp = event.message.date.strftime("%Y-%m-%d %H:%M:%S UTC")
+
+        # Part 1: Source info
+        text = f"{mention_sender} 在 {mention_chat} 中，于 {timestamp}，发言：\n\n"
+
+        # Part 2: Message content
+        message_text = event.message.text or getattr(event.message, "caption", None)
+        if message_text:
+            # Apply link conversion *before* wrapping in code block if markdown is used
+            if self.use_markdown_format:
+                try:
+                    message_text = re.sub(
+                        r"\[([^\]]+)\]\(([^)]+)\)", r"\1 (\2)", message_text
+                    )
+                except Exception as re_err:
+                    logger.warning(f"转换 Markdown 链接时出错: {re_err}")
+            # Wrap the potentially modified text
+            text += f"```\n{message_text}\n```"
+        else:
+            text += "[No text content or caption]"
+
+        # Part 3: Media info section
+        media_section = ""
+        if event.message.media:
+            media_section += "\n--------------------\n"
+            media_section += "MEDIA:\n"
+            is_sticker = self._is_sticker(event.message)
+            media_type = "Sticker" if is_sticker else type(event.message.media).__name__.replace("MessageMedia", "")
+            media_filename = None if is_sticker else _get_filename(event.message.media)
+
+            media_section += f"  Type: {media_type}\n"
+            if media_filename:
+                media_section += f"  Filename: {media_filename}\n"
+
+            noforwards = self._has_noforwards(event.message)
+            if noforwards:
+                media_section += "  Note: Restricted content. Media file will be handled separately.\n"
+
+            ttl_seconds = getattr(getattr(event.message, "media", None), "ttl_seconds", None)
+            if ttl_seconds:
+                media_section += f"  Note: Self-destructing media (TTL: {ttl_seconds}s).\n"
+
+        text += media_section
+        text += "\n===================="
+        return text
+
+    def _is_sticker(self, message: TelethonMessage) -> bool:
+        """Checks if the message media is a sticker."""
+        if isinstance(message.media, MessageMediaDocument):
+            doc = getattr(message.media, "document", None)
+            if doc and hasattr(doc, "attributes"):
+                return any(isinstance(attr, DocumentAttributeSticker) for attr in doc.attributes)
+        return False
+
+    def _has_noforwards(self, message: TelethonMessage) -> bool:
+        """Checks if the message or its chat has noforwards set."""
+        try:
+            # Ensure message.chat is accessed safely
+            chat_noforwards = getattr(message.chat, "noforwards", False) if message.chat else False
+            message_noforwards = getattr(message, "noforwards", False)
+            return chat_noforwards or message_noforwards
+        except AttributeError:
+             # This might happen if message object structure is unexpected
+            logger.warning("AttributeError checking noforwards, defaulting to False", exc_info=True)
+            return False
+
+    async def _send_to_log_channel(self, text: str, file=None, parse_mode: Optional[str] = None) -> bool:
+        """Sends a message or file to the log channel with error handling."""
+        try:
+            await self.client.send_message(
+                self.log_chat_id,
+                text,
+                file=file,
+                parse_mode=parse_mode
+            )
+            logger.debug(f"Successfully sent message/file to log channel {self.log_chat_id}.")
+            return True
+        except MessageTooLongError:
+            logger.warning("Message text too long. Sending truncated version.")
+            try:
+                # Truncate text, preserving parse mode if possible
+                limit = 4090 # Slightly less than 4096 for safety
+                truncated_text = text[:limit] + "... [TRUNCATED]"
+                # Re-apply markdown wrapper if needed (check original text format)
+                if parse_mode == "md" and text.startswith("```markdown\n") and text.endswith("\n```"):
+                     # Find the original content boundaries
+                     original_content = text[len("```markdown\n"):-len("\n```")]
+                     truncated_original = original_content[:limit - len("... [TRUNCATED]")] + "... [TRUNCATED]"
+                     truncated_text = f"```markdown\n{truncated_original}\n```"
+                elif parse_mode == "md" and text.startswith("```\n") and text.endswith("\n```"):
+                     original_content = text[len("```\n"):-len("\n```")]
+                     truncated_original = original_content[:limit - len("... [TRUNCATED]")] + "... [TRUNCATED]"
+                     truncated_text = f"```\n{truncated_original}\n```"
+
+
+                await self.client.send_message(
+                    self.log_chat_id,
+                    truncated_text,
+                    file=file, # Still try sending file if present
+                    parse_mode=parse_mode
+                )
+                logger.info("Successfully sent truncated message to log channel.")
+                return True # Count as success even if truncated
+            except Exception as e_trunc:
+                logger.error(f"Failed to send truncated message: {e_trunc}", exc_info=True)
+                # Try sending a minimal error message
+                try:
+                    await self.client.send_message(self.log_chat_id, "⚠️ Error: Original message was too long and could not be sent/truncated.")
+                except Exception as e_min_err:
+                     logger.error(f"Failed to send even the minimal error message: {e_min_err}")
+                return False
+        except MediaCaptionTooLongError:
+            logger.warning("Media caption too long. Sending media without caption, then text separately.")
+            try:
+                # 1. Send file without caption
+                await self.client.send_message(self.log_chat_id, file=file)
+                # 2. Send text separately (might still be too long)
+                caption_warning = "\n\n[Caption was too long and sent separately]"
+                text_with_warning = text + caption_warning
+                # Attempt to send the modified text (could trigger MessageTooLongError again)
+                return await self._send_to_log_channel(text=text_with_warning, parse_mode=parse_mode)
+            except Exception as e_fallback:
+                logger.error(f"Failed during MediaCaptionTooLongError fallback: {e_fallback}", exc_info=True)
+                try:
+                    await self.client.send_message(self.log_chat_id, f"⚠️ Error: Media caption was too long, and fallback failed: {type(e_fallback).__name__}")
+                except Exception as e_min_err:
+                    logger.error(f"Failed to send even the minimal error message: {e_min_err}")
+                return False
+        except Exception as e:
+            logger.error(f"Failed to send message/file to log channel: {e}", exc_info=True)
+            # Try sending a minimal error message
+            try:
+                await self.client.send_message(self.log_chat_id, f"⚠️ Error sending message: {type(e).__name__}")
+            except Exception as e_min_err:
+                logger.error(f"Failed to send even the minimal error message: {e_min_err}")
+            return False
+
+    async def _send_sticker_message(self, message: TelethonMessage, formatted_text: str):
+        """Handles sending sticker messages (text first, then sticker)."""
+        logger.debug(f"Sending sticker message. Markdown: {self.use_markdown_format}")
+        text_to_send = formatted_text
+        parse_mode = None
+        if self.use_markdown_format:
+            # Apply markdown formatting *only* to the text part for stickers
+            # The link conversion was already done in _format_forward_message_text
+            # We need the raw formatted_text (with converted links) inside the markdown block
+            text_to_send = f"```markdown\n{formatted_text}\n```"
+            parse_mode = "md"
+
+        # Send text part first
+        logger.info("Sending sticker text part...")
+        text_sent = await self._send_to_log_channel(text=text_to_send, parse_mode=parse_mode)
+
+        # Send sticker file only if text was sent (or attempted)
+        if text_sent:
+            logger.info("Sending sticker file part...")
+            # Send sticker with empty text caption to avoid potential caption errors
+            sticker_sent = await self._send_to_log_channel(text="", file=message.media)
+            if not sticker_sent:
+                 logger.error("Failed to send sticker file after text was sent.")
+                 # Optionally send a notification about the missing sticker file
+                 await self._send_to_log_channel(text="⚠️ Note: Failed to send the sticker file itself.")
+        else:
+            logger.warning("Skipping sticker file because text part failed to send.")
+
+
+    async def _send_restricted_media(self, message: TelethonMessage, formatted_text: str):
+        """Handles downloading, decrypting, and sending restricted media."""
+        logger.info("Handling restricted media.")
+        file_path = None
+        error_note = ""
+        media_sent = False
+        # Determine parse mode and text format based on use_markdown_format
+        parse_mode = "md" if self.use_markdown_format else None
+        # Apply markdown formatting *only* if enabled. Link conversion already done.
+        text_to_send = f"```markdown\n{formatted_text}\n```" if self.use_markdown_format else formatted_text
+
+        try:
+            file_path = await save_media_as_file(self.client, message)
+            if file_path:
+                original_filename = _get_filename(message.media) or "restricted_media"
+                logger.info(f"Restricted media saved to {file_path}. Original filename: {original_filename}")
+                with retrieve_media_as_file(file_path, True) as media_file:
+                    if media_file:
+                        media_file.name = original_filename
+                        logger.info(f"Attempting to send decrypted file: {media_file.name}")
+                        # Send with the potentially markdown-formatted text
+                        media_sent = await self._send_to_log_channel(
+                            text=text_to_send,
+                            file=media_file,
+                            parse_mode=parse_mode # Use determined parse_mode
+                        )
+                    else:
+                        logger.warning(f"Failed to retrieve/decrypt media from {file_path}")
+                        error_note = "\n  Error: Failed to retrieve/decrypt restricted media file.\n"
+            else:
+                logger.warning("save_media_as_file failed for restricted media.")
+                error_note = "\n  Error: Failed to save restricted media file.\n"
+
+        except Exception as e:
+            logger.error(f"Error processing restricted media: {e}", exc_info=True)
+            error_note = f"\n  Error: Exception during restricted media handling - {type(e).__name__}: {e}\n"
+        finally:
+            # Optional: Cleanup temporary file
+            # if file_path and os.path.exists(file_path):
+            #     try: os.remove(file_path)
+            #     except OSError as e: logger.error(f"Failed to clean up {file_path}: {e}")
+            pass
+
+        # If media sending failed or wasn't possible, send text with error note
+        if not media_sent:
+            logger.warning("Sending text only for restricted media due to previous errors.")
+            # Add error note to the *original* formatted text before potential markdown wrapping
+            text_with_error = formatted_text + error_note # Removed extra "====" as it's in formatted_text
+            # Apply markdown formatting if needed to the combined text+error
+            final_text = f"```markdown\n{text_with_error}\n```" if self.use_markdown_format else text_with_error
+            await self._send_to_log_channel(text=final_text, parse_mode=parse_mode) # Use determined parse_mode
+
+
+    async def _send_non_restricted_media(self, message: TelethonMessage, formatted_text: str):
+        """Handles sending non-restricted, non-sticker media."""
+        logger.debug(f"Sending non-restricted media. Markdown: {self.use_markdown_format}")
+        # Determine parse mode and text format based on use_markdown_format
+        parse_mode = "md" if self.use_markdown_format else None
+        # Apply markdown formatting *only* if enabled. Link conversion already done.
+        text_to_send = f"```markdown\n{formatted_text}\n```" if self.use_markdown_format else formatted_text
+
+        await self._send_to_log_channel(
+            text=text_to_send,
+            file=message.media,
+            parse_mode=parse_mode # Use determined parse_mode
+        )
+
+    async def _send_forwarded_message(self, event: events.NewMessage.Event, formatted_text: str):
+        """Orchestrates sending the forwarded message based on its type."""
+        message = event.message
+
+        if not message.media:
+            # Text-only message
+            logger.info("Sending text-only message.")
+            # Determine parse mode and text format based on use_markdown_format
+            parse_mode = "md" if self.use_markdown_format else None
+            # Apply markdown formatting *only* if enabled. Link conversion already done.
+            text_to_send = f"```markdown\n{formatted_text}\n```" if self.use_markdown_format else formatted_text
+            await self._send_to_log_channel(text=text_to_send, parse_mode=parse_mode)
+        else:
+            # Message with media
+            is_sticker = self._is_sticker(message)
+            has_noforwards = self._has_noforwards(message)
+
+            # Pass the already formatted_text (with link conversions done) to helpers
+            if is_sticker:
+                await self._send_sticker_message(message, formatted_text)
+            elif has_noforwards:
+                await self._send_restricted_media(message, formatted_text)
+            else:
+                await self._send_non_restricted_media(message, formatted_text)
+
+    # --- 现有方法继续 ---
 
     async def handle_new_message(self, event):
         """处理新消息事件，这个方法名与client.py中的注册方法匹配"""
@@ -215,307 +486,6 @@ class ForwardHandler(BaseHandler):
                 )
             except Exception as send_err:
                 logger.error(f"发送错误通知到日志频道失败: {send_err}")
-            return None
-
-    async def _handle_media_message(self, message: TelethonMessage, text_content: str):
-        """
-        处理包含媒体的消息。
-        接收已经根据 use_markdown_format 可能转换过链接的 text_content。
-        根据 self.use_markdown_format 决定是否包裹文本。
-        """
-        noforwards = False
-        file_path = None
-        error_note = ""  # 用于在文本中记录媒体处理错误
-
-        try:
-            noforwards = getattr(message.chat, "noforwards", False) or getattr(
-                message, "noforwards", False
-            )
-        except AttributeError:
-            pass  # noforwards 保持 False
-
-        # text_content 已经是转换过链接（如果需要）的文本
-        final_text_to_send = text_content  # 从传入的文本开始
-
-        if noforwards:
-            try:
-                # 尝试保存媒体文件
-                file_path = await save_media_as_file(self.client, message)
-                if file_path:
-                    original_filename = _get_filename(message.media)
-                    logger.info(
-                        f"受限媒体已保存: {file_path}. 原始文件名: {original_filename}"
-                    )
-
-                    # 使用上下文管理器检索并解密文件
-                    with retrieve_media_as_file(file_path, True) as media_file:
-                        if media_file:
-                            media_file.name = original_filename  # 设置正确的文件名
-                            logger.info(f"准备发送解密后的文件: {media_file.name}")
-
-                            # 根据 use_markdown_format 决定是否包裹文本
-                            if self.use_markdown_format:
-                                final_text_to_send = f"```markdown\n{text_content}\n```"  # 包裹传入的（可能已转换链接的）文本
-
-                            # 始终使用 Markdown 解析模式
-                            await self.client.send_message(
-                                self.log_chat_id,
-                                final_text_to_send,
-                                file=media_file,
-                                parse_mode="md",
-                            )
-                            logger.info(
-                                f"成功发送带受限媒体的消息到日志频道. Markdown包裹: {self.use_markdown_format}"
-                            )
-                        else:
-                            logger.warning(f"无法检索或解密媒体文件: {file_path}")
-                            error_note = (
-                                "\n  Error: Failed to retrieve/decrypt media file.\n"
-                            )
-                            # 在原始（可能已转换链接的）文本末尾追加错误
-                            final_text_to_send = (
-                                text_content + error_note + "\n===================="
-                            )
-
-                            if self.use_markdown_format:
-                                final_text_to_send = f"```markdown\n{final_text_to_send}\n```"  # 包裹含错误的文本
-
-                            # 始终使用 Markdown 解析模式
-                            await self.client.send_message(
-                                self.log_chat_id, final_text_to_send, parse_mode="md"
-                            )
-                else:
-                    logger.warning(
-                        "save_media_as_file 未能成功保存受限文件，仅发送文本"
-                    )
-                    error_note = "\n  Error: Failed to save restricted media file.\n"
-                    final_text_to_send = (
-                        text_content + error_note + "\n===================="
-                    )
-
-                    if self.use_markdown_format:
-                        final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
-
-                    # 始终使用 Markdown 解析模式
-                    await self.client.send_message(
-                        self.log_chat_id, final_text_to_send, parse_mode="md"
-                    )
-
-            except Exception as e:
-                logger.error(f"处理受保护媒体时出错: {e}", exc_info=True)
-                error_note = f"\n  Error: Exception during restricted media handling - {type(e).__name__}: {e}\n"
-                final_text_to_send = (
-                    text_content + error_note + "\n===================="
-                )
-
-                if self.use_markdown_format:
-                    final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
-
-                # 始终使用 Markdown 解析模式
-                await self.client.send_message(
-                    self.log_chat_id, final_text_to_send, parse_mode="md"
-                )
-            finally:
-                # 可以在这里添加清理逻辑，例如删除临时的 file_path
-                # if file_path and os.path.exists(file_path):
-                #     try:
-                #         os.remove(file_path)
-                #         logger.info(f"已清理临时媒体文件: {file_path}")
-                #     except OSError as e:
-                #         logger.error(f"清理临时媒体文件失败: {file_path}, Error: {e}")
-                pass  # 暂时不加删除逻辑
-
-        else:  # 非受保护内容 (noforwards is False)
-            try:
-                # 检查是否是贴纸
-                is_sticker = False
-                doc_attributes_for_log = None  # 用于记录实际检查的属性
-                media_obj_for_log = message.media  # 用于记录原始媒体对象
-
-                # 导入 MessageMediaDocument (如果尚未导入)
-                from telethon.tl.types import MessageMediaDocument
-
-                if isinstance(message.media, MessageMediaDocument):
-                    doc = getattr(message.media, "document", None)
-                    if doc and hasattr(doc, "attributes"):
-                        doc_attributes_for_log = doc.attributes  # 获取文档的属性列表
-                        is_sticker = any(
-                            isinstance(attr, DocumentAttributeSticker)
-                            for attr in doc.attributes
-                        )
-
-                # 添加详细日志
-                logger.debug(f"媒体类型检查: is_sticker = {is_sticker}")
-                logger.debug(f"媒体对象: {media_obj_for_log}")
-                logger.debug(
-                    f"检查的文档属性: {doc_attributes_for_log}"
-                )  # 记录实际检查的属性
-
-                if is_sticker:
-                    # 对于贴纸，先发送文本信息，再单独发送贴纸
-                    logger.debug(
-                        f"处理贴纸消息. use_markdown_format: {self.use_markdown_format}"
-                    )
-                    logger.debug(
-                        f"传入的 text_content (可能已转换链接): {text_content[:200]}..."
-                    )  # Log beginning of text
-
-                    # 1. 发送文本信息
-                    text_sent_successfully = False  # 标记文本是否成功发送
-                    try:
-                        # 根据 use_markdown_format 决定是否包裹文本
-                        text_for_sticker_info = (
-                            text_content  # Start with the original content
-                        )
-                        if self.use_markdown_format:
-                            text_for_sticker_info = f"```markdown\n{text_content}\n```"
-
-                        logger.debug(
-                            f"准备发送的贴纸文本信息 (text_for_sticker_info): {text_for_sticker_info[:200]}..."
-                        )
-
-                        # 始终使用 Markdown 解析模式发送文本
-                        logger.info("尝试发送贴纸的文本信息...")
-                        await self.client.send_message(
-                            self.log_chat_id, text_for_sticker_info, parse_mode="md"
-                        )
-                        logger.info(
-                            f"成功发送贴纸的文本信息到日志频道. Markdown包裹: {self.use_markdown_format}"
-                        )
-                        text_sent_successfully = True  # 标记成功
-                    except errors.MessageTooLongError:
-                        logger.warning("贴纸的文本信息过长，尝试发送截断版本。")
-                        try:
-                            # 尝试发送截断后的文本
-                            # 注意：需要重新应用 markdown 包裹（如果需要）
-                            truncated_original_text = (
-                                f"{text_content[:4000]}...\n[Original message too long]"
-                            )
-                            truncated_text_to_send = truncated_original_text
-                            if self.use_markdown_format:
-                                truncated_text_to_send = (
-                                    f"```markdown\n{truncated_original_text}\n```"
-                                )
-
-                            logger.info("尝试发送截断的贴纸文本信息...")
-                            await self.client.send_message(
-                                self.log_chat_id,
-                                truncated_text_to_send,
-                                parse_mode="md",
-                            )
-                            logger.info("成功发送截断的贴纸文本信息。")
-                            text_sent_successfully = True  # 标记成功（即使是截断的）
-                        except Exception as e_trunc:
-                            logger.error(f"发送截断的贴纸文本信息失败: {e_trunc}")
-                            # 发送一个简单的错误提示
-                            await self.client.send_message(
-                                self.log_chat_id,
-                                "⚠️ Error: Text content for sticker was too long and could not be sent.",
-                                parse_mode="md",
-                            )
-                    except Exception as e_text:
-                        logger.error(
-                            f"发送贴纸的文本信息时出错: {e_text}", exc_info=True
-                        )
-                        # 发送错误通知
-                        await self.client.send_message(
-                            self.log_chat_id,
-                            f"⚠️ Error sending text part for sticker: {type(e_text).__name__}",
-                            parse_mode="md",
-                        )
-
-                    # 2. 单独发送贴纸文件 (无标题)
-                    # 仅在文本信息发送成功（或尝试发送但失败有记录）后发送贴纸，确保不会只有贴纸
-                    if text_sent_successfully:
-                        try:
-                            logger.info("尝试发送贴纸文件...")
-                            await self.client.send_file(self.log_chat_id, message.media)
-                            logger.info("成功发送贴纸文件到日志频道.")
-                        except Exception as e_sticker:
-                            logger.error(
-                                f"发送贴纸文件时出错: {e_sticker}", exc_info=True
-                            )
-                            # 发送错误通知
-                            await self.client.send_message(
-                                self.log_chat_id,
-                                f"⚠️ Error sending sticker file: {type(e_sticker).__name__}",
-                                parse_mode="md",
-                            )
-                    else:
-                        logger.warning(
-                            "由于贴纸的文本信息未能成功发送，跳过发送贴纸文件，以避免孤立的贴纸。"
-                        )
-
-                else:
-                    # 对于非贴纸的普通媒体，保持原有逻辑：文本和媒体一起发送
-                    if self.use_markdown_format:
-                        final_text_to_send = f"```markdown\n{text_content}\n```"  # 包裹传入的（可能已转换链接的）文本
-                    else:
-                        final_text_to_send = (
-                            text_content  # 使用原始（可能已转换链接的）文本
-                        )
-
-                    # 始终使用 Markdown 解析模式
-                    await self.client.send_message(
-                        self.log_chat_id,
-                        final_text_to_send,
-                        file=message.media,
-                        parse_mode="md",
-                    )
-                    logger.info(
-                        f"成功发送带非受保护媒体的消息到日志频道. Markdown包裹: {self.use_markdown_format}"
-                    )
-            except errors.MediaCaptionTooLongError:
-                logger.warning(f"媒体标题过长，尝试不带标题发送媒体.")
-                try:
-                    # 如果是贴纸，这里不应该发生，因为我们是分开处理的
-                    # 但为了健壮性，如果真的在这里捕获到，只记录错误，因为贴纸已发送
-                    # 非贴纸的回退逻辑保持不变
-                    await self.client.send_message(self.log_chat_id, file=message.media)
-                    # 单独发送文本（可能截断或修改）
-                    caption_warning = "\n  Warning: Original caption was too long and might be truncated or omitted.\n"
-                    final_text_to_send = (
-                        text_content + caption_warning + "\n===================="
-                    )
-                    if self.use_markdown_format:
-                        final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
-                    # 始终使用 Markdown 解析模式
-                    await self.client.send_message(
-                        self.log_chat_id, final_text_to_send, parse_mode="md"
-                    )
-
-                except Exception as e_fallback:
-                    logger.error(
-                        f"发送非受保护媒体（无标题回退）时出错: {e_fallback}",
-                        exc_info=True,
-                    )
-                    error_note = f"\n  Error: Exception during non-restricted media fallback - {type(e_fallback).__name__}: {e_fallback}\n"
-                    final_text_to_send = (
-                        text_content + error_note + "\n===================="
-                    )
-                    if self.use_markdown_format:
-                        final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
-                    # 始终使用 Markdown 解析模式
-                    await self.client.send_message(
-                        self.log_chat_id, final_text_to_send, parse_mode="md"
-                    )
-
-            except Exception as e:
-                logger.error(f"发送非受保护媒体时出错: {e}", exc_info=True)
-                error_note = f"\n  Error: Exception during non-restricted media handling - {type(e).__name__}: {e}\n"
-                # 如果是贴纸且发送文本时出错
-                final_text_to_send = (
-                    text_content + error_note + "\n===================="
-                )
-
-                if self.use_markdown_format:
-                    final_text_to_send = f"```markdown\n{final_text_to_send}\n```"
-
-                # 始终使用 Markdown 解析模式
-                await self.client.send_message(
-                    self.log_chat_id, final_text_to_send, parse_mode="md"
-                )
-
     async def _create_message_object(
         self, event: events.NewMessage.Event
     ) -> Optional[Message]:
