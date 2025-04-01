@@ -98,6 +98,11 @@ class BaseHandler:
                 
         return from_id
     
+    def set_client(self, client):
+        """设置 Telethon 客户端实例。"""
+        self.client = client
+        logger.debug(f"Client set for {self.__class__.__name__}") # 添加日志记录
+
     @property
     def my_id(self) -> int:
         """Get current user ID
