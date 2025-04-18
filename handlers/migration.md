@@ -79,8 +79,12 @@
         -   如果是，则为其注册**所有可能相关的基础事件类型** (`events.NewMessage`, `events.MessageEdited`, `events.MessageDeleted`)。
         -   所有事件注册都指向该处理器的**统一入口方法** `handler.process`。
         -   **关键**: 使用**不带 `from_users` 或 `chats` 过滤器**的通用事件构造器 (`events.NewMessage()`, `events.MessageEdited()`, `events.MessageDeleted()`)。
--   **解耦**: `TelegramClientService` 不再需要知道具体处理器的类型 (`PersistenceHandler` vs `OutputHandler`) 或它们各自关心哪些事件。它只负责将所有相关事件分发给所有处理器的 `process` 方法。
--   **内部过滤**: 事件的过滤（例如，`PersistenceHandler` 忽略 `MessageDeleted`，`OutputHandler` 应用转发和忽略规则）完全在各自处理器的 `process` 方法内部通过 `isinstance` 和条件逻辑完成。
+-   **解耦与职责委托**:
+    -   `TelegramClientService` 通过依赖 `BaseHandler` 抽象类和其统一的 `process` 方法实现了解耦。它不需要为 `PersistenceHandler` 和 `OutputHandler` 等具体子类编写不同的事件注册逻辑。
+    -   它将“决定是否处理某个特定事件”的职责完全**委托**给了每个处理器自己的 `process` 方法。
+-   **处理器内部决策**:
+    -   当事件发生时，`TelegramClientService` 会调用**所有**处理器的 `process` 方法。
+    -   每个处理器的 `process` 方法内部通过检查事件类型 (`isinstance`) 和其他条件（如配置规则）来**自行决定**是否要响应该事件以及如何响应。例如，`PersistenceHandler` 会忽略 `MessageDeleted` 事件，而 `OutputHandler` 会根据其内部逻辑处理所有三种事件类型。
 
 ### 事件处理流程 (方案一)
 
