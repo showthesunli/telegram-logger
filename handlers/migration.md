@@ -24,19 +24,29 @@
 
 -   **`PersistenceHandler`**:
     -   **职责**: 负责将消息数据持久化到数据库。
-    -   **监听事件**: `NewMessage`, `MessageEdited`。
-    -   **核心逻辑**:
-        -   接收原始事件。
-        -   创建或更新 `Message` 数据模型对象。
-        -   调用 `DatabaseManager` 将 `Message` 对象保存到数据库。
+    -   **监听事件**: (通过 `TelegramClientService` 注册) `NewMessage`, `MessageEdited`, `MessageDeleted` (但内部只处理需要的)。
+    -   **核心逻辑 (在 `process` 方法中实现)**:
+        -   接收 `TelegramClientService` 传递的所有事件。
+        -   使用 `isinstance(event, (events.NewMessage, events.MessageEdited))` 判断是否为需要处理的事件类型。
+        -   如果是 `NewMessage` 或 `MessageEdited`：
+            -   创建或更新 `Message` 数据模型对象。
+            -   调用 `DatabaseManager` 将 `Message` 对象保存到数据库。
+        -   忽略其他类型的事件 (如 `MessageDeleted`)。
         -   不处理任何过滤、格式化或发送逻辑。
 -   **`OutputHandler`**:
-    -   **职责**: 负责根据配置和事件类型，格式化消息并将其发送到日志频道。合并了原 `EditDeleteHandler` 的日志记录功能和 `ForwardHandler` 的转发功能。
-    -   **监听事件**: `NewMessage`, `MessageEdited`, `MessageDeleted`。
-    -   **核心逻辑**:
-        -   接收原始事件。
-        -   **事件过滤**:
-            -   对于 `NewMessage` 和 `MessageEdited` 事件，检查消息是否来自 `FORWARD_USER_IDS` 或 `FORWARD_GROUP_IDS`。如果不是，则忽略。
+    -   **职责**: 负责根据配置和事件类型，过滤、格式化消息并将其发送到日志频道。合并了原 `EditDeleteHandler` 的日志记录功能和 `ForwardHandler` 的转发功能。
+    -   **监听事件**: (通过 `TelegramClientService` 注册) `NewMessage`, `MessageEdited`, `MessageDeleted`。
+    -   **核心逻辑 (在 `process` 方法中实现)**:
+        -   接收 `TelegramClientService` 传递的所有事件。
+        -   使用 `isinstance(event, ...)` 判断事件类型 (`NewMessage`, `MessageEdited`, `MessageDeleted`)。
+        -   **事件过滤 (内部处理)**:
+            -   根据事件类型和内容，应用过滤规则：
+                -   对于 `NewMessage` 和 `MessageEdited` 事件，检查消息是否来自 `FORWARD_USER_IDS` 或 `FORWARD_GROUP_IDS`。如果不是，则忽略。
+                -   对于 `MessageDeleted` 事件，检查事件是否发生在 `FORWARD_GROUP_IDS` 中的群组。如果不是，则忽略。
+                -   检查发送者或聊天是否在 `IGNORED_IDS` 中（如果适用）。
+            -   如果事件被过滤掉，则提前返回。
+        -   **数据检索 (含竞态处理)**:
+            -   对于 `MessageDeleted` 事件，从数据库 (`DatabaseManager`) 检索原始消息内容。
             -   对于 `MessageDeleted` 事件，检查事件是否发生在 `FORWARD_GROUP_IDS` 中的群组。如果不是，则忽略。
             -   检查发送者或聊天是否在 `IGNORED_IDS` 中（如果适用）。
         -   **数据检索 (含竞态处理)**:
@@ -50,58 +60,68 @@
             -   处理贴纸的特殊发送逻辑。
         -   **速率限制**: 应用原 `ForwardHandler` 中的删除事件速率限制逻辑，以防止删除通知刷屏。
         -   **发送**: 使用 `LogSender` 将最终格式化的文本和/或媒体文件发送到 `LOG_CHAT_ID`。
--   **`BaseHandler`**:
-    -   保持不变，提供基础功能，如客户端/数据库注入、`my_id` 获取等。
+-   **`BaseHandler` (Abstract Base Class)**:
+    -   将修改为抽象基类 (`abc.ABC`)。
+    -   提供基础功能（客户端/数据库注入、`my_id` 获取等）。
+    -   定义一个抽象方法 `async def process(self, event: events.common.EventCommon)`，强制所有子类实现统一的事件处理入口。
 -   **辅助类**:
     -   `MessageFormatter`, `LogSender`, `RestrictedMediaHandler` 基本保持不变，由 `OutputHandler` 调用。
 
-### TelegramClientService 交互
+### TelegramClientService 交互 (方案一：统一接口)
 
-为了配合新的处理器结构，`TelegramClientService` 的事件注册逻辑 (`_register_handlers`) 需要进行如下修改：
+`TelegramClientService` 的事件注册逻辑 (`_register_handlers`) 将采用统一分发策略：
 
--   **(可选但推荐)** 在 `handlers` 模块中定义抽象基类（接口），如 `IPersistenceEventHandler` 和 `IOutputEventHandler`，让 `PersistenceHandler` 和 `OutputHandler` 分别继承它们。这些接口表明处理器关心哪些类型的事件。
--   修改 `_register_handlers` 方法：
-    -   移除所有旧的基于 `hasattr` 或 `isinstance(handler, ForwardHandler)` 的注册逻辑。
-    -   移除所有为 `NewMessageHandler`, `EditDeleteHandler`, `ForwardHandler` 添加事件处理器的代码。
-    -   遍历 `handlers` 列表。
-    -   对于每个 `handler`：
-        -   使用 `isinstance(handler, IPersistenceEventHandler)` (或直接检查类型 `isinstance(handler, PersistenceHandler)`) 判断是否需要注册持久化相关事件。如果是，则调用 `self.client.add_event_handler()` 注册**通用**的 `events.NewMessage()` 和 `events.MessageEdited()`，指向 `handler.process` 或相应的处理方法。
-        -   使用 `isinstance(handler, IOutputEventHandler)` (或直接检查类型 `isinstance(handler, OutputHandler)`) 判断是否需要注册输出相关事件。如果是，则调用 `self.client.add_event_handler()` 注册**通用**的 `events.NewMessage()`, `events.MessageEdited()`, 和 `events.MessageDeleted()`，指向 `handler.process` 或相应的处理方法。
-    -   **关键**: 确保所有 `add_event_handler` 调用都使用**不带 `from_users` 或 `chats` 过滤器**的通用事件构造器。过滤逻辑完全移交给 `OutputHandler` 内部处理。
+-   **移除旧逻辑**: 删除所有基于旧处理器类型 (`NewMessageHandler`, `EditDeleteHandler`, `ForwardHandler`) 或特定能力 (`hasattr`, 标记接口) 的事件注册代码。
+-   **统一注册**:
+    -   遍历 `self.handlers` 列表中的所有处理器实例。
+    -   对于每一个处理器 `handler`：
+        -   检查它是否是 `BaseHandler` 的实例 (`isinstance(handler, BaseHandler)`)。
+        -   如果是，则为其注册**所有可能相关的基础事件类型** (`events.NewMessage`, `events.MessageEdited`, `events.MessageDeleted`)。
+        -   所有事件注册都指向该处理器的**统一入口方法** `handler.process`。
+        -   **关键**: 使用**不带 `from_users` 或 `chats` 过滤器**的通用事件构造器 (`events.NewMessage()`, `events.MessageEdited()`, `events.MessageDeleted()`)。
+-   **解耦**: `TelegramClientService` 不再需要知道具体处理器的类型 (`PersistenceHandler` vs `OutputHandler`) 或它们各自关心哪些事件。它只负责将所有相关事件分发给所有处理器的 `process` 方法。
+-   **内部过滤**: 事件的过滤（例如，`PersistenceHandler` 忽略 `MessageDeleted`，`OutputHandler` 应用转发和忽略规则）完全在各自处理器的 `process` 方法内部通过 `isinstance` 和条件逻辑完成。
 
-### 事件处理流程
+### 事件处理流程 (方案一)
 
-1.  Telethon 触发事件 (e.g., `NewMessage`)。
-2.  `TelegramClientService` 将事件分发给注册的处理器。
-3.  `PersistenceHandler` 接收事件，创建/更新 `Message` 对象并存入数据库。
-4.  `OutputHandler` 接收事件：
-    a.  检查事件是否满足过滤条件（转发规则、忽略列表等）。
-    b.  如果满足条件，根据事件类型（New/Edited/Deleted）执行相应操作：
-        i.  (Deleted) 从数据库获取原始消息。
-        ii. 格式化消息文本。
-        iii. 处理媒体（包括受限媒体）。
-        iv. (Deleted) 应用速率限制。
-        v.  通过 `LogSender` 发送到日志频道。
+1.  Telethon 触发事件 (e.g., `NewMessage`, `MessageEdited`, `MessageDeleted`)。
+2.  `TelegramClientService` 将该事件分发给**所有** `BaseHandler` 子类实例的 `process` 方法。
+3.  每个处理器的 `process` 方法被调用：
+    a.  **`PersistenceHandler.process`**:
+        -   检查事件类型是否为 `NewMessage` 或 `MessageEdited`。
+        -   如果是，则创建/更新 `Message` 对象并存入数据库。
+        -   否则，忽略该事件。
+    b.  **`OutputHandler.process`**:
+        -   检查事件类型 (`NewMessage`, `MessageEdited`, `MessageDeleted`)。
+        -   应用内部过滤规则（转发来源、忽略列表等）。如果被过滤，则忽略该事件。
+        -   如果事件通过过滤，则根据事件类型执行相应操作：
+            i.  (Deleted) 从数据库获取原始消息（含重试逻辑）。
+            ii. 格式化消息文本。
+            iii. 处理媒体（包括受限媒体）。
+            iv. (Deleted) 应用速率限制。
+            v.  通过 `LogSender` 发送到日志频道。
 
 ## 4. 重构步骤
 
 1.  **创建 `PersistenceHandler`**: - **状态**: [ ] 未完成
     -   创建 `telegram_logger/handlers/persistence_handler.py` 文件。
-    -   定义 `PersistenceHandler` 类，继承自 `BaseHandler`。
-    -   实现 `handle_new_message` 和 `handle_message_edited` 方法（或一个统一的 `process` 方法）。
-    -   将原 `NewMessageHandler` 中的 `_create_message_object` 和 `db.save_message` 逻辑移入此处理器。
-    -   确保该处理器仅负责数据持久化。
+    -   定义 `PersistenceHandler` 类，继承自 `BaseHandler` (需要先将 `BaseHandler` 修改为 ABC)。
+    -   实现 `async def process(self, event)` 方法。
+    -   在 `process` 方法内部，使用 `isinstance` 检查事件类型，仅处理 `NewMessage` 和 `MessageEdited`。
+    -   将原 `NewMessageHandler` 中的 `_create_message_object` 和 `db.save_message` 逻辑移入此处理器的 `process` 方法中（在类型检查之后）。
+    -   确保该处理器仅负责数据持久化，忽略其他事件类型。
 2.  **创建 `OutputHandler`**: - **状态**: [ ] 未完成
     -   创建 `telegram_logger/handlers/output_handler.py` 文件。
-    -   定义 `OutputHandler` 类，继承自 `BaseHandler`。
-    -   实现 `handle_new_message`, `handle_message_edited`, `handle_message_deleted` 方法（或一个统一的 `process` 方法）。
-    -   **合并逻辑**:
-        -   将 `ForwardHandler` 的核心逻辑（事件过滤、格式化、媒体处理、速率限制、发送）移入 `OutputHandler`。
+    -   定义 `OutputHandler` 类，继承自 `BaseHandler` (需要先将 `BaseHandler` 修改为 ABC)。
+    -   实现 `async def process(self, event)` 方法。
+    -   在 `process` 方法内部，使用 `isinstance` 检查事件类型 (`NewMessage`, `MessageEdited`, `MessageDeleted`)。
+    -   **合并逻辑 (移入 `process` 方法内部，根据事件类型调用)**:
+        -   将 `ForwardHandler` 的核心逻辑（**内部事件过滤**、格式化、媒体处理、速率限制、发送）移入 `OutputHandler` 的 `process` 方法或其调用的私有辅助方法中。
         -   将 `EditDeleteHandler` 的核心逻辑（编辑/删除事件的格式化、数据库检索、发送）移入 `OutputHandler`，并与 `ForwardHandler` 的逻辑整合（例如，编辑/删除事件现在也受转发规则约束）。
     -   **依赖注入**: 确保 `OutputHandler` 能接收并使用 `client`, `db`, `log_chat_id`, `ignored_ids`, `forward_user_ids`, `forward_group_ids`, 以及速率限制相关的配置参数。
     -   **实例化辅助类**: 在 `__init__` 中实例化 `MessageFormatter`, `LogSender`, `RestrictedMediaHandler`。
 3.  **更新 `TelegramClientService`**: - **状态**: [ ] 未完成
-    -   *此步骤的详细内容已移至“目标架构”部分的“TelegramClientService 交互”小节。*
+    -   *此步骤的详细内容已移至“目标架构”部分的“TelegramClientService 交互 (方案一：统一接口)”小节。*
 4.  **清理旧处理器**: - **状态**: [ ] 未完成
     -   删除 `telegram_logger/handlers/new_message_handler.py` 文件。
     -   删除 `telegram_logger/handlers/edit_delete_handler.py` 文件。
