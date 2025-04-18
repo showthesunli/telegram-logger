@@ -1,9 +1,8 @@
 import logging
-from typing import Optional, Union, cast
+from typing import Optional, Union, cast, Set, Dict, Any
 
 from telethon import events
 from telethon.tl.types import Message as TelethonMessage
-from telethon.tl.types import PeerChannel, PeerChat, PeerUser
 
 from ..data.database import DatabaseManager
 from ..data.models import Message
@@ -18,6 +17,25 @@ class PersistenceHandler(BaseHandler):
     负责将消息数据持久化到数据库的处理器。
     监听 NewMessage 和 MessageEdited 事件。
     """
+
+    def __init__(
+        self,
+        db: DatabaseManager,
+        log_chat_id: int,
+        ignored_ids: Set[int],
+        **kwargs: Dict[str, Any]
+    ):
+        """
+        初始化 PersistenceHandler。
+
+        Args:
+            db: 数据库管理器实例。
+            log_chat_id: 日志频道 ID (基类可能需要)。
+            ignored_ids: 要忽略的用户/频道 ID 集合 (基类可能需要)。
+            **kwargs: 其他传递给基类的参数。
+        """
+        super().__init__(client=None, db=db, log_chat_id=log_chat_id, ignored_ids=ignored_ids, **kwargs)
+        logger.info("PersistenceHandler 初始化完毕。")
 
     def __init__(
         self,
@@ -64,6 +82,13 @@ class PersistenceHandler(BaseHandler):
         提取自旧的 NewMessageHandler._create_message_object。
         """
         message: TelethonMessage = event.message
+        if not message:
+            logger.warning(f"事件 {type(event).__name__} 不包含有效的 message 对象。")
+            return None
+
+        # 确保 self.client 存在 (应该在 process 调用时由 set_client 设置好)
+        if message.media and not self.client:
+            logger.error(f"尝试保存媒体时 client 尚未设置 (消息 ID: {message.id})")
         if not message:
             logger.warning(f"事件 {type(event).__name__} 不包含有效的 message 对象。")
             return None
