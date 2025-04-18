@@ -88,9 +88,8 @@ PERSIST_TIME_IN_DAYS_BOT = int(os.getenv('PERSIST_TIME_IN_DAYS_BOT', '1'))
 from telegram_logger.services.client import TelegramClientService
 from telegram_logger.services.cleanup import CleanupService
 from telegram_logger.handlers import (
-    NewMessageHandler,
-    EditDeleteHandler,
-    ForwardHandler
+    PersistenceHandler,
+    OutputHandler
 )
 from telegram_logger.data.database import DatabaseManager
 from telegram_logger.utils.logging import configure_logging
@@ -112,26 +111,22 @@ async def main():
     }
     
     handlers = [
-        NewMessageHandler(
+        PersistenceHandler(
             client=None,
             db=db,
             log_chat_id=LOG_CHAT_ID,
             ignored_ids=IGNORED_IDS,
-            persist_times=persist_times
         ),
-        EditDeleteHandler(
-            client=None,
-            db=db,
-            log_chat_id=LOG_CHAT_ID,
-            ignored_ids=IGNORED_IDS
-        ),
-        ForwardHandler(
+        OutputHandler(
             client=None,
             db=db,
             log_chat_id=LOG_CHAT_ID,
             ignored_ids=IGNORED_IDS,
             forward_user_ids=FORWARD_USER_IDS,
-            forward_group_ids=FORWARD_GROUP_IDS
+            forward_group_ids=FORWARD_GROUP_IDS,
+            deletion_rate_limit_threshold=DELETION_RATE_LIMIT_THRESHOLD,
+            deletion_rate_limit_window=DELETION_RATE_LIMIT_WINDOW,
+            deletion_pause_duration=DELETION_PAUSE_DURATION
         )
     ]
     
