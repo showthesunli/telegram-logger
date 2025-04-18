@@ -111,16 +111,6 @@
     - 在 `process` 方法内部，使用 `isinstance` 检查事件类型，仅处理 `NewMessage` 和 `MessageEdited`。
     - 将原 `NewMessageHandler` 中的 `_create_message_object` 和 `db.save_message` 逻辑移入此处理器的 `process` 方法中（在类型检查之后）。
     - 确保该处理器仅负责数据持久化，忽略其他事件类型。
-3.  **创建 `OutputHandler`**: - **状态**: [ ] 未完成
-    - 创建 `telegram_logger/handlers/output_handler.py` 文件。
-    - 定义 `OutputHandler` 类，继承自 `BaseHandler`。
-    - 实现 `async def process(self, event)` 方法。
-    - 在 `process` 方法内部，使用 `isinstance` 检查事件类型 (`NewMessage`, `MessageEdited`, `MessageDeleted`)。
-    - **合并逻辑 (移入 `process` 方法内部，根据事件类型调用)**:
-      - 将 `ForwardHandler` 的核心逻辑（**内部事件过滤**、格式化、媒体处理、速率限制、发送）移入 `OutputHandler` 的 `process` 方法或其调用的私有辅助方法中。
-      - 将 `EditDeleteHandler` 的核心逻辑（编辑/删除事件的格式化、数据库检索、发送）移入 `OutputHandler`，并与 `ForwardHandler` 的逻辑整合（例如，编辑/删除事件现在也受转发规则约束）。
-    - **依赖注入**: 确保 `OutputHandler` 的 `__init__` 方法能接收并存储所有必要的依赖和配置，包括 `db`, `log_chat_id`, `ignored_ids`, `forward_user_ids`, `forward_group_ids`, 以及速率限制相关的配置参数 (如 `deletion_rate_limit_threshold`, `deletion_rate_limit_window`, `deletion_pause_duration`)。`client` 实例将在稍后通过 `set_client` 方法注入。
-    - **实例化辅助类**: 在 `set_client` 方法中实例化 `MessageFormatter`, `LogSender`, `RestrictedMediaHandler` (因为它们需要 client)。确保将 `client` 和其他必要的依赖传递给这些辅助类。
 3.  **创建 `OutputHandler`**: - **状态**: [x] 完成
     - 创建 `telegram_logger/handlers/output_handler.py` 文件。
     - 定义 `OutputHandler` 类，继承自 `BaseHandler`。
