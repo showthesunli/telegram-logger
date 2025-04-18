@@ -62,6 +62,20 @@ class TelegramClientService:
                 # 如果没有配置任何转发目标，记录警告
                 if not (handler.forward_user_ids or handler.forward_group_ids):
                     logger.warning("ForwardHandler has empty forward_user_ids and forward_group_ids lists")
+
+                # Register message edited and deleted handlers for ForwardHandler
+                if hasattr(handler, 'handle_message_edited'):
+                    self.client.add_event_handler(
+                        handler.handle_message_edited,
+                        events.MessageEdited()
+                    )
+                    logger.info("Registered ForwardHandler for MessageEdited events")
+                if hasattr(handler, 'handle_message_deleted'):
+                    self.client.add_event_handler(
+                        handler.handle_message_deleted,
+                        events.MessageDeleted()
+                    )
+                    logger.info("Registered ForwardHandler for MessageDeleted events")
             else:
                 # 处理其他类型的处理器
                 if hasattr(handler, 'handle_new_message'):
