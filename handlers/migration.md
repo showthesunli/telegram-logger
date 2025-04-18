@@ -39,7 +39,10 @@
             -   对于 `NewMessage` 和 `MessageEdited` 事件，检查消息是否来自 `FORWARD_USER_IDS` 或 `FORWARD_GROUP_IDS`。如果不是，则忽略。
             -   对于 `MessageDeleted` 事件，检查事件是否发生在 `FORWARD_GROUP_IDS` 中的群组。如果不是，则忽略。
             -   检查发送者或聊天是否在 `IGNORED_IDS` 中（如果适用）。
-        -   **数据检索**: 对于 `MessageDeleted` 事件，从数据库 (`DatabaseManager`) 检索原始消息内容。
+        -   **数据检索 (含竞态处理)**:
+            -   对于 `MessageDeleted` 事件，从数据库 (`DatabaseManager`) 检索原始消息内容。
+            -   **注意**: 由于 `PersistenceHandler` 保存消息和 `OutputHandler` 处理删除事件是并发的，可能存在竞态条件，即处理删除事件时消息尚未写入数据库。
+            -   **解决方案 (方案三：简单重试)**: 在 `OutputHandler` 中，如果首次查询数据库未能获取到已删除消息的数据，且该删除事件相对较新（例如，发生在过去几秒内），则进行短暂延迟（如 `asyncio.sleep(0.5)`) 后重试查询一次。如果重试后仍失败，则记录一条包含消息 ID 但缺少原始内容的简化删除日志。
         -   **格式化**: 使用 `MessageFormatter` 格式化要发送到日志频道的消息文本（包括新消息、编辑标记、删除标记）。
         -   **媒体处理**:
             -   处理普通媒体的发送。
