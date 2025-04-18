@@ -19,14 +19,14 @@ class BaseHandler(abc.ABC):
         ignored_ids: set,
         **kwargs: Dict[str, Any]
     ):
-        """Base handler for Telegram events
-        
+        """Telegram 事件处理器的基类。
+
         Args:
-            client: Telegram client
-            db: Database manager
-            log_chat_id: Chat ID to log messages to
-            ignored_ids: Set of user/chat IDs to ignore
-            **kwargs: Additional arguments
+            client: Telegram 客户端实例。
+            db: 数据库管理器实例。
+            log_chat_id: 用于记录消息的目标聊天 ID。
+            ignored_ids: 需要忽略的用户/聊天 ID 集合。
+            **kwargs: 其他可选参数。
         """
         self.client = client
         self.db = db
@@ -35,55 +35,55 @@ class BaseHandler(abc.ABC):
         self._my_id = None
         
     async def init(self):
-        """Initialize handler
-        
-        This method should be called after client is initialized
+        """初始化处理器。
+
+        此方法应在客户端初始化之后调用。
         """
         if self.client:
             me = await self.client.get_me()
             self._my_id = me.id
-            logger.info(f"Handler initialized with user ID: {self._my_id}")
+            logger.info(f"处理器已初始化，用户 ID: {self._my_id}")
         else:
-            logger.warning("Cannot initialize handler: client is None")
-    
+            logger.warning("无法初始化处理器：客户端为 None")
+
     @abc.abstractmethod
     async def process(self, event: EventCommon) -> Optional[Union[Message, List[Message]]]:
-        """Process event
-        
-        This method must be implemented by subclasses
-        
+        """处理事件。
+
+        此方法必须由子类实现。
+
         Args:
-            event: Telegram event
-            
+            event: Telegram 事件对象。
+
         Returns:
-            Optional[Union[Message, List[Message]]]: Processed message(s) or None
+            Optional[Union[Message, List[Message]]]: 处理后的消息对象（或列表）或 None。
         """
-        raise NotImplementedError("Subclasses must implement process()")
-    
+        raise NotImplementedError("子类必须实现 process() 方法")
+
     async def save_message(self, message: Message):
-        """Save message to database
-        
+        """将消息保存到数据库。
+
         Args:
-            message: Message to save
+            message: 要保存的消息对象。
         """
         self.db.save_message(message)
-    
+
     def _get_sender_id(self, message) -> int:
-        """Get sender ID from message
-        
+        """从消息中获取发送者 ID。
+
         Args:
-            message: Telegram message
-            
+            message: Telegram 消息对象。
+
         Returns:
-            int: Sender ID
+            int: 发送者 ID。
         """
         from_id = 0
-        
-        # Handle outgoing messages
+
+        # 处理发出的消息
         if hasattr(message, 'out') and message.out:
             return self._my_id if self._my_id else 0
-            
-        # Handle different peer types
+
+        # 处理不同的 peer 类型
         if hasattr(message, 'peer_id'):
             if isinstance(message.peer_id, PeerUser):
                 from_id = message.peer_id.user_id
@@ -91,8 +91,8 @@ class BaseHandler(abc.ABC):
                 from_id = message.peer_id.channel_id
             elif isinstance(message.peer_id, PeerChat):
                 from_id = message.peer_id.chat_id
-                
-        # Try to get from_id from message
+
+        # 尝试从消息的 from_id 属性获取
         if hasattr(message, 'from_id'):
             if hasattr(message.from_id, 'user_id'):
                 from_id = message.from_id.user_id
@@ -104,20 +104,20 @@ class BaseHandler(abc.ABC):
     def set_client(self, client):
         """设置 Telethon 客户端实例。"""
         self.client = client
-        logger.debug(f"Client set for {self.__class__.__name__}") # 添加日志记录
+        logger.debug(f"客户端已为 {self.__class__.__name__} 设置") # 添加日志记录
 
     @property
     def my_id(self) -> int:
-        """Get current user ID
-        
+        """获取当前用户的 ID。
+
         Returns:
-            int: Current user ID
-            
+            int: 当前用户的 ID。
+
         Raises:
-            RuntimeError: If handler is not initialized
+            RuntimeError: 如果处理器尚未初始化。
         """
         if self._my_id is None:
-            # Return 0 instead of raising an error
-            # This allows the handler to work even if not fully initialized
+            # 返回 0 而不是引发错误
+            # 这允许处理器即使未完全初始化也能工作
             return 0
         return self._my_id
