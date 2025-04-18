@@ -105,6 +105,7 @@
     -   移除 `NewMessageHandler`, `EditDeleteHandler`, `ForwardHandler` 的实例化。
     -   实例化 `PersistenceHandler` 和 `OutputHandler`，并将所需的配置（DB, client (稍后注入), log_chat_id, ignored_ids, forward_ids, rate limits 等）传递给它们。
     -   确保 `client_service.initialize()` 后的客户端注入逻辑对新处理器仍然有效。
+    -   **状态**: [x] 已完成 (根据 `main.py` 的更新)
 7.  **审查和测试**:
     -   仔细审查所有修改的代码。
     -   进行全面的测试，覆盖新消息、编辑消息、删除消息、转发规则、忽略规则、受限媒体、贴纸、速率限制等场景。
