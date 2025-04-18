@@ -55,6 +55,20 @@
 -   **辅助类**:
     -   `MessageFormatter`, `LogSender`, `RestrictedMediaHandler` 基本保持不变，由 `OutputHandler` 调用。
 
+### TelegramClientService 交互
+
+为了配合新的处理器结构，`TelegramClientService` 的事件注册逻辑 (`_register_handlers`) 需要进行如下修改：
+
+-   **(可选但推荐)** 在 `handlers` 模块中定义抽象基类（接口），如 `IPersistenceEventHandler` 和 `IOutputEventHandler`，让 `PersistenceHandler` 和 `OutputHandler` 分别继承它们。这些接口表明处理器关心哪些类型的事件。
+-   修改 `_register_handlers` 方法：
+    -   移除所有旧的基于 `hasattr` 或 `isinstance(handler, ForwardHandler)` 的注册逻辑。
+    -   移除所有为 `NewMessageHandler`, `EditDeleteHandler`, `ForwardHandler` 添加事件处理器的代码。
+    -   遍历 `handlers` 列表。
+    -   对于每个 `handler`：
+        -   使用 `isinstance(handler, IPersistenceEventHandler)` (或直接检查类型 `isinstance(handler, PersistenceHandler)`) 判断是否需要注册持久化相关事件。如果是，则调用 `self.client.add_event_handler()` 注册**通用**的 `events.NewMessage()` 和 `events.MessageEdited()`，指向 `handler.process` 或相应的处理方法。
+        -   使用 `isinstance(handler, IOutputEventHandler)` (或直接检查类型 `isinstance(handler, OutputHandler)`) 判断是否需要注册输出相关事件。如果是，则调用 `self.client.add_event_handler()` 注册**通用**的 `events.NewMessage()`, `events.MessageEdited()`, 和 `events.MessageDeleted()`，指向 `handler.process` 或相应的处理方法。
+    -   **关键**: 确保所有 `add_event_handler` 调用都使用**不带 `from_users` 或 `chats` 过滤器**的通用事件构造器。过滤逻辑完全移交给 `OutputHandler` 内部处理。
+
 ### 事件处理流程
 
 1.  Telethon 触发事件 (e.g., `NewMessage`)。
@@ -87,15 +101,7 @@
     -   **依赖注入**: 确保 `OutputHandler` 能接收并使用 `client`, `db`, `log_chat_id`, `ignored_ids`, `forward_user_ids`, `forward_group_ids`, 以及速率限制相关的配置参数。
     -   **实例化辅助类**: 在 `__init__` 中实例化 `MessageFormatter`, `LogSender`, `RestrictedMediaHandler`。
 3.  **更新 `TelegramClientService`**: - **状态**: [ ] 未完成
-    -   **(可选但推荐)** 在 `handlers` 模块中定义抽象基类（接口），如 `IPersistenceEventHandler` 和 `IOutputEventHandler`，让 `PersistenceHandler` 和 `OutputHandler` 分别继承它们。这些接口表明处理器关心哪些类型的事件。
-    -   修改 `_register_handlers` 方法：
-        -   移除所有旧的基于 `hasattr` 或 `isinstance(handler, ForwardHandler)` 的注册逻辑。
-        -   移除所有为 `NewMessageHandler`, `EditDeleteHandler`, `ForwardHandler` 添加事件处理器的代码。
-        -   遍历 `handlers` 列表。
-        -   对于每个 `handler`：
-            -   使用 `isinstance(handler, IPersistenceEventHandler)` (或直接检查类型 `isinstance(handler, PersistenceHandler)`) 判断是否需要注册持久化相关事件。如果是，则调用 `self.client.add_event_handler()` 注册**通用**的 `events.NewMessage()` 和 `events.MessageEdited()`，指向 `handler.process` 或相应的处理方法。
-            -   使用 `isinstance(handler, IOutputEventHandler)` (或直接检查类型 `isinstance(handler, OutputHandler)`) 判断是否需要注册输出相关事件。如果是，则调用 `self.client.add_event_handler()` 注册**通用**的 `events.NewMessage()`, `events.MessageEdited()`, 和 `events.MessageDeleted()`，指向 `handler.process` 或相应的处理方法。
-        -   **关键**: 确保所有 `add_event_handler` 调用都使用**不带 `from_users` 或 `chats` 过滤器**的通用事件构造器。过滤逻辑完全移交给 `OutputHandler` 内部处理。
+    -   *此步骤的详细内容已移至“目标架构”部分的“TelegramClientService 交互”小节。*
 4.  **清理旧处理器**: - **状态**: [ ] 未完成
     -   删除 `telegram_logger/handlers/new_message_handler.py` 文件。
     -   删除 `telegram_logger/handlers/edit_delete_handler.py` 文件。
