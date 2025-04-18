@@ -291,28 +291,34 @@ class ForwardHandler(BaseHandler):
 
         if should_forward:
             try:
-                # 直接转发编辑后的消息
-                await self.client.forward_messages(
-                    self.log_chat_id, messages=message.id, from_peer=message.peer_id
-                )
+                # 1. 使用 formatter 格式化编辑后的消息文本
+                formatted_text = await self.formatter.format_message(event)
+
+                # 2. 添加编辑标记
+                text_to_send = f"📝 **Edited Message**\n\n{formatted_text}"
+
+                # 3. 使用 sender 发送格式化后的文本
+                await self.sender.send_message(text=text_to_send, parse_mode="md")
+
                 logger.info(
-                    f"Forwarded edited message {message.id} from {sender_id or chat_id} to {self.log_chat_id}"
+                    f"Sent formatted edited message {message.id} from {sender_id or chat_id} to {self.log_chat_id}"
                 )
+
             except errors.MessageIdInvalidError:
                 logger.warning(
-                    f"Could not forward edited message {message.id}: Message ID invalid (possibly deleted or inaccessible)."
+                    f"Could not process edited message {message.id}: Message ID invalid (possibly deleted or inaccessible)."
                 )
             except Exception as e:
                 logger.error(
-                    f"Failed to forward edited message {message.id}: {e}", exc_info=True
+                    f"Failed to format or send edited message {message.id}: {e}", exc_info=True
                 )
                 # 尝试发送错误通知
                 try:
-                    error_text = f"⚠️ Failed to forward edited message {message.id} from chat {chat_id}. Error: {type(e).__name__}"
+                    error_text = f"⚠️ Failed to process edited message {message.id} from chat {chat_id}. Error: {type(e).__name__}"
                     await self.sender.send_message(error_text)
                 except Exception as send_err:
                     logger.error(
-                        f"Failed to send error notification about edited message forwarding: {send_err}"
+                        f"Failed to send error notification about edited message processing: {send_err}"
                     )
         else:
             # 可选：添加调试日志，说明为何未转发
