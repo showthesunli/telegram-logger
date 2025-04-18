@@ -3,7 +3,6 @@ from telethon import TelegramClient, events
 from typing import List
 import logging
 from telegram_logger.handlers.base_handler import BaseHandler
-from telegram_logger.handlers.forward_handler import ForwardHandler
 
 logger = logging.getLogger(__name__)
 
@@ -24,75 +23,82 @@ class TelegramClientService:
         self._last_error = None
 
     async def initialize(self) -> int:
-        """Initialize client and return current user ID"""
+        """初始化客户端并返回当前用户 ID。"""
         if not self._is_initialized:
-            await self.client.start()
-            self._register_handlers()
-            self._is_initialized = True
+            try:
+                await self.client.start()
+                me = await self.client.get_me()
+                if not me:
+                    logger.critical("无法获取当前用户信息，请检查 API ID/Hash 和会话文件。")
+                    raise ConnectionError("无法获取当前用户信息")
+
+                logger.info(f"客户端已连接，用户 ID: {me.id}")
+                self._register_handlers() # 在确认连接成功后注册处理器
+                self._is_initialized = True
+                logger.info(f"客户端为用户 {me.id} 初始化完成。")
+                return me.id
+            except Exception as e:
+                logger.critical(f"客户端初始化失败: {e}", exc_info=True)
+                self._last_error = str(e)
+                raise # 重新引发异常，让调用者知道初始化失败
+        else:
+            logger.warning("客户端已初始化，跳过重复初始化。")
             me = await self.client.get_me()
-            logger.info(f"Client initialized for user {me.id}")
-            return me.id
-        return 0
+            return me.id if me else 0 # 如果已初始化但无法获取 me，返回 0
 
     def _register_handlers(self):
-        """Register all event handlers"""
-        for handler in self.handlers:
-            # 特殊处理 ForwardHandler
-            if isinstance(handler, ForwardHandler):
-                # 检查是否有用户ID需要转发
-                if handler.forward_user_ids:
-                    # 为每个转发用户ID单独注册处理器
-                    for user_id in handler.forward_user_ids:
-                        self.client.add_event_handler(
-                            handler.handle_new_message,
-                            events.NewMessage(from_users=user_id)
-                        )
-                    logger.info(f"Registered ForwardHandler for users: {handler.forward_user_ids}")
-                
-                # 检查是否有群组ID需要转发
-                if handler.forward_group_ids:
-                    # 为每个转发群组ID单独注册处理器
-                    for group_id in handler.forward_group_ids:
-                        self.client.add_event_handler(
-                            handler.handle_new_message,
-                            events.NewMessage(chats=group_id)
-                        )
-                    logger.info(f"Registered ForwardHandler for groups: {handler.forward_group_ids}")
-                
-                # 如果没有配置任何转发目标，记录警告
-                if not (handler.forward_user_ids or handler.forward_group_ids):
-                    logger.warning("ForwardHandler has empty forward_user_ids and forward_group_ids lists")
+        """根据新的统一接口方案注册事件处理器。"""
+        if not self.client or not self.client.is_connected():
+            logger.error("客户端尚未初始化或未连接，无法注册处理器。")
+            return
 
-                # Register message edited and deleted handlers for ForwardHandler
-                if hasattr(handler, 'handle_message_edited'):
+        logger.info("开始注册事件处理器 (统一接口方案)...")
+
+        # 遍历所有注入的处理器实例
+        for handler in self.handlers:
+            # 检查处理器是否是 BaseHandler 的实例
+            if isinstance(handler, BaseHandler):
+                handler_name = type(handler).__name__
+                logger.info(f"为处理器 '{handler_name}' 注册通用事件监听器...")
+
+                # 注册 NewMessage 事件，不带过滤器，指向 handler.process
+                try:
                     self.client.add_event_handler(
-                        handler.handle_message_edited,
-                        events.MessageEdited()
+                        handler.process,
+                        events.NewMessage() # 通用事件，无过滤器
                     )
-                    logger.info("Registered ForwardHandler for MessageEdited events")
-                if hasattr(handler, 'handle_message_deleted'):
+                    logger.debug(f"  - 已为 '{handler_name}' 注册 NewMessage 事件 -> process()")
+                except Exception as e:
+                    logger.error(f"为 '{handler_name}' 注册 NewMessage 事件失败: {e}", exc_info=True)
+
+                # 注册 MessageEdited 事件，不带过滤器，指向 handler.process
+                try:
                     self.client.add_event_handler(
-                        handler.handle_message_deleted,
-                        events.MessageDeleted()
+                        handler.process,
+                        events.MessageEdited() # 通用事件，无过滤器
                     )
-                    logger.info("Registered ForwardHandler for MessageDeleted events")
+                    logger.debug(f"  - 已为 '{handler_name}' 注册 MessageEdited 事件 -> process()")
+                except Exception as e:
+                    logger.error(f"为 '{handler_name}' 注册 MessageEdited 事件失败: {e}", exc_info=True)
+
+                # 注册 MessageDeleted 事件，不带过滤器，指向 handler.process
+                try:
+                    self.client.add_event_handler(
+                        handler.process,
+                        events.MessageDeleted() # 通用事件，无过滤器
+                    )
+                    logger.debug(f"  - 已为 '{handler_name}' 注册 MessageDeleted 事件 -> process()")
+                except Exception as e:
+                    logger.error(f"为 '{handler_name}' 注册 MessageDeleted 事件失败: {e}", exc_info=True)
+
             else:
-                # 处理其他类型的处理器
-                if hasattr(handler, 'handle_new_message'):
-                    self.client.add_event_handler(
-                        handler.handle_new_message,
-                        events.NewMessage()
-                    )
-                if hasattr(handler, 'handle_message_edited'):
-                    self.client.add_event_handler(
-                        handler.handle_message_edited,
-                        events.MessageEdited()
-                    )
-                if hasattr(handler, 'handle_message_deleted'):
-                    self.client.add_event_handler(
-                        handler.handle_message_deleted,
-                        events.MessageDeleted()
-                    )
+                # 如果处理器不是 BaseHandler 的子类，则记录警告
+                logger.warning(
+                    f"处理器 {type(handler).__name__} 不是 BaseHandler 的实例，"
+                    f"无法按统一接口方案注册事件。"
+                )
+
+        logger.info("所有处理器事件注册完成。")
 
     async def health_check(self) -> dict:
         """检查服务健康状态
