@@ -129,9 +129,9 @@
     - 删除 `telegram_logger/handlers/new_message_handler.py` 文件。
     - 删除 `telegram_logger/handlers/edit_delete_handler.py` 文件。
     - 删除 `telegram_logger/handlers/forward_handler.py` 文件。
-6.  **更新 `__init__.py`**: - **状态**: [ ] 未完成
+6.  **更新 `__init__.py`**: - **状态**: [x] 完成
     - 修改 `telegram_logger/handlers/__init__.py`，导出新的处理器：`BaseHandler`, `PersistenceHandler`, `OutputHandler`。移除对旧处理器 (`NewMessageHandler`, `EditDeleteHandler`, `ForwardHandler`) 的导出。
-7.  **更新 `main.py`**: - **状态**: [ ] 未完成 (标记为未完成，因为需要实际修改)
+7.  **更新 `main.py`**: - **状态**: [x] 完成 (标记为未完成，因为需要实际修改)
     - 修改 `telegram_logger/main.py` 中的 `main` 函数。
     - **移除** `NewMessageHandler`, `EditDeleteHandler`, `ForwardHandler` 的实例化代码。
     - **添加** `PersistenceHandler` 的实例化，确保传递必要的依赖 (`db`, `log_chat_id`, `ignored_ids`)。
