@@ -1,4 +1,5 @@
 # --- 导入 ---
+import asyncio # 新增导入
 import logging
 import pickle
 from datetime import datetime, timedelta # 新增导入
@@ -422,6 +423,9 @@ class ForwardHandler(BaseHandler):
         logger.info(f"处理在受监控群组 {chat_id} 中删除的消息: {deleted_ids}")
         for message_id in deleted_ids:
             try:
+                # --- 短暂延迟以缓解时序问题 ---
+                await asyncio.sleep(0.5) # 等待 500 毫秒
+
                 # 1. 从数据库检索消息
                 db_message = self.db.get_message_by_id(message_id)
 
