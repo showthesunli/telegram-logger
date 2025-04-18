@@ -181,7 +181,7 @@ PERSIST_TIME_IN_DAYS_CHANNEL=1
 ### 运行程序
 
 ```bash
-python main.py
+python app.py
 ```
 
 首次运行时，程序会在终端提示输入手机号和验证码。
