@@ -1,5 +1,7 @@
+import abc
 import logging
 from typing import Dict, Any, Optional, Union, List
+from telethon import events
 from telethon.events import common as EventCommon
 from telethon.tl.types import PeerUser, PeerChannel, PeerChat
 from telegram_logger.data.database import DatabaseManager
@@ -7,7 +9,7 @@ from telegram_logger.data.models import Message
 
 logger = logging.getLogger(__name__)
 
-class BaseHandler:
+class BaseHandler(abc.ABC):
 
     def __init__(
         self, 
@@ -44,10 +46,11 @@ class BaseHandler:
         else:
             logger.warning("Cannot initialize handler: client is None")
     
+    @abc.abstractmethod
     async def process(self, event: EventCommon) -> Optional[Union[Message, List[Message]]]:
         """Process event
         
-        This method should be implemented by subclasses
+        This method must be implemented by subclasses
         
         Args:
             event: Telegram event
