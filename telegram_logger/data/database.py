@@ -3,7 +3,7 @@ import os
 import logging
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Optional
 from .models import Message
 
 logger = logging.getLogger(__name__)
