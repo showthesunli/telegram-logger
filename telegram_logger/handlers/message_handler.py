@@ -22,10 +22,15 @@ class NewMessageHandler(BaseHandler):
         super().__init__(client, db, log_chat_id, ignored_ids)
         self.persist_times = persist_times
 
-    async def process(
-        self, event: Union[events.NewMessage.Event, events.MessageEdited.Event]
+    async def handle_new_message(
+        self, event: events.NewMessage.Event # 明确处理 NewMessage 事件
     ) -> Optional[Message]:
-        """处理新消息和编辑消息"""
+        """处理新接收到的消息"""
+        # 添加类型检查以确保事件类型正确（虽然注册时已指定）
+        if not isinstance(event, events.NewMessage.Event):
+            logger.warning(f"NewMessageHandler received non-NewMessage event: {type(event)}")
+            # 根据 Telethon 的期望，可能返回 None 或不返回
+            return None
         chat_id = event.chat_id
         from_id = self._get_sender_id(event.message)
         msg_id = event.message.id
@@ -63,7 +68,7 @@ class NewMessageHandler(BaseHandler):
             return True
         return False
 
-    async def _create_message_object(self, event) -> Message:
+    async def _create_message_object(self, event: events.NewMessage.Event) -> Message: # 类型提示更精确
         """创建消息对象"""
         noforwards = getattr(event.chat, "noforwards", False) or getattr(
             event.message, "noforwards", False
@@ -89,12 +94,8 @@ class NewMessageHandler(BaseHandler):
             media=media,
             noforwards=noforwards,
             self_destructing=self_destructing,
-            created_time=datetime.now(),
-            edited_time=(
-                datetime.now()
-                if isinstance(event, events.MessageEdited.Event)
-                else None
-            ),
+            created_time=datetime.now(), # 新消息的创建时间
+            edited_time=None, # 新消息没有编辑时间
         )
 
     async def _save_restricted_messages(self, link: str):
