@@ -5,6 +5,7 @@ import pickle
 # 如果不再直接使用 os, re, traceback，则移除
 from typing import Optional, Union, List, Dict, Any
 from telethon import events, errors
+from telethon import events, errors
 from telethon.tl.types import Message as TelethonMessage  # 如果类型提示需要，则保留
 
 # 如果 LogSender 处理了特定错误类型，则移除
@@ -275,6 +276,85 @@ class ForwardHandler(BaseHandler):
         except Exception as e:
             logger.error(f"创建 Message 对象失败: {e}", exc_info=True)
             return None
+
+    async def handle_message_edited(self, event: events.MessageEdited.Event):
+        """处理来自被监控用户或群组的已编辑消息，并转发。"""
+        message = event.message
+        # 尝试获取发送者ID，如果不可用则为 None
+        sender_id = getattr(message.sender, 'id', None)
+        chat_id = message.chat_id
+
+        # 检查消息是否来自需要转发的用户或群组
+        # 注意：对于频道消息，sender_id 可能为 None，此时仅依赖 chat_id
+        should_forward = (sender_id is not None and sender_id in self.forward_user_ids) or \
+                         (chat_id in self.forward_group_ids)
+
+        if should_forward:
+            try:
+                # 直接转发编辑后的消息
+                await self.client.forward_messages(
+                    self.log_chat_id,
+                    messages=message.id,
+                    from_peer=message.peer_id
+                )
+                logger.info(f"Forwarded edited message {message.id} from {sender_id or chat_id} to {self.log_chat_id}")
+            except errors.MessageIdInvalidError:
+                 logger.warning(f"Could not forward edited message {message.id}: Message ID invalid (possibly deleted or inaccessible).")
+            except Exception as e:
+                logger.error(f"Failed to forward edited message {message.id}: {e}", exc_info=True)
+                # 尝试发送错误通知
+                try:
+                    error_text = f"⚠️ Failed to forward edited message {message.id} from chat {chat_id}. Error: {type(e).__name__}"
+                    await self.sender.send_message(error_text)
+                except Exception as send_err:
+                    logger.error(f"Failed to send error notification about edited message forwarding: {send_err}")
+        else:
+             # 可选：添加调试日志，说明为何未转发
+             logger.debug(f"Ignoring edited message {message.id}: sender {sender_id}, chat {chat_id} not in forward lists.")
+
+    async def handle_message_deleted(self, event: events.MessageDeleted.Event):
+        """处理来自被监控群组的消息删除事件，并发送通知。"""
+        # MessageDeletedEvent 的 chat_id 属性可能为 None，需要从 peer 获取
+        chat_id = event.chat_id
+        if chat_id is None and event.peer:
+             # 尝试从 peer 属性获取 chat_id (可能是负数)
+             if hasattr(event.peer, 'channel_id'):
+                 chat_id = -1000000000000 - event.peer.channel_id # Telethon 约定
+             elif hasattr(event.peer, 'chat_id'):
+                 chat_id = -event.peer.chat_id # Telethon 约定
+
+        deleted_ids = event.deleted_ids
+
+        # 确保我们获得了有效的 chat_id
+        if chat_id is None:
+            logger.warning(f"Could not determine chat_id for deletion event with IDs: {deleted_ids}. Skipping.")
+            return
+
+        # 仅当删除事件发生在被监控的群组时才处理
+        if chat_id in self.forward_group_ids:
+            try:
+                # 为被监控的群组创建提及链接
+                chat_mention = await create_mention(self.client, chat_id)
+                # 构建通知文本
+                text = (
+                    f"🗑️ **Deleted Message(s) Notification**\n"
+                    f"In Chat: {chat_mention}\n"
+                    f"Message IDs: {', '.join(map(str, deleted_ids))}"
+                )
+                # 使用 LogSender 发送文本通知到日志频道
+                await self.sender.send_message(text=text, parse_mode="md") # 使用 Markdown
+                logger.info(f"Sent deletion notification for chat {chat_id} (IDs: {deleted_ids}) to {self.log_chat_id}")
+            except Exception as e:
+                logger.error(f"Failed to send deletion notification for chat {chat_id}: {e}", exc_info=True)
+                # 尝试发送最小错误通知
+                try:
+                    error_text = f"⚠️ Failed to send deletion notification for chat {chat_id}."
+                    await self.sender._send_minimal_error(error_text)
+                except Exception as send_err:
+                    logger.error(f"Failed to send minimal error notification about deletion: {send_err}")
+        else:
+            # 可选：添加调试日志
+            logger.debug(f"Ignoring deletion event in chat {chat_id}: not in forward group list.")
 
     async def get_chat_type(self, event) -> int:
         """获取聊天类型代码 (保持原样)"""
