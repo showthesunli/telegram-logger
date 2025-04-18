@@ -68,13 +68,13 @@
 
 ## 4. 重构步骤
 
-1.  **创建 `PersistenceHandler`**:
+1.  **创建 `PersistenceHandler`**: - **状态**: [ ] 未完成
     -   创建 `telegram_logger/handlers/persistence_handler.py` 文件。
     -   定义 `PersistenceHandler` 类，继承自 `BaseHandler`。
     -   实现 `handle_new_message` 和 `handle_message_edited` 方法（或一个统一的 `process` 方法）。
     -   将原 `NewMessageHandler` 中的 `_create_message_object` 和 `db.save_message` 逻辑移入此处理器。
     -   确保该处理器仅负责数据持久化。
-2.  **创建 `OutputHandler`**:
+2.  **创建 `OutputHandler`**: - **状态**: [ ] 未完成
     -   创建 `telegram_logger/handlers/output_handler.py` 文件。
     -   定义 `OutputHandler` 类，继承自 `BaseHandler`。
     -   实现 `handle_new_message`, `handle_message_edited`, `handle_message_deleted` 方法（或一个统一的 `process` 方法）。
