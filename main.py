@@ -94,6 +94,11 @@ PERSIST_TIME_IN_DAYS_USER = int(os.getenv('PERSIST_TIME_IN_DAYS_USER', '1'))
 PERSIST_TIME_IN_DAYS_CHANNEL = int(os.getenv('PERSIST_TIME_IN_DAYS_CHANNEL', '1'))
 PERSIST_TIME_IN_DAYS_GROUP = int(os.getenv('PERSIST_TIME_IN_DAYS_GROUP', '1'))
 PERSIST_TIME_IN_DAYS_BOT = int(os.getenv('PERSIST_TIME_IN_DAYS_BOT', '1'))
+
+# Deletion rate limiting settings
+DELETION_RATE_LIMIT_THRESHOLD = int(os.getenv('DELETION_RATE_LIMIT_THRESHOLD', '5'))
+DELETION_RATE_LIMIT_WINDOW = int(os.getenv('DELETION_RATE_LIMIT_WINDOW', '60')) # seconds
+DELETION_PAUSE_DURATION = int(os.getenv('DELETION_PAUSE_DURATION', '600')) # seconds
 from telegram_logger.services.client import TelegramClientService
 from telegram_logger.services.cleanup import CleanupService
 from telegram_logger.handlers import (
@@ -141,10 +146,12 @@ async def main():
             ignored_ids=IGNORED_IDS,
             forward_user_ids=FORWARD_USER_IDS,
             forward_group_ids=FORWARD_GROUP_IDS,
-            # use_markdown_format=FORWARDER_USE_MARKDOWN # <- 删除这一行
+            # 传入速率限制参数
+            deletion_rate_limit_threshold=DELETION_RATE_LIMIT_THRESHOLD,
+            deletion_rate_limit_window=DELETION_RATE_LIMIT_WINDOW,
+            deletion_pause_duration=DELETION_PAUSE_DURATION,
         )
     ]
-    
     # Initialize services
     client_service = TelegramClientService(
         session_name=SESSION_NAME,

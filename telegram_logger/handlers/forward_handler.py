@@ -39,26 +39,41 @@ class ForwardHandler(BaseHandler):
         ignored_ids,
         forward_user_ids=None,
         forward_group_ids=None,
-        # use_markdown_format: bool = False, # <- 删除这一行
-        **kwargs: Dict[str, Any],  # 添加 **kwargs 以匹配 BaseHandler（如果需要）
+        # 添加新的速率限制参数
+        deletion_rate_limit_threshold: int = 5, # 示例值：5个事件
+        deletion_rate_limit_window: int = 60,  # 示例值：60秒
+        deletion_pause_duration: int = 600,   # 示例值：600秒 (10分钟)
+        **kwargs: Dict[str, Any],
     ):
         # 正确调用 super().__init__
         super().__init__(client, db, log_chat_id, ignored_ids, **kwargs)
 
         self.forward_user_ids = forward_user_ids or []
         self.forward_group_ids = forward_group_ids or []
-        # self.use_markdown_format = use_markdown_format # <- 删除这一行
 
         # 实例化辅助类
-        # 删除 use_markdown_format 参数
-        self.formatter = MessageFormatter(client)  # <- 修改这里
+        self.formatter = MessageFormatter(client)
         self.sender = LogSender(client, log_chat_id)
         self.media_handler = RestrictedMediaHandler(client)
+
+        # 初始化速率限制状态
+        self.deletion_rate_limit_threshold = deletion_rate_limit_threshold
+        self.deletion_rate_limit_window = timedelta(seconds=deletion_rate_limit_window)
+        self.deletion_pause_duration = timedelta(seconds=deletion_pause_duration)
+
+        # 使用 deque 来存储时间戳
+        self._deletion_event_timestamps = deque()
+        self._is_deletion_forwarding_paused = False
+        self._deletion_pause_end_time: Optional[datetime] = None
+        self._paused_deletion_count = 0
+
         logger.info(f"ForwardHandler 初始化，转发用户 ID: {self.forward_user_ids}")
         logger.info(f"ForwardHandler 初始化，转发群组 ID: {self.forward_group_ids}")
-        # logger.info( # <- 删除这个日志记录块
-        #     f"ForwardHandler 初始化，使用 Markdown 格式: {self.use_markdown_format}"
-        # )
+        logger.info(
+            f"删除事件速率限制: 阈值={deletion_rate_limit_threshold} 事件 / "
+            f"窗口={self.deletion_rate_limit_window.total_seconds()}s, "
+            f"暂停={self.deletion_pause_duration.total_seconds()}s"
+        )
 
     def set_client(self, client):
         """设置 Telethon 客户端实例并更新内部组件。"""
@@ -327,131 +342,179 @@ class ForwardHandler(BaseHandler):
             )
 
     async def handle_message_deleted(self, event: events.MessageDeleted.Event):
-        """处理来自被监控群组的消息删除事件，尝试从数据库检索并发送格式化内容。"""
+        """处理来自被监控群组的消息删除事件，并应用速率限制。"""
         chat_id = event.chat_id
         if chat_id is None and event.peer:
-            # 尝试从 peer 属性获取 chat_id (可能是负数)
             if hasattr(event.peer, "channel_id"):
-                chat_id = -1000000000000 - event.peer.channel_id  # Telethon 约定
+                chat_id = -1000000000000 - event.peer.channel_id
             elif hasattr(event.peer, "chat_id"):
-                chat_id = -event.peer.chat_id  # Telethon 约定
+                chat_id = -event.peer.chat_id
 
         deleted_ids = event.deleted_ids
+        num_deleted = len(deleted_ids) # 本次事件删除的数量
 
-        # 确保我们获得了有效的 chat_id
         if chat_id is None:
-            logger.warning(
-                f"无法确定删除事件的 chat_id，涉及的消息 ID: {deleted_ids}。跳过。"
-            )
+            logger.warning(f"无法确定删除事件的 chat_id，涉及的消息 ID: {deleted_ids}。跳过。")
             return
 
         # 仅当删除事件发生在被监控的群组时才处理
-        if chat_id in self.forward_group_ids:
-            logger.info(f"检测到在受监控群组 {chat_id} 中删除了消息: {deleted_ids}")
+        if chat_id not in self.forward_group_ids:
+            logger.debug(f"忽略在群组 {chat_id} 中的删除事件，因为它不在转发群组列表中。")
+            return
 
-            for message_id in deleted_ids:
-                try:
-                    # 1. 从数据库检索消息
-                    # 注意：这里假设 self.db 是 DatabaseManager 的实例
-                    db_message = self.db.get_message_by_id(message_id)
+        logger.debug(f"检测到在受监控群组 {chat_id} 中删除了 {num_deleted} 条消息: {deleted_ids}")
 
-                    if db_message:
-                        # 2. 格式化消息内容
-                        sender_mention = "[Unknown Sender]"
-                        if db_message.from_id:
-                            try:
-                                sender_mention = await create_mention(self.client, db_message.from_id)
-                            except Exception as mention_err:
-                                logger.warning(f"为用户 {db_message.from_id} 创建提及失败: {mention_err}")
+        now = datetime.now()
 
-                        chat_mention = f"[Chat ID: {db_message.chat_id}]" # 默认值
+        # --- 速率限制逻辑 ---
+        # 1. 检查是否处于暂停状态
+        if self._is_deletion_forwarding_paused:
+            if self._deletion_pause_end_time and now >= self._deletion_pause_end_time: # 确保 _deletion_pause_end_time 不是 None
+                # 暂停时间结束，解除暂停
+                logger.info(f"删除事件转发暂停结束。在暂停期间有 {self._paused_deletion_count} 条消息被删除。")
+                pause_duration_minutes = self.deletion_pause_duration.total_seconds() / 60
+                await self.sender.send_message(
+                    text=f"✅ 恢复删除消息转发。\n在过去的 {pause_duration_minutes:.0f} 分钟内，有 {self._paused_deletion_count} 条消息被删除（未单独通知）。",
+                    parse_mode="md" # 保持格式一致性
+                )
+                self._is_deletion_forwarding_paused = False
+                self._deletion_pause_end_time = None
+                self._paused_deletion_count = 0
+                # 解除暂停后，继续处理当前事件
+            else:
+                # 仍在暂停期，跳过当前事件
+                self._paused_deletion_count += num_deleted
+                logger.info(f"删除事件转发暂停中，跳过 {num_deleted} 条删除消息。累计暂停删除 {self._paused_deletion_count} 条。")
+                return # 直接返回，不处理
+
+        # 2. (如果未暂停) 检查是否达到速率阈值
+        if not self._is_deletion_forwarding_paused:
+            # 清理旧时间戳
+            cutoff = now - self.deletion_rate_limit_window
+            while self._deletion_event_timestamps and self._deletion_event_timestamps[0] < cutoff:
+                self._deletion_event_timestamps.popleft()
+
+            # 添加当前事件时间戳 (每个被删除的消息ID都算一次事件，更精确地反映删除频率)
+            # 或者，将整个 MessageDeletedEvent 视为一次事件？
+            # 当前实现：将 MessageDeletedEvent 视为一次事件，记录其发生时间。
+            # 如果希望更敏感，可以改为 for _ in deleted_ids: self._deletion_event_timestamps.append(now)
+            self._deletion_event_timestamps.append(now)
+
+            # 检查是否达到阈值
+            if len(self._deletion_event_timestamps) >= self.deletion_rate_limit_threshold:
+                # 达到阈值，触发暂停
+                pause_duration_minutes = self.deletion_pause_duration.total_seconds() / 60
+                logger.warning(f"检测到频繁的删除事件（{len(self._deletion_event_timestamps)} 次在 {self.deletion_rate_limit_window.total_seconds()} 秒内），将暂停转发 {pause_duration_minutes:.0f} 分钟。")
+                self._is_deletion_forwarding_paused = True
+                self._deletion_pause_end_time = now + self.deletion_pause_duration
+                self._paused_deletion_count = num_deleted # 将触发暂停的这次事件计入暂停计数
+                self._deletion_event_timestamps.clear() # 清空时间戳，避免恢复后立即再次触发
+
+                await self.sender.send_message(
+                    text=f"⚠️ 检测到频繁删除操作！\n将暂停转发已删除消息通知 {pause_duration_minutes:.0f} 分钟。",
+                    parse_mode="md" # 保持格式一致性
+                )
+                return # 触发暂停后，不处理本次事件的详情
+
+        # --- 正常处理逻辑 (未暂停且未触发暂停) ---
+        logger.info(f"处理在受监控群组 {chat_id} 中删除的消息: {deleted_ids}")
+        for message_id in deleted_ids:
+            try:
+                # 1. 从数据库检索消息
+                db_message = self.db.get_message_by_id(message_id)
+
+                if db_message:
+                    # 2. 格式化消息内容
+                    sender_mention = "[Unknown Sender]"
+                    if db_message.from_id:
                         try:
-                            chat_mention = await create_mention(self.client, db_message.chat_id)
+                            sender_mention = await create_mention(self.client, db_message.from_id)
                         except Exception as mention_err:
-                             logger.warning(f"为聊天 {db_message.chat_id} 创建提及失败: {mention_err}")
+                            logger.warning(f"为用户 {db_message.from_id} 创建提及失败: {mention_err}")
 
-                        created_time_str = db_message.created_time.strftime('%Y-%m-%d %H:%M:%S UTC') if db_message.created_time else "N/A"
-
-                        text_parts = [
-                            f"🗑️ **Deleted Message** (ID: {message_id})",
-                            f"From: {sender_mention}",
-                            f"In Chat: {chat_mention}",
-                            f"Original Time: {created_time_str}",
-                            "\n--- Content ---",
-                            db_message.msg_text or "[No text content]"
-                        ]
-
-                        # 检查是否有媒体信息（不尝试发送媒体本身）
-                        if db_message.media:
-                            media_type_info = "[Media attached]"
-                            try:
-                                # 警告：反序列化 pickle 数据可能存在安全风险。谨慎使用。
-                                unpickled_media = pickle.loads(db_message.media)
-                                media_type = type(unpickled_media).__name__
-                                media_type_info = f"[Media attached: {media_type}]"
-                                # 可以考虑添加更多信息，如文件名（如果可用且安全）
-                                # 例如: if hasattr(unpickled_media, 'attributes'): ...
-                            except ModuleNotFoundError:
-                                logger.warning(f"无法反序列化消息 {message_id} 的媒体信息：找不到必要的类定义。可能来自旧版本或不同环境。")
-                                media_type_info = "[Media attached: Unknown Type (deserialization failed)]"
-                            except pickle.UnpicklingError as pickle_err:
-                                logger.warning(f"无法反序列化消息 {message_id} 的媒体信息: {pickle_err}")
-                                media_type_info = "[Media attached: Invalid Data (deserialization failed)]"
-                            except Exception as e:
-                                logger.error(f"反序列化消息 {message_id} 的媒体信息时发生意外错误: {e}", exc_info=True)
-                                media_type_info = "[Media attached: Error during deserialization]"
-
-                            text_parts.append(f"\n{media_type_info}")
-
-
-                        formatted_text = "\n".join(text_parts)
-
-                        # 3. 使用 LogSender 发送格式化后的文本
-                        await self.sender.send_message(text=formatted_text, parse_mode="md")
-                        logger.info(
-                            f"已发送关于被删除消息 {message_id} (来自群组 {chat_id}) 的格式化内容到 {self.log_chat_id}"
-                        )
-
-                    else:
-                        # 数据库中未找到消息
-                        logger.warning(
-                            f"消息 ID {message_id} 在群组 {chat_id} 中被删除，但在数据库中未找到其内容。"
-                        )
-                        # 发送一个简单的通知说明情况
-                        chat_mention_fallback = f"[Chat ID: {chat_id}]"
-                        try:
-                            chat_mention_fallback = await create_mention(self.client, chat_id)
-                        except Exception as mention_err:
-                            logger.warning(f"为聊天 {chat_id} 创建回退提及失败: {mention_err}")
-
-                        fallback_text = (
-                            f"🗑️ **Deleted Message Notification**\n"
-                            f"Message ID: {message_id}\n"
-                            f"In Chat: {chat_mention_fallback}\n"
-                            f"(Original content not found in database)"
-                        )
-                        await self.sender.send_message(text=fallback_text, parse_mode="md")
-
-                except Exception as e:
-                    logger.error(
-                        f"处理被删除消息 ID {message_id} (来自群组 {chat_id}) 时出错: {e}",
-                        exc_info=True,
-                    )
-                    # 尝试发送最小错误通知
+                    chat_mention = f"[Chat ID: {db_message.chat_id}]" # 默认值
                     try:
-                        error_text = (
-                            f"⚠️ 处理被删除消息 ID {message_id} (来自群组 {chat_id}) 时出错。"
-                        )
-                        await self.sender._send_minimal_error(error_text)
-                    except Exception as send_err:
-                        logger.error(
-                            f"发送关于删除处理错误的最小通知失败: {send_err}"
-                        )
-        else:
-            # 可选：添加调试日志
-            logger.debug(
-                f"忽略在群组 {chat_id} 中的删除事件，因为它不在转发群组列表中。"
-            )
+                        chat_mention = await create_mention(self.client, db_message.chat_id)
+                    except Exception as mention_err:
+                         logger.warning(f"为聊天 {db_message.chat_id} 创建提及失败: {mention_err}")
+
+                    created_time_str = db_message.created_time.strftime('%Y-%m-%d %H:%M:%S UTC') if db_message.created_time else "N/A"
+
+                    text_parts = [
+                        f"🗑️ **Deleted Message** (ID: {message_id})",
+                        f"From: {sender_mention}",
+                        f"In Chat: {chat_mention}",
+                        f"Original Time: {created_time_str}",
+                        "\n--- Content ---",
+                        db_message.msg_text or "[No text content]"
+                    ]
+
+                    # 检查是否有媒体信息（不尝试发送媒体本身）
+                    if db_message.media:
+                        media_type_info = "[Media attached]"
+                        try:
+                            # 警告：反序列化 pickle 数据可能存在安全风险。谨慎使用。
+                            unpickled_media = pickle.loads(db_message.media)
+                            media_type = type(unpickled_media).__name__
+                            media_type_info = f"[Media attached: {media_type}]"
+                            # 可以考虑添加更多信息，如文件名（如果可用且安全）
+                            # 例如: if hasattr(unpickled_media, 'attributes'): ...
+                        except ModuleNotFoundError:
+                            logger.warning(f"无法反序列化消息 {message_id} 的媒体信息：找不到必要的类定义。可能来自旧版本或不同环境。")
+                            media_type_info = "[Media attached: Unknown Type (deserialization failed)]"
+                        except pickle.UnpicklingError as pickle_err:
+                            logger.warning(f"无法反序列化消息 {message_id} 的媒体信息: {pickle_err}")
+                            media_type_info = "[Media attached: Invalid Data (deserialization failed)]"
+                        except Exception as e:
+                            logger.error(f"反序列化消息 {message_id} 的媒体信息时发生意外错误: {e}", exc_info=True)
+                            media_type_info = "[Media attached: Error during deserialization]"
+
+                        text_parts.append(f"\n{media_type_info}")
+
+
+                    formatted_text = "\n".join(text_parts)
+
+                    # 3. 使用 LogSender 发送格式化后的文本
+                    await self.sender.send_message(text=formatted_text, parse_mode="md")
+                    logger.info(
+                        f"已发送关于被删除消息 {message_id} (来自群组 {chat_id}) 的格式化内容到 {self.log_chat_id}"
+                    )
+
+                else:
+                    # 数据库中未找到消息
+                    logger.warning(
+                        f"消息 ID {message_id} 在群组 {chat_id} 中被删除，但在数据库中未找到其内容。"
+                    )
+                    # 发送一个简单的通知说明情况
+                    chat_mention_fallback = f"[Chat ID: {chat_id}]"
+                    try:
+                        chat_mention_fallback = await create_mention(self.client, chat_id)
+                    except Exception as mention_err:
+                        logger.warning(f"为聊天 {chat_id} 创建回退提及失败: {mention_err}")
+
+                    fallback_text = (
+                        f"🗑️ **Deleted Message Notification**\n"
+                        f"Message ID: {message_id}\n"
+                        f"In Chat: {chat_mention_fallback}\n"
+                        f"(Original content not found in database)"
+                    )
+                    await self.sender.send_message(text=fallback_text, parse_mode="md")
+
+            except Exception as e:
+                logger.error(
+                    f"处理被删除消息 ID {message_id} (来自群组 {chat_id}) 时出错: {e}",
+                    exc_info=True,
+                )
+                # 尝试发送最小错误通知
+                try:
+                    error_text = (
+                        f"⚠️ 处理被删除消息 ID {message_id} (来自群组 {chat_id}) 时出错。"
+                    )
+                    await self.sender._send_minimal_error(error_text)
+                except Exception as send_err:
+                    logger.error(
+                        f"发送关于删除处理错误的最小通知失败: {send_err}"
+                    )
 
     async def get_chat_type(self, event) -> int:
         """获取聊天类型代码 (保持原样)"""
