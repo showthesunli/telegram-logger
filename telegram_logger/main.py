@@ -115,25 +115,22 @@ async def main():
         'bot': PERSIST_TIME_IN_DAYS_BOT
     }
     
-    handlers = [
-        PersistenceHandler(
-            client=None,
-            db=db,
-            log_chat_id=LOG_CHAT_ID,
-            ignored_ids=IGNORED_IDS,
-        ),
-        OutputHandler(
-            client=None,
-            db=db,
-            log_chat_id=LOG_CHAT_ID,
-            ignored_ids=IGNORED_IDS,
-            forward_user_ids=FORWARD_USER_IDS,
-            forward_group_ids=FORWARD_GROUP_IDS,
-            deletion_rate_limit_threshold=DELETION_RATE_LIMIT_THRESHOLD,
-            deletion_rate_limit_window=DELETION_RATE_LIMIT_WINDOW,
-            deletion_pause_duration=DELETION_PAUSE_DURATION
-        )
-    ]
+    persistence_handler = PersistenceHandler(
+        db=db,
+        log_chat_id=LOG_CHAT_ID,
+        ignored_ids=IGNORED_IDS,
+    )
+    output_handler = OutputHandler(
+        db=db,
+        log_chat_id=LOG_CHAT_ID,
+        ignored_ids=IGNORED_IDS,
+        forward_user_ids=FORWARD_USER_IDS,
+        forward_group_ids=FORWARD_GROUP_IDS,
+        deletion_rate_limit_threshold=DELETION_RATE_LIMIT_THRESHOLD,
+        deletion_rate_limit_window=DELETION_RATE_LIMIT_WINDOW,
+        deletion_pause_duration=DELETION_PAUSE_DURATION
+    )
+    handlers = [persistence_handler, output_handler]
     
     # Initialize services
     client_service = TelegramClientService(
@@ -146,30 +143,35 @@ async def main():
     
     cleanup_service = CleanupService(db, persist_times)
     
-    # Inject client dependency
-    for handler in handlers:
-        handler.client = client_service.client
-    
     # Run services
     try:
         logging.info("Starting all services...")
         user_id = await client_service.initialize()
         await cleanup_service.start()
         
+        # Inject initialized client into handlers
+        logging.info("Injecting initialized client into handlers...")
+        for handler in handlers:
+            if hasattr(handler, 'set_client'):
+                handler.set_client(client_service.client)
+            else:
+                logging.warning(f"Handler {type(handler).__name__} does not have a set_client method.")
+
         logging.info("All services started successfully")
         logging.info(f"Client ID: {user_id}")
         logging.info("Cleanup service is running")
         
         await client_service.run()
     except Exception as e:
-        logging.critical(f"Service startup failed: {str(e)}")
-        raise
+        logging.critical(f"Service execution failed: {str(e)}", exc_info=True)
     except KeyboardInterrupt:
         logging.info("Received shutdown signal...")
     finally:
         logging.info("Shutting down services...")
-        await cleanup_service.stop()
-        db.close()
+        if 'cleanup_service' in locals() and cleanup_service._task:
+            await cleanup_service.stop()
+        if 'db' in locals() and db.conn:
+            db.close()
         logging.info("All services stopped")
 
 if __name__ == "__main__":
