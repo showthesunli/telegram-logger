@@ -37,17 +37,6 @@ class PersistenceHandler(BaseHandler):
         super().__init__(client=None, db=db, log_chat_id=log_chat_id, ignored_ids=ignored_ids, **kwargs)
         logger.info("PersistenceHandler 初始化完毕。")
 
-    def __init__(
-        self,
-        client,
-        db: DatabaseManager,
-        log_chat_id: int,
-        ignored_ids: set,
-    ):
-        """初始化 PersistenceHandler。"""
-        super().__init__(client, db, log_chat_id, ignored_ids)
-        logger.info("PersistenceHandler 初始化完毕。")
-
     async def process(self, event: events.common.EventCommon) -> Optional[Message]:
         """
         处理传入的 Telegram 事件，仅持久化 NewMessage 和 MessageEdited 事件。
