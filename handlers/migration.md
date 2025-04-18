@@ -125,11 +125,10 @@
     - **关键步骤**: 修改 `telegram_logger/services/client.py` 中的 `_register_handlers` 方法。
     - **必须完全移除**现有的事件注册逻辑。
     - **必须严格按照**“目标架构”部分描述的“TelegramClientService 交互 (方案一：统一接口)”策略重新实现事件注册。即：为所有 `BaseHandler` 子类注册 `NewMessage`, `MessageEdited`, `MessageDeleted` 事件，不带过滤器，统一指向 `handler.process`。
-5.  **清理旧处理器**: - **状态**: [ ] 未完成
+5.  **清理旧处理器**: - **状态**: [x] 完成
     - 删除 `telegram_logger/handlers/new_message_handler.py` 文件。
     - 删除 `telegram_logger/handlers/edit_delete_handler.py` 文件。
     - 删除 `telegram_logger/handlers/forward_handler.py` 文件。
-    - (可选) 可以先将旧文件重命名或移动到备份目录，待重构稳定后再删除。
 6.  **更新 `__init__.py`**: - **状态**: [ ] 未完成
     - 修改 `telegram_logger/handlers/__init__.py`，导出新的处理器：`BaseHandler`, `PersistenceHandler`, `OutputHandler`。移除对旧处理器 (`NewMessageHandler`, `EditDeleteHandler`, `ForwardHandler`) 的导出。
 7.  **更新 `main.py`**: - **状态**: [ ] 未完成 (标记为未完成，因为需要实际修改)
