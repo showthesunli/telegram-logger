@@ -83,7 +83,7 @@
         -   将 `EditDeleteHandler` 的核心逻辑（编辑/删除事件的格式化、数据库检索、发送）移入 `OutputHandler`，并与 `ForwardHandler` 的逻辑整合（例如，编辑/删除事件现在也受转发规则约束）。
     -   **依赖注入**: 确保 `OutputHandler` 能接收并使用 `client`, `db`, `log_chat_id`, `ignored_ids`, `forward_user_ids`, `forward_group_ids`, 以及速率限制相关的配置参数。
     -   **实例化辅助类**: 在 `__init__` 中实例化 `MessageFormatter`, `LogSender`, `RestrictedMediaHandler`。
-3.  **更新 `TelegramClientService`**:
+3.  **更新 `TelegramClientService`**: - **状态**: [ ] 未完成
     -   **(可选但推荐)** 在 `handlers` 模块中定义抽象基类（接口），如 `IPersistenceEventHandler` 和 `IOutputEventHandler`，让 `PersistenceHandler` 和 `OutputHandler` 分别继承它们。这些接口表明处理器关心哪些类型的事件。
     -   修改 `_register_handlers` 方法：
         -   移除所有旧的基于 `hasattr` 或 `isinstance(handler, ForwardHandler)` 的注册逻辑。
@@ -93,19 +93,18 @@
             -   使用 `isinstance(handler, IPersistenceEventHandler)` (或直接检查类型 `isinstance(handler, PersistenceHandler)`) 判断是否需要注册持久化相关事件。如果是，则调用 `self.client.add_event_handler()` 注册**通用**的 `events.NewMessage()` 和 `events.MessageEdited()`，指向 `handler.process` 或相应的处理方法。
             -   使用 `isinstance(handler, IOutputEventHandler)` (或直接检查类型 `isinstance(handler, OutputHandler)`) 判断是否需要注册输出相关事件。如果是，则调用 `self.client.add_event_handler()` 注册**通用**的 `events.NewMessage()`, `events.MessageEdited()`, 和 `events.MessageDeleted()`，指向 `handler.process` 或相应的处理方法。
         -   **关键**: 确保所有 `add_event_handler` 调用都使用**不带 `from_users` 或 `chats` 过滤器**的通用事件构造器。过滤逻辑完全移交给 `OutputHandler` 内部处理。
-4.  **清理旧处理器**:
+4.  **清理旧处理器**: - **状态**: [ ] 未完成
     -   删除 `telegram_logger/handlers/new_message_handler.py` 文件。
     -   删除 `telegram_logger/handlers/edit_delete_handler.py` 文件。
     -   删除 `telegram_logger/handlers/forward_handler.py` 文件。
     -   (可选) 可以先将旧文件重命名或移动到备份目录，待重构稳定后再删除。
-5.  **更新 `__init__.py`**:
+5.  **更新 `__init__.py`**: - **状态**: [ ] 未完成
     -   修改 `telegram_logger/handlers/__init__.py`，导出新的处理器：`PersistenceHandler`, `OutputHandler`。移除旧的导出。
-6.  **更新 `main.py`**:
+6.  **更新 `main.py`**: - **状态**: [x] 已完成
     -   修改 `main` 函数中的 `handlers` 列表。
     -   移除 `NewMessageHandler`, `EditDeleteHandler`, `ForwardHandler` 的实例化。
     -   实例化 `PersistenceHandler` 和 `OutputHandler`，并将所需的配置（DB, client (稍后注入), log_chat_id, ignored_ids, forward_ids, rate limits 等）传递给它们。
     -   确保 `client_service.initialize()` 后的客户端注入逻辑对新处理器仍然有效。
-    -   **状态**: [x] 已完成 (根据 `main.py` 的更新)
-7.  **审查和测试**:
+7.  **审查和测试**: - **状态**: [ ] 未完成
     -   仔细审查所有修改的代码。
     -   进行全面的测试，覆盖新消息、编辑消息、删除消息、转发规则、忽略规则、受限媒体、贴纸、速率限制等场景。
