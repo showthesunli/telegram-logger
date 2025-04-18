@@ -69,6 +69,22 @@ class DatabaseManager:
             logger.warning(f"Duplicate message ignored: MsgID={message.id} ChatID={message.chat_id}")
             self.conn.rollback()
 
+    def get_message_by_id(self, message_id: int) -> Optional[Message]:
+        """根据消息 ID 从数据库检索消息。"""
+        try:
+            cursor = self.conn.cursor()
+            # 获取与该消息 ID 关联的最早记录（通常是原始消息）
+            cursor.execute("SELECT * FROM messages WHERE id = ? ORDER BY created_time ASC LIMIT 1", (message_id,))
+            row = cursor.fetchone()
+            if row:
+                return self._row_to_message(row)
+            else:
+                logger.debug(f"在数据库中未找到消息 ID: {message_id}")
+                return None
+        except sqlite3.Error as e:
+            logger.error(f"从数据库检索消息 ID {message_id} 时出错: {e}", exc_info=True)
+            return None
+
     def get_messages(
         self, 
         chat_id: int, 

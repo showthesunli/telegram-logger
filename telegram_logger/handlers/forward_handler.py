@@ -327,8 +327,7 @@ class ForwardHandler(BaseHandler):
             )
 
     async def handle_message_deleted(self, event: events.MessageDeleted.Event):
-        """处理来自被监控群组的消息删除事件，并发送通知。"""
-        # MessageDeletedEvent 的 chat_id 属性可能为 None，需要从 peer 获取
+        """处理来自被监控群组的消息删除事件，尝试从数据库检索并发送格式化内容。"""
         chat_id = event.chat_id
         if chat_id is None and event.peer:
             # 尝试从 peer 属性获取 chat_id (可能是负数)
@@ -342,47 +341,116 @@ class ForwardHandler(BaseHandler):
         # 确保我们获得了有效的 chat_id
         if chat_id is None:
             logger.warning(
-                f"Could not determine chat_id for deletion event with IDs: {deleted_ids}. Skipping."
+                f"无法确定删除事件的 chat_id，涉及的消息 ID: {deleted_ids}。跳过。"
             )
             return
 
         # 仅当删除事件发生在被监控的群组时才处理
         if chat_id in self.forward_group_ids:
-            try:
-                # 为被监控的群组创建提及链接
-                chat_mention = await create_mention(self.client, chat_id)
-                # 构建通知文本
-                text = (
-                    f"🗑️ **Deleted Message(s) Notification**\n"
-                    f"In Chat: {chat_mention}\n"
-                    f"Message IDs: {', '.join(map(str, deleted_ids))}"
-                )
-                # 使用 LogSender 发送文本通知到日志频道
-                await self.sender.send_message(
-                    text=text, parse_mode="md"
-                )  # 使用 Markdown
-                logger.info(
-                    f"Sent deletion notification for chat {chat_id} (IDs: {deleted_ids}) to {self.log_chat_id}"
-                )
-            except Exception as e:
-                logger.error(
-                    f"Failed to send deletion notification for chat {chat_id}: {e}",
-                    exc_info=True,
-                )
-                # 尝试发送最小错误通知
+            logger.info(f"检测到在受监控群组 {chat_id} 中删除了消息: {deleted_ids}")
+
+            for message_id in deleted_ids:
                 try:
-                    error_text = (
-                        f"⚠️ Failed to send deletion notification for chat {chat_id}."
-                    )
-                    await self.sender._send_minimal_error(error_text)
-                except Exception as send_err:
+                    # 1. 从数据库检索消息
+                    # 注意：这里假设 self.db 是 DatabaseManager 的实例
+                    db_message = self.db.get_message_by_id(message_id)
+
+                    if db_message:
+                        # 2. 格式化消息内容
+                        sender_mention = "[Unknown Sender]"
+                        if db_message.from_id:
+                            try:
+                                sender_mention = await create_mention(self.client, db_message.from_id)
+                            except Exception as mention_err:
+                                logger.warning(f"为用户 {db_message.from_id} 创建提及失败: {mention_err}")
+
+                        chat_mention = f"[Chat ID: {db_message.chat_id}]" # 默认值
+                        try:
+                            chat_mention = await create_mention(self.client, db_message.chat_id)
+                        except Exception as mention_err:
+                             logger.warning(f"为聊天 {db_message.chat_id} 创建提及失败: {mention_err}")
+
+                        created_time_str = db_message.created_time.strftime('%Y-%m-%d %H:%M:%S UTC') if db_message.created_time else "N/A"
+
+                        text_parts = [
+                            f"🗑️ **Deleted Message** (ID: {message_id})",
+                            f"From: {sender_mention}",
+                            f"In Chat: {chat_mention}",
+                            f"Original Time: {created_time_str}",
+                            "\n--- Content ---",
+                            db_message.msg_text or "[No text content]"
+                        ]
+
+                        # 检查是否有媒体信息（不尝试发送媒体本身）
+                        if db_message.media:
+                            media_type_info = "[Media attached]"
+                            try:
+                                # 警告：反序列化 pickle 数据可能存在安全风险。谨慎使用。
+                                unpickled_media = pickle.loads(db_message.media)
+                                media_type = type(unpickled_media).__name__
+                                media_type_info = f"[Media attached: {media_type}]"
+                                # 可以考虑添加更多信息，如文件名（如果可用且安全）
+                                # 例如: if hasattr(unpickled_media, 'attributes'): ...
+                            except ModuleNotFoundError:
+                                logger.warning(f"无法反序列化消息 {message_id} 的媒体信息：找不到必要的类定义。可能来自旧版本或不同环境。")
+                                media_type_info = "[Media attached: Unknown Type (deserialization failed)]"
+                            except pickle.UnpicklingError as pickle_err:
+                                logger.warning(f"无法反序列化消息 {message_id} 的媒体信息: {pickle_err}")
+                                media_type_info = "[Media attached: Invalid Data (deserialization failed)]"
+                            except Exception as e:
+                                logger.error(f"反序列化消息 {message_id} 的媒体信息时发生意外错误: {e}", exc_info=True)
+                                media_type_info = "[Media attached: Error during deserialization]"
+
+                            text_parts.append(f"\n{media_type_info}")
+
+
+                        formatted_text = "\n".join(text_parts)
+
+                        # 3. 使用 LogSender 发送格式化后的文本
+                        await self.sender.send_message(text=formatted_text, parse_mode="md")
+                        logger.info(
+                            f"已发送关于被删除消息 {message_id} (来自群组 {chat_id}) 的格式化内容到 {self.log_chat_id}"
+                        )
+
+                    else:
+                        # 数据库中未找到消息
+                        logger.warning(
+                            f"消息 ID {message_id} 在群组 {chat_id} 中被删除，但在数据库中未找到其内容。"
+                        )
+                        # 发送一个简单的通知说明情况
+                        chat_mention_fallback = f"[Chat ID: {chat_id}]"
+                        try:
+                            chat_mention_fallback = await create_mention(self.client, chat_id)
+                        except Exception as mention_err:
+                            logger.warning(f"为聊天 {chat_id} 创建回退提及失败: {mention_err}")
+
+                        fallback_text = (
+                            f"🗑️ **Deleted Message Notification**\n"
+                            f"Message ID: {message_id}\n"
+                            f"In Chat: {chat_mention_fallback}\n"
+                            f"(Original content not found in database)"
+                        )
+                        await self.sender.send_message(text=fallback_text, parse_mode="md")
+
+                except Exception as e:
                     logger.error(
-                        f"Failed to send minimal error notification about deletion: {send_err}"
+                        f"处理被删除消息 ID {message_id} (来自群组 {chat_id}) 时出错: {e}",
+                        exc_info=True,
                     )
+                    # 尝试发送最小错误通知
+                    try:
+                        error_text = (
+                            f"⚠️ 处理被删除消息 ID {message_id} (来自群组 {chat_id}) 时出错。"
+                        )
+                        await self.sender._send_minimal_error(error_text)
+                    except Exception as send_err:
+                        logger.error(
+                            f"发送关于删除处理错误的最小通知失败: {send_err}"
+                        )
         else:
             # 可选：添加调试日志
             logger.debug(
-                f"Ignoring deletion event in chat {chat_id}: not in forward group list."
+                f"忽略在群组 {chat_id} 中的删除事件，因为它不在转发群组列表中。"
             )
 
     async def get_chat_type(self, event) -> int:
