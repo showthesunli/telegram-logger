@@ -108,7 +108,7 @@ class OutputHandler(BaseHandler):
             logger.error("OutputHandler 无法处理事件：客户端或辅助类尚未初始化。")
             return None
 
-        # 注意：事件类型的具体处理和日志记录在下面的 isinstance 块中进行
+        # 使用 isinstance 检查事件类型,并在这里打印日志 ai!
 
         try:
             if isinstance(event, events.NewMessage.Event):
