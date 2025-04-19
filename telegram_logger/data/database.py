@@ -158,8 +158,8 @@ class DatabaseManager:
                             logger.warning(f"尝试删除媒体文件但文件不存在: {media_path_str}")
                         else:
                             logger.warning(f"媒体文件路径不在预期的 'media' 目录下，跳过删除: {media_path_str}")
-                except Exception as e:
-                    logger.error(f"Failed to delete {file_key}: {str(e)}")
+                    except Exception as e:
+                        logger.error(f"Failed to delete media file {media_path_str}: {str(e)}")
 
         self.conn.commit()
         return self.conn.total_changes + deleted_files
