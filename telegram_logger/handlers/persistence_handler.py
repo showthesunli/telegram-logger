@@ -78,52 +78,66 @@ class PersistenceHandler(BaseHandler):
         # 确保 self.client 存在 (应该在 process 调用时由 set_client 设置好)
         if message.media and not self.client:
             logger.error(f"尝试保存媒体时 client 尚未设置 (消息 ID: {message.id})")
-        if not message:
-            logger.warning(f"事件 {type(event).__name__} 不包含有效的 message 对象。")
-            return None
+            # 注意：这里不返回 None，因为可能仍需保存文本信息
+            # 但 save_media_as_file 会失败
 
         chat_id = message.chat_id
         from_id = self._get_sender_id(message) # 使用基类的方法获取发送者ID
 
         # 确定聊天类型
-        is_bot = getattr(message.sender, 'bot', False) if message.sender else False
+        sender_entity = await message.get_sender() # 获取发送者实体以检查是否为机器人
+        is_bot = getattr(sender_entity, 'bot', False) if sender_entity else False
         is_private = message.is_private
         is_group = message.is_group
         is_channel = message.is_channel
 
+        # 计算 msg_type
+        msg_type = 0 # 默认为未知或不支持的类型
+        if is_bot:
+            msg_type = DatabaseManager.MSG_TYPE_MAP['bot']
+        elif is_private:
+            msg_type = DatabaseManager.MSG_TYPE_MAP['user']
+        elif is_group:
+            msg_type = DatabaseManager.MSG_TYPE_MAP['group']
+        elif is_channel:
+            msg_type = DatabaseManager.MSG_TYPE_MAP['channel']
+        else:
+            logger.warning(f"无法确定消息类型 (消息 ID: {message.id}, ChatID: {chat_id})")
+
         # 处理媒体
         media_path = None
-        media_type = None
-        is_restricted = False
         if message.media:
             try:
-                # 检查是否有 noforwards 属性
-                is_restricted = getattr(message, 'noforwards', False)
-                media_path = await save_media_as_file(self.client, message)
-                media_type = type(message.media).__name__
-                logger.debug(f"媒体已保存: {media_path}, 类型: {media_type}, 受限: {is_restricted}")
+                # 确保 client 已设置
+                if self.client:
+                    media_path = await save_media_as_file(self.client, message)
+                    logger.debug(f"媒体已保存: {media_path} (消息 ID: {message.id})")
+                else:
+                    logger.error(f"无法保存媒体，因为 client 未设置 (消息 ID: {message.id})")
             except Exception as e:
                 logger.error(f"保存媒体文件失败 (消息 ID: {message.id}): {e}", exc_info=True)
                 # 即使媒体保存失败，也继续保存消息文本
+
+        # 获取 noforwards 状态 (Telethon v1.24+ 使用 noforwards)
+        noforwards = getattr(message, 'noforwards', False)
+
+        # 获取自毁状态 (检查 ttl_period 属性)
+        self_destructing = getattr(message, 'ttl_period', None) is not None
 
         # 创建 Message 对象
         try:
             message_obj = Message(
                 id=message.id,
-                chat_id=chat_id or 0, # 确保 chat_id 不为 None
                 from_id=from_id,
-                text=message.text or "",
-                date=message.date,
-                reply_to_msg_id=message.reply_to_msg_id,
-                media_path=media_path,
-                media_type=media_type,
-                is_bot=is_bot,
-                is_private=is_private,
-                is_group=is_group,
-                is_channel=is_channel,
-                is_restricted=is_restricted,
-                # edit_date 仅在 MessageEdited 事件中存在
-                edit_date=getattr(message, 'edit_date', None)
+                chat_id=chat_id or 0, # 确保 chat_id 不为 None
+                msg_type=msg_type,
+                msg_text=message.text or "", # 映射到 msg_text
+                media_path=media_path, # 使用从 save_media_as_file 获取的路径
+                noforwards=noforwards, # 映射到 noforwards
+                self_destructing=self_destructing, # 设置自毁状态
+                created_time=message.date, # 映射到 created_time
+                # edit_date 仅在 MessageEdited 事件中存在, 映射到 edited_time
+                edited_time=getattr(message, 'edit_date', None)
             )
             return message_obj
         except Exception as e:
