@@ -30,7 +30,7 @@ class DatabaseManager:
                 chat_id INTEGER,
                 type INTEGER,
                 msg_text TEXT,
-                media BLOB,
+                media_path TEXT,
                 noforwards INTEGER DEFAULT 0,
                 self_destructing INTEGER DEFAULT 0,
                 created_time TIMESTAMP,
@@ -53,7 +53,7 @@ class DatabaseManager:
                 message.chat_id,
                 message.msg_type,
                 message.msg_text,
-                message.media,
+                message.media_path,
                 int(message.noforwards),
                 int(message.self_destructing),
                 message.created_time,
@@ -67,6 +67,9 @@ class DatabaseManager:
             logger.debug(f"Message saved: MsgID={message.id} ChatID={message.chat_id}")
         except sqlite3.IntegrityError:
             logger.warning(f"Duplicate message ignored: MsgID={message.id} ChatID={message.chat_id}")
+            self.conn.rollback()
+        except Exception as e:
+            logger.error(f"保存消息时出错 (MsgID={message.id} ChatID={message.chat_id}): {e}", exc_info=True)
             self.conn.rollback()
 
     def get_message_by_id(self, message_id: int) -> Optional[Message]:
@@ -122,7 +125,7 @@ class DatabaseManager:
                 continue
             cutoff = now - timedelta(days=days)
             cursor = self.conn.execute(
-                "SELECT id || '_' || chat_id as file_key FROM messages "
+                "SELECT id, chat_id, media_path FROM messages "
                 "WHERE type = ? AND created_time < ?",
                 (self.MSG_TYPE_MAP[persist_type], cutoff)
             )
@@ -142,13 +145,19 @@ class DatabaseManager:
         # 3. 清理关联的媒体文件
         if expired_keys:
             media_dir = Path("media")
-            for file_key in expired_keys:
-                media_file = media_dir / file_key
-                try:
-                    if media_file.exists():
-                        media_file.unlink()
-                        deleted_files += 1
-                        logger.debug(f"Deleted media file: {file_key}")
+            for msg_info in expired_messages_info:
+                media_path_str = msg_info.get('media_path')
+                if media_path_str:
+                    media_file = Path(media_path_str)
+                    try:
+                        if media_file.exists() and media_file.is_relative_to(media_dir):
+                            media_file.unlink()
+                            deleted_files += 1
+                            logger.debug(f"已删除媒体文件: {media_path_str}")
+                        elif not media_file.exists():
+                            logger.warning(f"尝试删除媒体文件但文件不存在: {media_path_str}")
+                        else:
+                            logger.warning(f"媒体文件路径不在预期的 'media' 目录下，跳过删除: {media_path_str}")
                 except Exception as e:
                     logger.error(f"Failed to delete {file_key}: {str(e)}")
 
@@ -163,7 +172,7 @@ class DatabaseManager:
             chat_id=row['chat_id'],
             msg_type=row['type'],
             msg_text=row['msg_text'],
-            media=row['media'],
+            media_path=row['media_path'],
             noforwards=bool(row['noforwards']),
             self_destructing=bool(row['self_destructing']),
             created_time=datetime.fromisoformat(row['created_time']),

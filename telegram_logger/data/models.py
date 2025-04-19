@@ -9,7 +9,7 @@ class Message:
     chat_id: int
     msg_type: int
     msg_text: str
-    media: bytes
+    media_path: Optional[str]
     noforwards: bool
     self_destructing: bool
     created_time: datetime
@@ -17,4 +17,4 @@ class Message:
 
     @property
     def is_media(self) -> bool:
-        return bool(self.media)
+        return bool(self.media_path)
