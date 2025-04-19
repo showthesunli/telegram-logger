@@ -487,14 +487,15 @@ class OutputHandler(BaseHandler):
                 chat_id = message_data.chat_id
                 chat_id_for_link = chat_id  # 保存 chat_id 用于链接
                 sender_id = message_data.from_id
-                text_content = message_data.text
-                date = message_data.date
-                edit_date = message_data.edit_date
-                reply_to_msg_id = message_data.reply_to_msg_id
+                text_content = message_data.msg_text # 使用 msg_text
+                date = message_data.created_time     # 使用 created_time
+                edit_date = message_data.edited_time   # 使用 edited_time
+                reply_to_msg_id = None # Message 对象中没有此信息
 
                 # 异步获取提及信息
                 sender_mention = await create_mention(self.client, sender_id, msg_id)
-                if chat_id and not message_data.is_private:
+                # 检查 chat_id 是否存在且不等于 sender_id (基本判断是否为非私聊群组/频道)
+                if chat_id and chat_id != sender_id:
                     chat_mention = await create_mention(self.client, chat_id, msg_id)
 
             else:
@@ -529,7 +530,8 @@ class OutputHandler(BaseHandler):
                             f"为回复消息 {reply_to_msg_id} (Chat: {chat_id_for_link}) 创建链接失败: {link_err}"
                         )
                         pass  # 链接构造失败就算了
-                reply_to_str = f"\n**回复:** `{reply_to_msg_id}`{reply_link}"
+                # 从数据库加载的消息没有 reply_to_msg_id 信息
+                reply_to_str = "" # 清空回复信息
 
             # 截断过长的消息文本
             if len(text_content) > 3500:  # Telegram 消息长度限制约为 4096，留些余地
@@ -556,9 +558,9 @@ class OutputHandler(BaseHandler):
                             filename = f" ({attr.file_name})"
                             break
                 media_indicator = f"\n**媒体:** {media_type}{filename}"
-            elif isinstance(message_data, Message) and message_data.media_type:
-                # 数据库中只存了类型名，没有文件名
-                media_indicator = f"\n**媒体:** {message_data.media_type}"
+            elif isinstance(message_data, Message) and message_data.media_path:
+                # 数据库中只存了路径，没有类型名或文件名
+                media_indicator = "\n**媒体:** [文件]" # 仅指示存在媒体文件
 
             footer = f"\n**消息 ID:** `{msg_id}`{reply_to_str}\n**时间:** {date_str}{edit_date_str}{media_indicator}"
 
