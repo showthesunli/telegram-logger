@@ -109,6 +109,7 @@ class OutputHandler(BaseHandler):
             return None
 
         # 记录接收到的事件类型
+        # type判断不准确，需要使用 isinstance 来确认事件类型 ai!
         event_type = type(event).__name__
         logger.debug(f"OutputHandler 接收到事件: {event_type}")
 
