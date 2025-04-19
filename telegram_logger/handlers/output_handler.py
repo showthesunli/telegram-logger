@@ -109,16 +109,18 @@ class OutputHandler(BaseHandler):
             return None
 
         # 记录接收到的事件类型
-        event_type = type(event).__name__
-        logger.debug(f"OutputHandler 接收到事件: {event_type}")
+        if isinstance(event, events.NewMessage.Event):
+            logger.debug(f"OutputHandler 接收到事件: new_message")
+        else:
+            logger.debug(f"OutputHandler 接收到未知事件类型 ")
 
         try:
-            if isinstance(event, events.NewMessage.Event):
-                await self._process_new_message(event)
-            elif isinstance(event, events.MessageEdited.Event):
+            if isinstance(event, events.MessageEdited.Event):
                 await self._process_edited_message(event)
             elif isinstance(event, events.MessageDeleted.Event):
                 await self._process_deleted_message(event)
+            elif isinstance(event, events.NewMessage.Event):
+                await self._process_new_message(event)
             else:
                 # 这个日志现在更有意义，因为它确认了前面的 isinstance 都没匹配上
                 logger.debug(
