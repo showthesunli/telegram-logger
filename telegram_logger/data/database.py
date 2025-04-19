@@ -145,7 +145,7 @@ class DatabaseManager:
         # 3. 清理关联的媒体文件
         if expired_keys:
             media_dir = Path("media")
-            for msg_info in expired_messages_info:
+            for msg_info in expired_keys:
                 media_path_str = msg_info.get('media_path')
                 if media_path_str:
                     media_file = Path(media_path_str)
