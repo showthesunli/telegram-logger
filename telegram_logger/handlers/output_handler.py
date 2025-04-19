@@ -108,25 +108,20 @@ class OutputHandler(BaseHandler):
             logger.error("OutputHandler 无法处理事件：客户端或辅助类尚未初始化。")
             return None
 
-        # 注意：此日志只会显示 "Event"，因为 Telethon 事件类的 __name__ 是 "Event"
-        logger.debug(f"OutputHandler received event type via type(): {type(event).__name__}")
+        # 这里判断事件类型，并打印日志 ai!
 
         try:
             if isinstance(event, events.NewMessage.Event):
-                # 添加明确的日志
-                logger.debug("Event identified as NewMessage.Event, processing...")
                 await self._process_new_message(event)
             elif isinstance(event, events.MessageEdited.Event):
-                # 添加明确的日志
-                logger.debug("Event identified as MessageEdited.Event, processing...")
                 await self._process_edited_message(event)
             elif isinstance(event, events.MessageDeleted.Event):
-                # 添加明确的日志
-                logger.debug("Event identified as MessageDeleted.Event, processing...")
                 await self._process_deleted_message(event)
             else:
                 # 这个日志现在更有意义，因为它确认了前面的 isinstance 都没匹配上
-                logger.debug(f"OutputHandler ignored unknown event type: {type(event).__name__}")
+                logger.debug(
+                    f"OutputHandler ignored unknown event type: {type(event).__name__}"
+                )
             return None
         except Exception as e:
             # 这里的 event_type 同样只会是 "Event"，但结合错误信息和 msg_id 应该足够定位
