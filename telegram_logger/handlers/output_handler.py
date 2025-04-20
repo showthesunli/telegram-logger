@@ -526,7 +526,6 @@ class OutputHandler(BaseHandler):
                         )
                         pass  # 链接构造失败就算了
                 # 从数据库加载的消息没有 reply_to_msg_id 信息
-                reply_to_str = ""  # 清空回复信息
 
             # 截断过长的消息文本
             if len(text_content) > 3500:  # Telegram 消息长度限制约为 4096，留些余地
