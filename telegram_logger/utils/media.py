@@ -1,15 +1,20 @@
 import logging
 import os
 from contextlib import contextmanager
+import logging
+import os
+from contextlib import contextmanager
 from telethon.tl.types import (
     DocumentAttributeFilename,
     MessageMediaPhoto,
     MessageMediaContact,
     Contact,
-    Photo
+    Photo,
+    Document, # 导入 Document
+    MessageMediaDocument # 导入 MessageMediaDocument
 )
 from .file_encrypt import encrypted, decrypted
-import os
+# import os # os 已在上面导入
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -68,55 +73,110 @@ async def save_media_as_file(client, msg) -> str:
         return None
 
 
-@contextmanager 
+@contextmanager
 def retrieve_media_as_file(file_path: str, is_restricted: bool = False):
-    """Retrieve media from an encrypted file or use the original media
-    
-    Args:
-        file_path: Path to the media file
-        is_restricted: Whether the media is restricted (noforwards)
-        
-    Yields:
-        The media file or None
     """
+    Retrieve media from an encrypted file or use the original media.
+    Yields a file-like object (handle).
+    """
+    file_handle = None
+    decrypted_cm = None # 用于持有 decrypted 上下文管理器
+
     try:
-        if is_restricted and os.path.exists(file_path):
-            logger.info(f"解密并读取媒体文件: {file_path}")
-            with decrypted(file_path, FILE_PASSWORD) as f:
-                f.name = _get_filename(f)
-                yield f
+        if not os.path.exists(file_path):
+             raise FileNotFoundError(f"Media file not found at path: {file_path}")
+
+        # 尝试从路径获取基础文件名，作为后备
+        base_filename = os.path.basename(file_path)
+
+        if is_restricted:
+            logger.info(f"解密并读取受限媒体文件: {file_path}")
+            # 使用 decrypted 上下文管理器
+            decrypted_cm = decrypted(file_path, FILE_PASSWORD)
+            file_handle = decrypted_cm.__enter__() # 进入上下文
+            if not file_handle:
+                 raise IOError(f"Decryption failed or returned None for {file_path}")
+            # 尝试设置文件名 (decrypted 可能不会设置)
+            try:
+                if not getattr(file_handle, 'name', None):
+                     file_handle.name = base_filename
+            except AttributeError:
+                 logger.warning(f"Could not set name attribute on decrypted file object for {base_filename}")
+            yield file_handle # 在 decrypted 上下文内产生
         else:
-            logger.info("无法获取媒体文件或不需要解密")
-            yield None
+            # 对于非受限文件（或我们假设未加密的文件）
+            logger.info(f"直接读取媒体文件: {file_path}")
+            # 直接打开文件
+            file_handle = open(file_path, 'rb')
+            # 尝试设置文件名
+            try:
+                file_handle.name = base_filename
+            except AttributeError:
+                 logger.warning(f"Could not set name attribute on file object for {base_filename}")
+            yield file_handle # 产生文件句柄
     except Exception as e:
-        logger.error(f"获取媒体文件时发生错误: {str(e)}")
-        yield None
+        logger.error(f"获取媒体文件 {file_path} 时发生错误: {str(e)}", exc_info=True)
+        # 确保即使出错也尝试产生 None 或重新抛出，取决于调用者期望
+        # 这里选择重新抛出异常
+        raise
+    finally:
+        # 清理：
+        # 如果是受限文件，退出 decrypted 上下文管理器 (它会关闭文件)
+        if decrypted_cm:
+            try:
+                decrypted_cm.__exit__(None, None, None)
+                logger.debug(f"Exited decrypted context for {file_path}")
+            except Exception as e_exit:
+                 logger.error(f"Error exiting decrypted context for {file_path}: {e_exit}")
+        # 如果是非受限文件，且句柄已打开，需要在这里关闭句柄
+        elif file_handle and not is_restricted:
+            try:
+                file_handle.close()
+                logger.debug(f"Closed non-restricted file handle: {file_path}")
+            except Exception as e_close:
+                 logger.error(f"Error closing non-restricted file handle {file_path}: {e_close}")
 
 
 def _get_filename(media) -> str:
-    """Get filename from media object
-    
-    Args:
-        media: Media object
-        
-    Returns:
-        str: Filename
-    """
-    if hasattr(media, 'document') and hasattr(media.document, 'attributes'):
-        for attr in media.document.attributes:
+    """Get filename from media object"""
+    filename = None
+    # 优先处理 Document 类型
+    doc = getattr(media, 'document', None)
+    if isinstance(doc, Document) and hasattr(doc, 'attributes'):
+        for attr in doc.attributes:
             if isinstance(attr, DocumentAttributeFilename):
-                return attr.file_name
-    
-    # Default filenames based on media type
-    if hasattr(media, 'document') and hasattr(media.document, 'mime_type'):
-        mime_type = media.document.mime_type
-        if mime_type == "audio/ogg":
-            return "voicenote.ogg"
-        elif mime_type == "video/mp4":
-            return "video.mp4"
+                filename = attr.file_name
+                break
+        # 如果没有文件名属性，但有 mime 类型，可以尝试生成扩展名
+        if not filename and hasattr(doc, 'mime_type'):
+             mime_type = doc.mime_type
+             # 简单的 mime 类型到扩展名的映射 (可以扩展)
+             ext_map = {
+                 "audio/ogg": ".ogg",
+                 "video/mp4": ".mp4",
+                 "image/jpeg": ".jpg",
+                 "image/png": ".png",
+                 "image/webp": ".webp",
+                 "audio/mpeg": ".mp3",
+                 "application/pdf": ".pdf",
+                 "application/zip": ".zip",
+                 "audio/opus": ".opus", # 添加 opus
+                 "video/webm": ".webm", # 添加 webm
+                 "image/gif": ".gif",   # 添加 gif
+             }
+             ext = ext_map.get(mime_type)
+             if ext:
+                 # 使用更通用的名称，避免潜在冲突
+                 filename = f"media_file{ext}"
+
+    # 处理照片类型 (MessageMediaPhoto 或 Photo)
     elif isinstance(media, (MessageMediaPhoto, Photo)):
-        return "photo.jpg"
+        filename = "photo.jpg" # 默认为 jpg
+        # Photo 对象可能有 sizes，但通常不包含原始文件名
+
+    # 处理联系人
     elif isinstance(media, (MessageMediaContact, Contact)):
-        return "contact.vcf"
-    
-    return "file.bin"
+        filename = "contact.vcf"
+
+    # 如果所有尝试都失败，返回一个默认名称
+    return filename or "unknown_media.bin"

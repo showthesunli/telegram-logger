@@ -9,6 +9,7 @@ from telethon.errors import (
     ChannelPrivateError,
     ChatAdminRequiredError,
     MessageIdInvalidError,
+    MessageIdInvalidError,
     UserIsBlockedError,
 )
 from telethon.tl.types import (
@@ -21,10 +22,11 @@ from telethon.tl.types import (
 )
 
 from ..data.database import DatabaseManager
-from ..data.models import Message
-from ..utils.media import retrieve_media_as_file
+from ..data.models import Message # 确保导入 Message
+# from ..utils.media import retrieve_media_as_file # retrieve_media_as_file 在 media_handler 中使用
 from ..utils.mentions import create_mention
 from .base_handler import BaseHandler
+from contextlib import asynccontextmanager, contextmanager # 导入上下文管理器类型检查
 from .log_sender import LogSender
 from .media_handler import RestrictedMediaHandler
 from .message_formatter import MessageFormatter
@@ -588,11 +590,9 @@ class OutputHandler(BaseHandler):
             return f"❌ 格式化消息时出错 (ID: {error_msg_id})。"
 
     async def _send_message_with_media(self, text: str, message: TelethonMessage):
-        """处理带媒体的消息发送，包括普通、受限和贴纸。"""
-        # 断言确保辅助类已设置
+        """处理带媒体的消息发送，优先使用持久化数据，按需下载作为后备。"""
         if not self.log_sender or not self.restricted_media_handler or not self.client:
             logger.error("OutputHandler 辅助类未完全初始化，无法发送带媒体的消息。")
-            # 尝试发送纯文本作为回退
             if self.log_sender:
                 await self.log_sender.send_message(
                     f"⚠️ **媒体发送失败 (初始化错误)** ⚠️\n\n{text}",
@@ -600,8 +600,11 @@ class OutputHandler(BaseHandler):
                 )
             return
 
-        media_file_path: Optional[str] = None
-        media_context = None  # 用于管理 retrieve_media_as_file 的上下文
+        media_file_to_send = None # 用于持有最终要发送的文件句柄或路径
+        media_context = None # 用于管理需要退出的上下文
+        send_method = "log_sender" # 默认使用 log_sender 发送 (带文件)
+        caption_to_use = text # 默认使用完整格式化文本作为标题
+        reply_to_use = message.reply_to_msg_id # 保留回复
 
         try:
             if not message.media:
@@ -610,143 +613,150 @@ class OutputHandler(BaseHandler):
                 await self.log_sender.send_message(text, parse_mode="markdown")
                 return
 
-            # --- 处理有媒体的情况 ---
-            # 检查是否是贴纸 (使用 Telethon 的属性)
+            # --- 识别媒体类型 ---
             is_sticker = any(
                 isinstance(attr, DocumentAttributeSticker)
                 for attr in getattr(message.media, "attributes", [])
             )
             is_restricted = getattr(message, "noforwards", False)
 
+            # --- 尝试从数据库获取持久化信息 (仅对贴纸和受限媒体) ---
+            db_message: Optional[Message] = None
+            media_path_from_db: Optional[str] = None
+            if is_sticker or is_restricted:
+                logger.debug(f"尝试从数据库获取消息 {message.id} 的媒体路径...")
+                # 使用带重试的方法获取数据库记录
+                db_message = await self._get_message_from_db_with_retry(message.id, message.chat_id)
+                if db_message and db_message.media_path:
+                    media_path_from_db = db_message.media_path
+                    logger.info(f"成功从数据库获取到消息 {message.id} 的媒体路径: {media_path_from_db}")
+                else:
+                    logger.warning(f"未能从数据库获取到消息 {message.id} 的媒体路径 (或记录不存在)。将尝试后备下载。")
+
+            # --- 处理流程 ---
+
             # 1. 处理贴纸
             if is_sticker:
                 logger.debug(f"消息 {message.id} 是贴纸。")
-                # 尝试从数据库获取已保存的贴纸文件路径
-                db_message = self.db.get_message_by_id(message.id)
-                if db_message and db_message.media_path:
-                    try:
-                        # 使用 retrieve_media_as_file 获取文件路径
-                        media_context = retrieve_media_as_file(
-                            db_message.media_path, db_message.is_restricted
-                        )
-                        media_file_path = media_context.__enter__()  # 手动进入上下文
-                        # 直接使用 client 发送贴纸文件，保留 caption 和 reply_to
-                        await self.client.send_file(
-                            self.log_chat_id,
-                            media_file_path,
-                            caption=text,  # 将格式化文本作为 caption
-                            parse_mode="markdown",
-                            reply_to=message.reply_to_msg_id,  # 保留回复上下文
-                        )
-                        logger.info(
-                            f"贴纸消息 {message.id} 已使用数据库文件发送到日志频道。"
-                        )
-                        return  # 发送成功
-                    except FileNotFoundError:
-                        logger.error(
-                            f"数据库记录的贴纸文件 {db_message.media_path} 未找到。"
-                        )
-                        # 继续尝试动态下载
-                    except Exception as sticker_send_err:
-                        logger.error(
-                            f"发送已保存的贴纸文件 {message.id} (路径: {db_message.media_path}) 失败: {sticker_send_err}",
-                            exc_info=True,
-                        )
-                        # 发送失败，降级为仅发送文本
-                    finally:
-                        if media_context:  # 确保退出上下文
-                            try:
-                                media_context.__exit__(None, None, None)
-                            except Exception as cm_exit_e:
-                                logger.error(f"退出贴纸媒体上下文时出错: {cm_exit_e}")
-                            media_context = None  # 重置
-                else:
-                    logger.warning(
-                        f"无法从数据库找到贴纸 {message.id} 的文件路径，尝试动态下载发送。"
-                    )
-
-                # 尝试动态下载并发送贴纸（作为备选或首选）
+                send_method = "client" # 贴纸通常用 client.send_file
                 try:
-                    # 使用 RestrictedMediaHandler 下载（即使它可能不是受限的，它应该也能处理）
-                    async with self.restricted_media_handler.prepare_media(
-                        message
-                    ) as prepared_media_path:
-                        if prepared_media_path:
+                    if media_path_from_db:
+                        # 优先使用数据库路径 (贴纸通常未加密)
+                        logger.debug(f"尝试使用数据库路径 {media_path_from_db} 发送贴纸 {message.id}")
+                        # retrieve_media_as_file 返回同步上下文
+                        # 需要从 utils.media 导入 retrieve_media_as_file
+                        from ..utils.media import retrieve_media_as_file
+                        media_context = retrieve_media_as_file(media_path_from_db, is_restricted=False)
+                        async with self.manage_sync_context(media_context) as media_file_to_send:
+                             if media_file_to_send:
+                                 await self.client.send_file(
+                                     self.log_chat_id,
+                                     media_file_to_send, # 发送文件句柄
+                                     caption=caption_to_use,
+                                     parse_mode="markdown",
+                                     reply_to=reply_to_use,
+                                 )
+                                 logger.info(f"贴纸消息 {message.id} (来自DB) 已发送。")
+                                 return # 发送成功
+                             else:
+                                 logger.error(f"未能从数据库路径 {media_path_from_db} 准备好贴纸 {message.id}。")
+                                 # 继续尝试后备下载
+                    else:
+                         logger.info(f"数据库路径未找到或无效，执行贴纸 {message.id} 的后备临时下载。")
+
+                    # 后备：临时下载
+                    media_context = self.restricted_media_handler.download_and_yield_temporary(message)
+                    async with media_context as media_file_to_send:
+                        if media_file_to_send:
                             await self.client.send_file(
                                 self.log_chat_id,
-                                prepared_media_path,
-                                caption=text,
+                                media_file_to_send, # 发送文件句柄
+                                caption=caption_to_use,
                                 parse_mode="markdown",
-                                reply_to=message.reply_to_msg_id,
+                                reply_to=reply_to_use,
                             )
-                            logger.info(f"动态下载并发送了贴纸 {message.id}。")
-                            return  # 发送成功
+                            logger.info(f"贴纸消息 {message.id} (临时下载) 已发送。")
+                            return # 发送成功
                         else:
-                            logger.error(
-                                f"使用 RestrictedMediaHandler 下载贴纸 {message.id} 失败，未返回路径。"
-                            )
-                except Exception as sticker_dl_err:
-                    logger.error(
-                        f"动态下载并发送贴纸 {message.id} 时出错: {sticker_dl_err}",
-                        exc_info=True,
-                    )
+                             logger.error(f"未能通过临时下载准备好贴纸 {message.id}。")
 
-                # 如果贴纸发送失败，则降级到下面发送纯文本
+                except Exception as sticker_err:
+                    logger.error(f"发送贴纸 {message.id} 时出错: {sticker_err}", exc_info=True)
+                # 如果贴纸发送失败，降级到下面发送纯文本
 
             # 2. 处理受限媒体 (非贴纸)
             elif is_restricted:
-                logger.debug(
-                    f"消息 {message.id} 包含受限媒体，使用 RestrictedMediaHandler 处理。"
-                )
+                logger.debug(f"消息 {message.id} 包含受限媒体。")
+                send_method = "log_sender" # 受限媒体解密后用 log_sender 发送
                 try:
-                    async with self.restricted_media_handler.prepare_media(
-                        message
-                    ) as prepared_media_path:
-                        if prepared_media_path:
-                            # 使用 LogSender 发送解密后的文件
+                    if media_path_from_db:
+                        # 优先使用数据库路径解密
+                        logger.debug(f"尝试使用数据库路径 {media_path_from_db} 处理受限媒体 {message.id}")
+                        media_context = self.restricted_media_handler.prepare_media_from_path(media_path_from_db)
+                        async with media_context as media_file_to_send:
+                            if media_file_to_send:
+                                await self.log_sender.send_message(
+                                    caption_to_use,
+                                    file=media_file_to_send, # 发送文件句柄
+                                    parse_mode="markdown"
+                                )
+                                logger.info(f"受限媒体消息 {message.id} (来自DB) 已处理并发送。")
+                                return # 发送成功
+                            else:
+                                logger.error(f"未能从数据库路径 {media_path_from_db} 准备好受限媒体 {message.id}。")
+                                # 继续尝试后备下载
+                    else:
+                         logger.info(f"数据库路径未找到或无效，执行受限媒体 {message.id} 的后备临时下载。")
+
+                    # 后备：临时下载
+                    media_context = self.restricted_media_handler.download_and_yield_temporary(message)
+                    async with media_context as media_file_to_send:
+                        if media_file_to_send:
                             await self.log_sender.send_message(
-                                text, file=prepared_media_path, parse_mode="markdown"
+                                caption_to_use,
+                                file=media_file_to_send, # 发送文件句柄
+                                parse_mode="markdown"
                             )
-                            logger.info(f"受限媒体消息 {message.id} 已处理并发送。")
-                            return  # 发送成功
+                            logger.info(f"受限媒体消息 {message.id} (临时下载) 已处理并发送。")
+                            return # 发送成功
                         else:
-                            logger.warning(
-                                f"RestrictedMediaHandler 未能准备好受限媒体 {message.id}。"
-                            )
+                            logger.error(f"未能通过临时下载准备好受限媒体 {message.id}。")
+
                 except Exception as restricted_err:
-                    logger.error(
-                        f"处理受限媒体 {message.id} 时出错: {restricted_err}",
-                        exc_info=True,
-                    )
+                    logger.error(f"处理受限媒体 {message.id} 时出错: {restricted_err}", exc_info=True)
                 # 如果处理失败，降级到下面发送纯文本
 
             # 3. 处理普通媒体 (非贴纸，非受限)
             else:
                 logger.debug(f"消息 {message.id} 包含普通媒体，尝试直接发送。")
+                send_method = "client" # 普通媒体优先尝试 client.send_file
                 try:
                     # 直接使用 message.media
                     await self.client.send_file(
                         self.log_chat_id,
                         message.media,  # 直接传递媒体对象
-                        caption=text,   # 格式化文本作为标题
+                        caption=caption_to_use,
                         parse_mode="markdown",
-                        reply_to=message.reply_to_msg_id # 尝试保留回复上下文
+                        reply_to=reply_to_use
                     )
                     logger.info(f"普通媒体消息 {message.id} 已直接发送。")
                     return # 发送成功
 
+                except (ChannelPrivateError, ChatAdminRequiredError, UserIsBlockedError) as permission_err:
+                     logger.warning(f"直接发送普通媒体 {message.id} 因权限问题失败: {permission_err}。将仅发送文本。")
+                     # 对于权限问题，后备下载可能也无效，直接降级
+                except MessageIdInvalidError:
+                     logger.warning(f"直接发送普通媒体 {message.id} 失败，消息ID无效 (可能已被删除?)。将仅发送文本。")
                 except Exception as direct_send_err:
                     logger.error(
                         f"直接发送普通媒体 {message.id} 失败: {direct_send_err}",
                         exc_info=True
                     )
-                    # 如果直接发送失败，降级到下面发送纯文本
+                    # 其他错误，降级
                     logger.warning(f"直接发送普通媒体失败，将仅发送文本信息。")
-                    await self.log_sender.send_message(
-                        f"⚠️ **媒体发送失败 (直接发送错误)** ⚠️\n\n{text}\n\n(原始媒体未能成功直接发送)",
-                        parse_mode="markdown",
-                    )
-                    return # 结束处理
+
+                # 如果直接发送失败，降级到下面发送纯文本
+                # 注意：这里没有为普通媒体添加后备下载逻辑，以保持简单。
 
             # --- 降级处理：仅发送文本 ---
             logger.warning(
@@ -767,21 +777,25 @@ class OutputHandler(BaseHandler):
                     await self.log_sender.send_message(
                         f"❌ **发送消息时发生严重错误** ❌\n\n"
                         f"尝试处理消息 ID `{message.id}` 时遇到意外问题。\n"
-                        f"错误: {type(e).__name__}: {e}\n\n"
-                        f"原始文本内容 (可能不完整):\n{text[:500]}...",  # 只显示部分文本
+                        f"错误: {type(e).__name__}\n\n"
+                        f"原始文本内容 (部分):\n{text[:500]}...",
                         parse_mode="markdown",
                     )
                 except Exception as fallback_err:
                     logger.critical(
                         f"发送最终错误回退消息也失败 (消息 ID: {message.id}): {fallback_err}"
                     )
+
+    @asynccontextmanager
+    async def manage_sync_context(self, cm):
+        """辅助方法，用于在异步代码中安全地管理同步上下文管理器"""
+        resource = None
+        try:
+            resource = cm.__enter__()
+            yield resource
         finally:
-            # 确保手动管理的上下文被退出 (再次检查以防万一)
-            if media_context:
+            if 'cm' in locals():
                 try:
-                    media_context.__exit__(None, None, None)
-                except Exception as cm_exit_e:
-                    logger.error(
-                        f"在 finally 块中退出媒体文件上下文管理器时出错: {cm_exit_e}",
-                        exc_info=True,
-                    )
+                    cm.__exit__(None, None, None)
+                except Exception as exit_e:
+                    logger.error(f"Error exiting sync context manager {type(cm)}: {exit_e}")
