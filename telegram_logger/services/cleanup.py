@@ -66,12 +66,19 @@ class CleanupService:
         try:
             media_path = Path("media")
             if not media_path.exists():
+                # 如果媒体目录不存在，认为空间充足（或无法判断）
                 return False
                 
             usage = shutil.disk_usage(media_path)
-            return usage.free < 5 * 1024 * 1024 * 1024  # 5GB阈值
+            # 检查可用空间是否小于 5GB
+            is_low = usage.free < 5 * 1024 * 1024 * 1024
+            if is_low:
+                logger.warning(f"检测到磁盘空间不足。可用空间: {usage.free / (1024**3):.2f} GB")
+            return is_low
+        except FileNotFoundError:
+            logger.warning(f"检查磁盘空间时未找到路径: {media_path}")
+            return False
         except Exception:
+            # 捕获其他潜在错误，如权限问题
             logger.warning("无法检测磁盘空间", exc_info=True)
             return False
-        except asyncio.CancelledError:
-            logger.debug("清理任务被取消")

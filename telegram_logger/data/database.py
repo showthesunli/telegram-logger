@@ -115,54 +115,79 @@ class DatabaseManager:
         now = datetime.now()
         conditions = []
         params = []
-        deleted_files = 0
+        media_paths_to_delete = set() # 使用集合存储待删除的媒体路径
         
-        # 1. 获取所有过期的消息键(msgid_chatid)
-        expired_keys = set()
+        # 1. 收集所有过期消息的媒体路径，并构建删除条件
         for persist_type, days in persist_times.items():
             if persist_type not in self.MSG_TYPE_MAP:
                 logger.warning(f"未知的消息类型: {persist_type}")
                 continue
+            
             cutoff = now - timedelta(days=days)
-            cursor = self.conn.execute(
-                "SELECT id, chat_id, media_path FROM messages "
-                "WHERE type = ? AND created_time < ?",
-                (self.MSG_TYPE_MAP[persist_type], cutoff)
-            )
-            expired_keys.update(row["file_key"] for row in cursor)
+            type_val = self.MSG_TYPE_MAP[persist_type]
+            
+            # 添加数据库删除条件
+            conditions.append("(type = ? AND created_time < ?)")
+            params.extend([type_val, cutoff])
+
+            # 查询需要删除的媒体文件路径
+            try:
+                cursor = self.conn.execute(
+                    "SELECT media_path FROM messages "
+                    "WHERE type = ? AND created_time < ? AND media_path IS NOT NULL",
+                    (type_val, cutoff)
+                )
+                # 将查询到的非空路径添加到集合中
+                for row in cursor:
+                    media_paths_to_delete.add(row['media_path'])
+            except sqlite3.Error as e:
+                logger.error(f"查询过期媒体路径时出错 (类型: {persist_type}): {e}", exc_info=True)
+
+
+        if not conditions:
+            logger.info("没有有效的过期条件，无需删除。")
+            return 0
+
+        deleted_db_rows = 0
+        deleted_files = 0
 
         # 2. 删除数据库记录
-        for persist_type, days in persist_times.items():
-            if persist_type not in self.MSG_TYPE_MAP:
-                continue
-            cutoff = now - timedelta(days=days)
-            conditions.append("(type = ? AND created_time < ?)")
-            params.extend([self.MSG_TYPE_MAP[persist_type], cutoff])
-        
-        query = f"DELETE FROM messages WHERE {' OR '.join(conditions)}"
-        self.conn.execute(query, params)
-        
+        try:
+            query = f"DELETE FROM messages WHERE {' OR '.join(conditions)}"
+            cursor = self.conn.execute(query, params)
+            deleted_db_rows = cursor.rowcount # 获取实际删除的行数
+            logger.info(f"数据库中删除了 {deleted_db_rows} 条过期消息记录。")
+        except sqlite3.Error as e:
+            logger.error(f"删除过期数据库记录时出错: {e}", exc_info=True)
+            self.conn.rollback() # 发生错误时回滚
+            return 0 # 返回0表示本次操作未成功删除
+
         # 3. 清理关联的媒体文件
-        if expired_keys:
-            media_dir = Path("media")
-            for msg_info in expired_keys:
-                media_path_str = msg_info.get('media_path')
-                if media_path_str:
-                    media_file = Path(media_path_str)
-                    try:
-                        if media_file.exists() and media_file.is_relative_to(media_dir):
-                            media_file.unlink()
-                            deleted_files += 1
-                            logger.debug(f"已删除媒体文件: {media_path_str}")
-                        elif not media_file.exists():
-                            logger.warning(f"尝试删除媒体文件但文件不存在: {media_path_str}")
-                        else:
-                            logger.warning(f"媒体文件路径不在预期的 'media' 目录下，跳过删除: {media_path_str}")
-                    except Exception as e:
-                        logger.error(f"Failed to delete media file {media_path_str}: {str(e)}")
+        if media_paths_to_delete:
+            media_dir = Path("media").resolve() # 使用绝对路径以提高安全性
+            logger.info(f"开始清理 {len(media_paths_to_delete)} 个关联的媒体文件...")
+            for media_path_str in media_paths_to_delete:
+                try:
+                    media_file = Path(media_path_str).resolve()
+                    # 增强检查：确保文件存在且在 media_dir 目录下
+                    if media_file.exists() and media_file.is_file() and media_dir in media_file.parents:
+                        media_file.unlink()
+                        deleted_files += 1
+                        logger.debug(f"已删除媒体文件: {media_path_str}")
+                    elif not media_file.exists():
+                        logger.warning(f"尝试删除媒体文件但文件不存在: {media_path_str}")
+                    elif media_dir not in media_file.parents:
+                         logger.warning(f"媒体文件路径不在预期的 'media' 目录下，跳过删除: {media_path_str}")
+                    # else: 文件存在但不是文件（例如目录），也跳过
+                except OSError as e:
+                    logger.error(f"删除媒体文件 {media_path_str} 时发生 OS 错误: {str(e)}")
+                except Exception as e:
+                    logger.error(f"删除媒体文件 {media_path_str} 时发生未知错误: {str(e)}", exc_info=True)
 
         self.conn.commit()
-        return self.conn.total_changes + deleted_files
+        logger.info(f"清理完成。数据库删除 {deleted_db_rows} 条记录，文件系统删除 {deleted_files} 个文件。")
+        # 返回总共清理的项目数（数据库记录 + 文件）
+        return deleted_db_rows + deleted_files
 
     def _row_to_message(self, row) -> Message:
         """Convert database row to Message object"""
