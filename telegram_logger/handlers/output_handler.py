@@ -108,13 +108,8 @@ class OutputHandler(BaseHandler):
             logger.error("OutputHandler 无法处理事件：客户端或辅助类尚未初始化。")
             return None
 
-        # 记录接收到的事件类型
-        if isinstance(event, events.NewMessage.Event):
-            logger.debug(f"OutputHandler 接收到事件: new_message")
-        else:
-            logger.debug(f"OutputHandler 接收到未知事件类型 ")
-
         try:
+            # 这里的顺序不能改变，因为telethon的实现中，MessageEdited 是集成自NewMessage，如果改变了顺序，会导致无法触发修改和删除的事件
             if isinstance(event, events.MessageEdited.Event):
                 await self._process_edited_message(event)
             elif isinstance(event, events.MessageDeleted.Event):
@@ -487,10 +482,10 @@ class OutputHandler(BaseHandler):
                 chat_id = message_data.chat_id
                 chat_id_for_link = chat_id  # 保存 chat_id 用于链接
                 sender_id = message_data.from_id
-                text_content = message_data.msg_text # 使用 msg_text
-                date = message_data.created_time     # 使用 created_time
-                edit_date = message_data.edited_time   # 使用 edited_time
-                reply_to_msg_id = None # Message 对象中没有此信息
+                text_content = message_data.msg_text  # 使用 msg_text
+                date = message_data.created_time  # 使用 created_time
+                edit_date = message_data.edited_time  # 使用 edited_time
+                reply_to_msg_id = None  # Message 对象中没有此信息
 
                 # 异步获取提及信息
                 sender_mention = await create_mention(self.client, sender_id, msg_id)
@@ -531,7 +526,7 @@ class OutputHandler(BaseHandler):
                         )
                         pass  # 链接构造失败就算了
                 # 从数据库加载的消息没有 reply_to_msg_id 信息
-                reply_to_str = "" # 清空回复信息
+                reply_to_str = ""  # 清空回复信息
 
             # 截断过长的消息文本
             if len(text_content) > 3500:  # Telegram 消息长度限制约为 4096，留些余地
@@ -560,7 +555,7 @@ class OutputHandler(BaseHandler):
                 media_indicator = f"\n**媒体:** {media_type}{filename}"
             elif isinstance(message_data, Message) and message_data.media_path:
                 # 数据库中只存了路径，没有类型名或文件名
-                media_indicator = "\n**媒体:** [文件]" # 仅指示存在媒体文件
+                media_indicator = "\n**媒体:** [文件]"  # 仅指示存在媒体文件
 
             footer = f"\n**消息 ID:** `{msg_id}`{reply_to_str}\n**时间:** {date_str}{edit_date_str}{media_indicator}"
 
