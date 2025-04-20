@@ -517,15 +517,21 @@ class OutputHandler(BaseHandler):
                         # 对于普通群组，链接格式不同，这里简化处理，可能不总正确
                         if not str(chat_id_for_link).startswith("-100"):
                             # 普通群组链接通常不直接可用，这里仅显示 ID
-                            reply_link = f" (普通群组)"
+                            reply_link = f" (回复普通群组消息 ID: {reply_to_msg_id})" # 提供一些信息
                         else:
                             reply_link = f" [原始消息](https://t.me/c/{link_chat_id_str}/{reply_to_msg_id})"
+                        # *** 将创建的链接或回退文本赋值给 reply_to_str ***
+                        reply_to_str = reply_link
                     except Exception as link_err:
                         logger.warning(
                             f"为回复消息 {reply_to_msg_id} (Chat: {chat_id_for_link}) 创建链接失败: {link_err}"
                         )
+                        # 链接构造失败时的回退
+                        reply_to_str = f" (回复消息 ID: {reply_to_msg_id})"
                         pass  # 链接构造失败就算了
-                # 从数据库加载的消息没有 reply_to_msg_id 信息
+                else:
+                    # 如果 chat_id 未知，仅显示回复的 ID
+                    reply_to_str = f" (回复消息 ID: {reply_to_msg_id})"
 
             # 截断过长的消息文本
             if len(text_content) > 3500:  # Telegram 消息长度限制约为 4096，留些余地
