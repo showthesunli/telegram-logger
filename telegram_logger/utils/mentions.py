@@ -8,6 +8,23 @@ logger = logging.getLogger(__name__)
 async def create_mention(client, entity_id: int, msg_id: int = None) -> str:
     """生成Telegram实体提及链接"""
     logger.debug(f"尝试为 ID {entity_id} 创建提及 (消息 ID: {msg_id})")
+    
+    # 特殊处理 entity_id 为 0 的情况 (通常代表自己)
+    if entity_id == 0:
+        try:
+            me = await client.get_me()
+            if me:
+                logger.debug("entity_id 为 0，使用 client.get_me() 获取自身信息。")
+                # 复用现有的用户提及格式化逻辑
+                return _format_user_mention(me, msg_id)
+            else:
+                # get_me() 意外返回 None
+                logger.warning("client.get_me() 返回 None，无法格式化 ID 为 0 的提及。")
+                return "自己 (ID: 0)" # 提供一个明确的回退
+        except Exception as me_err:
+            logger.error(f"尝试使用 client.get_me() 获取自身信息时出错: {me_err}", exc_info=True)
+            return "自己 (获取信息出错)" # 错误时的回退
+
     try:
         entity = await client.get_entity(entity_id)
         logger.debug(f"成功获取实体: 类型={type(entity).__name__}, ID={entity.id}")
