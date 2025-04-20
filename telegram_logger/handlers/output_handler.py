@@ -286,45 +286,52 @@ class OutputHandler(BaseHandler):
         return False
 
     def _should_log_deletion(self, event: events.MessageDeleted.Event) -> bool:
-        """检查删除事件是否应记录日志。"""
-        chat_id = event.chat_id  # 删除事件可能没有 chat_id
-        # 尝试从 peer 获取 chat_id (如果 event.chat_id 为 None)
-        if chat_id is None and event.peer:
-            if isinstance(event.peer, PeerChannel):
-                chat_id = event.peer.channel_id
-                # Telethon 通常返回正数 ID，但内部可能需要负数表示频道/群组
-                if chat_id > 0:
-                    chat_id = int(f"-100{chat_id}")
-            elif isinstance(event.peer, PeerChat):
-                chat_id = -event.peer.chat_id  # 普通群组 ID 为负数
-
-        # 规则 1: 如果知道 chat_id 且在忽略列表，则忽略
-        if chat_id and chat_id in self.ignored_ids:
-            logger.debug(
-                f"忽略删除事件 (IDs: {event.deleted_ids})：聊天 {chat_id} 在忽略列表中。"
-            )
-            return False
-
-        # 规则 2: 只记录发生在被转发群组中的删除事件
-        if chat_id and chat_id in self.forward_group_ids:
-            logger.debug(
-                f"记录删除事件 (IDs: {event.deleted_ids})：发生在转发群组 {chat_id} 中。"
-            )
-            return True
-
-        # 规则 3: 如果 chat_id 未知（可能发生在私聊或旧事件），保守起见，默认记录
-        # 速率限制将防止未知来源的删除事件刷屏
-        if chat_id is None:
-            logger.debug(
-                f"记录删除事件 (IDs: {event.deleted_ids})：chat_id 未知，默认记录。"
-            )
-            return True
-
-        # 如果 chat_id 已知但不在转发群组列表中
+        """检查删除事件是否应记录日志。根据当前需求，始终返回 False 以禁用删除日志。"""
+        # 不再记录任何删除事件
         logger.debug(
-            f"不记录删除事件 (IDs: {event.deleted_ids})：聊天 {chat_id} 不在转发群组列表中。"
+            f"删除事件 (IDs: {event.deleted_ids}, Chat: {event.chat_id}) 被忽略，因为删除日志功能已禁用。"
         )
         return False
+        
+        # --- 保留原始逻辑作为注释，以备将来参考 ---
+        # chat_id = event.chat_id  # 删除事件可能没有 chat_id
+        # # 尝试从 peer 获取 chat_id (如果 event.chat_id 为 None)
+        # if chat_id is None and event.peer:
+        #     if isinstance(event.peer, PeerChannel):
+        #         chat_id = event.peer.channel_id
+        #         # Telethon 通常返回正数 ID，但内部可能需要负数表示频道/群组
+        #         if chat_id > 0:
+        #             chat_id = int(f"-100{chat_id}")
+        #     elif isinstance(event.peer, PeerChat):
+        #         chat_id = -event.peer.chat_id  # 普通群组 ID 为负数
+        #
+        # # 规则 1: 如果知道 chat_id 且在忽略列表，则忽略
+        # if chat_id and chat_id in self.ignored_ids:
+        #     logger.debug(
+        #         f"忽略删除事件 (IDs: {event.deleted_ids})：聊天 {chat_id} 在忽略列表中。"
+        #     )
+        #     return False
+        #
+        # # 规则 2: 只记录发生在被转发群组中的删除事件
+        # if chat_id and chat_id in self.forward_group_ids:
+        #     logger.debug(
+        #         f"记录删除事件 (IDs: {event.deleted_ids})：发生在转发群组 {chat_id} 中。"
+        #     )
+        #     return True
+        #
+        # # 规则 3: 如果 chat_id 未知（可能发生在私聊或旧事件），保守起见，默认记录
+        # # 速率限制将防止未知来源的删除事件刷屏
+        # if chat_id is None:
+        #     logger.debug(
+        #         f"记录删除事件 (IDs: {event.deleted_ids})：chat_id 未知，默认记录。"
+        #     )
+        #     return True
+        #
+        # # 如果 chat_id 已知但不在转发群组列表中
+        # logger.debug(
+        #     f"不记录删除事件 (IDs: {event.deleted_ids})：聊天 {chat_id} 不在转发群组列表中。"
+        # )
+        # return False
 
     # --- 数据库交互 ---
 
