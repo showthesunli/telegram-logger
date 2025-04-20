@@ -715,43 +715,31 @@ class OutputHandler(BaseHandler):
 
             # 3. 处理普通媒体 (非贴纸，非受限)
             else:
-                logger.debug(f"消息 {message.id} 包含普通媒体，尝试从数据库检索。")
-                db_message = self.db.get_message_by_id(message.id)
-                if db_message and db_message.media_path:
-                    try:
-                        media_context = retrieve_media_as_file(
-                            db_message.media_path, is_restricted=False
-                        )
-                        media_file_path = media_context.__enter__()  # 手动进入上下文
-                        # 使用 LogSender 发送普通媒体文件
-                        await self.log_sender.send_message(
-                            text, file=media_file_path, parse_mode="markdown"
-                        )
-                        logger.info(f"普通媒体消息 {message.id} 已使用数据库文件发送。")
-                        return  # 发送成功
-                    except FileNotFoundError:
-                        logger.error(
-                            f"数据库记录的普通媒体文件 {db_message.media_path} 未找到。"
-                        )
-                        # 降级处理
-                    except Exception as normal_media_err:
-                        logger.error(
-                            f"发送普通媒体文件 {message.id} (路径: {db_message.media_path}) 失败: {normal_media_err}",
-                            exc_info=True,
-                        )
-                        # 降级处理
-                    finally:
-                        if media_context:  # 确保退出上下文
-                            try:
-                                media_context.__exit__(None, None, None)
-                            except Exception as cm_exit_e:
-                                logger.error(f"退出普通媒体上下文时出错: {cm_exit_e}")
-                            media_context = None  # 重置
-                else:
-                    logger.warning(
-                        f"无法从数据库找到普通媒体 {message.id} 的文件路径。"
+                logger.debug(f"消息 {message.id} 包含普通媒体，尝试直接发送。")
+                try:
+                    # 直接使用 message.media
+                    await self.client.send_file(
+                        self.log_chat_id,
+                        message.media,  # 直接传递媒体对象
+                        caption=text,   # 格式化文本作为标题
+                        parse_mode="markdown",
+                        reply_to=message.reply_to_msg_id # 尝试保留回复上下文
                     )
-                # 如果找不到文件或发送失败，降级到下面发送纯文本
+                    logger.info(f"普通媒体消息 {message.id} 已直接发送。")
+                    return # 发送成功
+
+                except Exception as direct_send_err:
+                    logger.error(
+                        f"直接发送普通媒体 {message.id} 失败: {direct_send_err}",
+                        exc_info=True
+                    )
+                    # 如果直接发送失败，降级到下面发送纯文本
+                    logger.warning(f"直接发送普通媒体失败，将仅发送文本信息。")
+                    await self.log_sender.send_message(
+                        f"⚠️ **媒体发送失败 (直接发送错误)** ⚠️\n\n{text}\n\n(原始媒体未能成功直接发送)",
+                        parse_mode="markdown",
+                    )
+                    return # 结束处理
 
             # --- 降级处理：仅发送文本 ---
             logger.warning(
