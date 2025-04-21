@@ -17,6 +17,8 @@ jobs:
     name: Build and Push
     # 移除 needs: validate，因为我们已经注释掉了 validate job
     runs-on: ubuntu-latest
+    # 添加 environment 字段以访问 Environment secrets
+    environment: deploy-webhook
     permissions:
       contents: read
       packages: write
@@ -50,7 +52,7 @@ jobs:
             type=sha
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.created=${{ steps.prep.outputs.created }}
+            # 注意: org.opencontainers.image.created 可能引用了不存在的步骤 'prep'。如果需要，请修正或移除。
             org.opencontainers.image.revision=${{ github.sha }}
             
       - name: Login to GHCR
@@ -80,5 +82,10 @@ jobs:
           DEPLOY_WEBHOOK_URL: ${{ secrets.DW }}
         run: |
           echo "Build and push successful. Triggering deployment webhook (GET)..."
+          # 检查 URL 是否为空
+          if [ -z "$DEPLOY_WEBHOOK_URL" ]; then
+            echo "Error: DEPLOY_WEBHOOK_URL is empty. Check the 'DW' secret in the 'deploy-webhook' environment."
+            exit 1
+          fi
           curl -f -X GET "$DEPLOY_WEBHOOK_URL"
           echo "Deployment webhook triggered successfully."
