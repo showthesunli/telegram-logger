@@ -4,6 +4,7 @@ from collections import deque
 from datetime import datetime, timedelta, timezone
 from typing import Any, Deque, Dict, List, Optional, Set, Union
 
+import telethon.errors
 from telethon import events
 from telethon.errors import (
     ChannelPrivateError,
@@ -614,12 +615,43 @@ class OutputHandler(BaseHandler):
                 await self.log_sender.send_message(text, parse_mode="markdown")
                 return
 
-            # --- 识别媒体类型 ---
+            # --- 改进的识别逻辑 ---
             is_sticker = any(
                 isinstance(attr, DocumentAttributeSticker)
                 for attr in getattr(message.media, "attributes", [])
             )
-            is_restricted = getattr(message, "noforwards", False)
+
+            # 1. 检查消息本身的 noforwards 标志
+            message_restricted = getattr(message, "noforwards", False)
+
+            # 2. 检查聊天级别的限制 (需要异步获取)
+            chat_restricted = False
+            try:
+                # 尝试获取发送消息的聊天实体
+                # 注意: message.get_chat() 可能需要额外的 API 调用
+                # 在某些情况下（例如来自匿名管理员的消息），get_chat 可能返回 None
+                chat = await message.get_chat()
+                if chat and getattr(chat, 'noforwards', False): # 检查聊天本身的 noforwards 属性
+                    logger.debug(f"消息 {message.id} 所在的聊天 {getattr(chat, 'id', '未知')} 设置了 noforwards 限制。")
+                    chat_restricted = True
+
+            except AttributeError as ae:
+                 # 处理 message.get_chat() 可能不存在的情况 (虽然不太可能)
+                 logger.warning(f"无法调用 message.get_chat() 获取消息 {message.id} 的聊天信息: {ae}")
+            except telethon.errors.rpcerrorlist.ChannelPrivateError:
+                 # Bot 不在该频道/群组，无法获取信息，视为受限
+                 logger.warning(f"无法获取消息 {message.id} 的聊天信息 (ChannelPrivateError)，假定聊天受限。")
+                 chat_restricted = True
+            except Exception as chat_err:
+                # 获取聊天信息时发生其他错误，记录警告，但默认不视为受限（避免误判）
+                # 下载时仍然会因权限失败
+                logger.warning(f"获取消息 {message.id} 的聊天信息以检查限制时发生未知错误: {chat_err}")
+                # chat_restricted = False # 保持 False
+
+            # 最终判断：消息本身或其所在聊天受限，都视为受限媒体
+            is_restricted = message_restricted or chat_restricted
+
+            logger.debug(f"消息 {message.id}: message_restricted={message_restricted}, chat_restricted={chat_restricted}, final is_restricted={is_restricted}")
 
             # --- 尝试从数据库获取持久化信息 (仅对贴纸和受限媒体) ---
             db_message: Optional[Message] = None
@@ -768,6 +800,11 @@ class OutputHandler(BaseHandler):
                     logger.info(f"普通媒体消息 {message.id} 已直接发送。")
                     return # 发送成功
 
+                # 精确捕获聊天转发限制错误，虽然理论上不应再发生，但作为保险
+                except telethon.errors.rpcerrorlist.ChatForwardsRestrictedError:
+                     logger.warning(f"直接发送普通媒体 {message.id} 失败，因为聊天禁止转发 (ChatForwardsRestrictedError)。这不应发生，因为已检查聊天限制。将回退到文本。")
+                     # 这里也可以选择回退到 RestrictedMediaHandler 的下载逻辑，如果需要的话
+                     # await self._handle_restricted_media_logic(caption_to_use, message) # 假设提取了逻辑
                 except (ChannelPrivateError, ChatAdminRequiredError, UserIsBlockedError) as permission_err:
                      logger.warning(f"直接发送普通媒体 {message.id} 因权限问题失败: {permission_err}。将仅发送文本。")
                      # 对于权限问题，后备下载可能也无效，直接降级
