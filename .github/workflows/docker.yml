@@ -61,6 +61,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Build and push
+        id: build-push
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -72,3 +73,12 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+
+      - name: Trigger Deployment Webhook
+        if: github.event_name != 'pull_request' && steps.build-push.outcome == 'success'
+        env:
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DW }}
+        run: |
+          echo "Build and push successful. Triggering deployment webhook (GET)..."
+          curl -f -X GET "$DEPLOY_WEBHOOK_URL"
+          echo "Deployment webhook triggered successfully."
