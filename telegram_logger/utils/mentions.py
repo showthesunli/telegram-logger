@@ -65,14 +65,21 @@ def _format_channel_mention(entity: Union[Channel, Chat], msg_id: int) -> str:
 def _format_user_mention(entity: User, msg_id: int) -> str:
     """
     格式化用户提及为 MarkdownV2 格式。
-    显示用户的 first_name（如果可用），否则显示用户 ID。
+    优先使用 lastname firstname 的格式显示用户全名。
     """
-    # 优先使用 first_name，然后 last_name，最后是 ID
-    display_name = entity.first_name
-    if not display_name and entity.last_name:
-        display_name = entity.last_name # 如果没有 first_name 但有 last_name
-    if not display_name:
-        display_name = f"用户 {entity.id}" # 如果两者都没有
+    # 获取 first_name 和 last_name，处理 None 的情况
+    first = entity.first_name or ""
+    last = entity.last_name or ""
+
+    # 构建显示名称，优先使用 "lastname firstname" 格式
+    if last and first:
+        display_name = f"{last} {first}"
+    elif last: # 只有 last name
+        display_name = last
+    elif first: # 只有 first name
+        display_name = first
+    else: # 都没有，使用 ID 作为回退
+        display_name = f"用户 {entity.id}"
 
     # 清理 display_name 中的 Markdown 特殊字符，例如 [ ] ( ) ~ ` > # + - = | { } . !
     # 仅转义必要的字符以避免破坏链接
