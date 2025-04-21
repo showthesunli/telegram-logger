@@ -24,6 +24,7 @@ from telethon.tl.types import (
 from ..data.database import DatabaseManager
 from ..data.models import Message # 确保导入 Message
 # from ..utils.media import retrieve_media_as_file # retrieve_media_as_file 在 media_handler 中使用
+from ..utils.media import MAX_IN_MEMORY_FILE_SIZE
 from ..utils.mentions import create_mention
 from .base_handler import BaseHandler
 from contextlib import asynccontextmanager, contextmanager # 导入上下文管理器类型检查
@@ -688,11 +689,12 @@ class OutputHandler(BaseHandler):
             elif is_restricted:
                 logger.debug(f"消息 {message.id} 包含受限媒体。")
                 send_method = "log_sender" # 受限媒体解密后用 log_sender 发送
-                try:
-                    if media_path_from_db:
-                        # 优先使用数据库路径解密
-                        logger.debug(f"尝试使用数据库路径 {media_path_from_db} 处理受限媒体 {message.id}")
-                        media_context = self.restricted_media_handler.prepare_media_from_path(media_path_from_db)
+
+                # --- 新增：检查是否为小型受限媒体，直接内存/临时文件下载 ---
+                if message.media and message.file and message.file.size is not None and message.file.size <= MAX_IN_MEMORY_FILE_SIZE:
+                    logger.info(f"受限媒体 {message.id} 小于阈值 ({message.file.size} <= {MAX_IN_MEMORY_FILE_SIZE})，尝试直接临时下载。")
+                    try:
+                        media_context = self.restricted_media_handler.download_and_yield_temporary(message)
                         async with media_context as media_file_to_send:
                             if media_file_to_send:
                                 await self.log_sender.send_message(
@@ -700,30 +702,54 @@ class OutputHandler(BaseHandler):
                                     file=media_file_to_send, # 发送文件句柄
                                     parse_mode="markdown"
                                 )
-                                logger.info(f"受限媒体消息 {message.id} (来自DB) 已处理并发送。")
+                                logger.info(f"小型受限媒体消息 {message.id} (直接临时下载) 已处理并发送。")
                                 return # 发送成功
                             else:
-                                logger.error(f"未能从数据库路径 {media_path_from_db} 准备好受限媒体 {message.id}。")
-                                # 继续尝试后备下载
-                    else:
-                         logger.info(f"数据库路径未找到或无效，执行受限媒体 {message.id} 的后备临时下载。")
+                                logger.error(f"未能通过直接临时下载准备好小型受限媒体 {message.id}。")
+                                # 如果准备失败，将落到下面的文本回退逻辑
+                    except Exception as direct_download_err:
+                        logger.error(f"直接临时下载小型受限媒体 {message.id} 时出错: {direct_download_err}", exc_info=True)
+                        # 如果下载或发送出错，将落到下面的文本回退逻辑
 
-                    # 后备：临时下载
-                    media_context = self.restricted_media_handler.download_and_yield_temporary(message)
-                    async with media_context as media_file_to_send:
-                        if media_file_to_send:
-                            await self.log_sender.send_message(
-                                caption_to_use,
-                                file=media_file_to_send, # 发送文件句柄
-                                parse_mode="markdown"
-                            )
-                            logger.info(f"受限媒体消息 {message.id} (临时下载) 已处理并发送。")
-                            return # 发送成功
+                # --- 如果文件较大或大小未知，执行原有逻辑 (DB优先，然后后备下载) ---
+                else:
+                    logger.debug(f"受限媒体 {message.id} 较大或大小未知 ({message.file.size if message.file else '未知'} > {MAX_IN_MEMORY_FILE_SIZE})，使用标准处理流程 (DB优先)。")
+                    try:
+                        if media_path_from_db:
+                            # 优先使用数据库路径解密
+                            logger.debug(f"尝试使用数据库路径 {media_path_from_db} 处理大型受限媒体 {message.id}")
+                            media_context = self.restricted_media_handler.prepare_media_from_path(media_path_from_db)
+                            async with media_context as media_file_to_send:
+                                if media_file_to_send:
+                                    await self.log_sender.send_message(
+                                        caption_to_use,
+                                        file=media_file_to_send, # 发送文件句柄
+                                        parse_mode="markdown"
+                                    )
+                                    logger.info(f"大型受限媒体消息 {message.id} (来自DB) 已处理并发送。")
+                                    return # 发送成功
+                                else:
+                                    logger.error(f"未能从数据库路径 {media_path_from_db} 准备好大型受限媒体 {message.id}。")
+                                    # 继续尝试后备下载
                         else:
-                            logger.error(f"未能通过临时下载准备好受限媒体 {message.id}。")
+                             logger.info(f"数据库路径未找到或无效，执行大型受限媒体 {message.id} 的后备临时下载。")
 
-                except Exception as restricted_err:
-                    logger.error(f"处理受限媒体 {message.id} 时出错: {restricted_err}", exc_info=True)
+                        # 后备：临时下载 (仅当DB路径无效或失败时，针对大型文件)
+                        media_context = self.restricted_media_handler.download_and_yield_temporary(message)
+                        async with media_context as media_file_to_send:
+                            if media_file_to_send:
+                                await self.log_sender.send_message(
+                                    caption_to_use,
+                                    file=media_file_to_send, # 发送文件句柄
+                                    parse_mode="markdown"
+                                )
+                                logger.info(f"大型受限媒体消息 {message.id} (后备临时下载) 已处理并发送。")
+                                return # 发送成功
+                            else:
+                                logger.error(f"未能通过后备临时下载准备好大型受限媒体 {message.id}。")
+
+                    except Exception as restricted_err:
+                        logger.error(f"处理大型受限媒体 {message.id} 时出错: {restricted_err}", exc_info=True)
                 # 如果处理失败，降级到下面发送纯文本
 
             # 3. 处理普通媒体 (非贴纸，非受限)
