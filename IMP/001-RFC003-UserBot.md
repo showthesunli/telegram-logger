@@ -217,7 +217,6 @@
         my_id=user_id
     )
     ```
-6.  `[ ]` **[Init]** ~~将新创建的 Handler (`user_bot_command_handler`, `mention_reply_handler`) 添加到传递给 `TelegramClientService` 的 `handlers` 列表中。~~ (使用 `@client.on` 后不再需要手动添加)。
 7.  `[ ]` **[Init]** 确保 `client` 实例 (`client_service.client`)、`user_bot_state_service` 实例和 `my_id` 在定义事件处理函数（使用 `@client.on` 装饰的函数）的文件/模块作用域内可用。这可能需要调整代码结构，例如将事件处理函数定义在 `main.py` 或一个可以访问这些核心对象的模块中。
 
 **阶段 8: 测试 (`tests/`)**
