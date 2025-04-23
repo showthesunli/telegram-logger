@@ -91,12 +91,27 @@
 **阶段 2: 状态管理 (`telegram_logger/services`)**
 
 1.  **[Service]** 创建 `UserBotStateService` 类。
-2.  **[Service]** 在 `UserBotStateService.__init__` 中接收 `DatabaseManager` 实例。
-3.  **[Service]** 实现 `load_state()` 方法，在服务启动时从数据库加载所有设置、目标群组和别名到内存属性中。
-4.  **[Service]** 提供访问当前状态的属性或方法，例如 `is_enabled()`, `get_current_model_id()`, `get_current_role() -> Optional[Dict]`, `get_target_group_ids() -> Set[int]`, `get_rate_limit() -> int` 等。
-5.  **[Service]** 实现更新状态的方法，这些方法应同时更新内存状态和调用 `DatabaseManager` 保存到数据库。例如 `enable()`, `disable()`, `set_current_model(model_ref: str)`, `set_current_role(role_ref: str)`, `add_group(chat_id: int)` 等。
-6.  **[Service]** 实现别名解析逻辑：`resolve_model_id(ref: str) -> Optional[str]` 和 `resolve_role_details(ref: str) -> Optional[Dict]`，它们能接受 ID/别名/描述，并返回最终的模型 ID 或角色详情。
-7.  **[Service]** 实现频率限制状态管理（内存字典）：`check_rate_limit(chat_id: int) -> bool` 和 `update_rate_limit(chat_id: int)`。
+2.  **[Service]** 在 `UserBotStateService.__init__` 中接收 `DatabaseManager` 实例和用户自己的 ID (`my_id: int`)。
+3.  **[Service] [Init]** 实现异步方法 `async load_state()`，在服务启动时调用。此方法应：
+    *   从数据库加载 `user_bot_settings` (使用 `my_id`)。如果记录不存在，则使用 RFC 定义的默认值（包括 `enabled=False`, `reply_trigger_enabled=False`, `current_model_id='gpt-3.5-turbo'`, `current_role_alias='default_assistant'`, `rate_limit_seconds=60`）调用 `db.save_user_bot_settings` 创建记录，并加载这些默认值到内存。
+    *   从数据库加载目标群组列表、模型别名、角色别名到内存属性 (例如 `Set`, `Dict`)。
+    *   考虑是否在此处检查并创建默认的 `default_assistant` 角色别名（如果不存在）。
+4.  **[Service]** 提供访问当前内存状态的属性或方法，例如 `is_enabled() -> bool`, `is_reply_trigger_enabled() -> bool`, `get_current_model_id() -> str`, `get_current_role_alias() -> str`, `get_target_group_ids() -> Set[int]`, `get_rate_limit() -> int` 等。
+5.  **[Service]** 实现异步更新状态的方法 (`async def`)，这些方法应**先更新数据库** (调用 `DatabaseManager` 的方法)，**成功后再更新内存状态**。例如 `enable()`, `disable()`, `set_current_model(model_ref: str)`, `set_current_role(role_alias: str)`, `add_group(chat_id: int)`, `remove_group(chat_id: int)`, `set_rate_limit(seconds: int)` 等。
+6.  **[Service]** 实现异步别名管理和解析逻辑：
+    *   `async set_model_alias(alias: str, model_id: str)`
+    *   `async remove_model_alias(alias: str)`
+    *   `async get_model_aliases() -> Dict[str, str]`
+    *   `async resolve_model_id(ref: str) -> Optional[str]` (根据别名或 ID 返回模型 ID)
+    *   `async create_role_alias(alias: str, role_type: str, static_content: Optional[str] = None)`
+    *   `async set_role_description(alias: str, description: str)`
+    *   `async set_role_static_content(alias: str, content: str)`
+    *   `async set_role_system_prompt(alias: str, prompt: str)`
+    *   `async set_role_preset_messages(alias: str, presets_json: str)` (内部调用 DB 前验证 JSON)
+    *   `async remove_role_alias(alias: str)`
+    *   `async get_role_aliases() -> Dict[str, Dict[str, Any]]`
+    *   `async resolve_role_details(alias: str) -> Optional[Dict[str, Any]]` (根据别名获取角色详情)
+7.  **[Service] [Limit]** 实现频率限制状态管理（内存字典 `Dict[int, float]`）：`check_rate_limit(chat_id: int) -> bool` 和 `update_rate_limit(chat_id: int)` (这些可以是同步方法，因为它们只操作内存)。
 
 **阶段 3: 指令处理器 (`telegram_logger/handlers`)**
 
