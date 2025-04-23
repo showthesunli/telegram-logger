@@ -27,7 +27,7 @@
 
 | 列名                  | 类型    | 描述                                     | 默认值             |
 | :-------------------- | :------ | :--------------------------------------- | :----------------- |
-| `user_id`             | INTEGER | 用户自己的 ID (主键)                     | N/A                |
+| `user_id`             | INTEGER | 用户自己的 Telegram ID (主键, 通过 `client.get_me().id` 获取的真实、非零 ID) | N/A                |
 | `enabled`             | BOOLEAN | 功能是否启用                             | `False`            |
 | `reply_trigger_enabled` | BOOLEAN | 是否启用回复触发                         | `False`            |
 | `current_model_id`    | TEXT    | 当前选择的 AI 模型 ID 或别名             | `gpt-3.5-turbo`    |
@@ -56,7 +56,7 @@
 | `description`    | TEXT    | 人类可读的角色描述 (适用于所有类型, 可选)                    |
 | `static_content` | TEXT    | 静态回复内容 (仅用于 `static` 类型, 可选)                    |
 | `system_prompt`  | TEXT    | AI 系统提示词 (仅用于 `ai` 类型, 可选)                       |
-| `preset_messages`| TEXT    | AI 预设消息 (JSON 字符串列表，仅用于 `ai` 类型, 可选)        |
+| `preset_messages`| TEXT    | AI 预设消息 (JSON 字符串列表，仅用于 `ai` 类型, 可选, 存储时需确保存储的是有效的 JSON 字符串) |
 
 **3.5. 频率限制状态存储 (内存实现)**
 
@@ -68,25 +68,25 @@
 **阶段 1: 数据模型与存储层 (`telegram_logger/data`)**
 
 1.  **[DB]** 在 `DatabaseManager._create_tables` 中添加创建上述 `user_bot_settings`, `user_bot_target_groups`, `user_bot_model_aliases`, `user_bot_role_aliases` 四个表的 SQL 语句。
-2.  **[DB]** 实现 `DatabaseManager` 中的方法来管理这些表：
-    *   `get_user_bot_settings(user_id: int) -> Optional[Dict]`
-    *   `save_user_bot_settings(user_id: int, settings: Dict)` (使用 `INSERT OR REPLACE`)
-    *   `add_target_group(chat_id: int)`
-    *   `remove_target_group(chat_id: int)`
-    *   `get_target_groups() -> List[int]`
-    *   `set_model_alias(alias: str, model_id: str)`
-    *   `remove_model_alias(alias: str)`
-    *   `get_model_aliases() -> Dict[str, str]`
-    *   `get_model_id_by_alias(alias: str) -> Optional[str]`
-    *   `create_role_alias(alias: str, role_type: str, static_content: Optional[str] = None)` (创建别名，如果是 static 则同时设置内容)
-    *   `set_role_description(alias: str, description: str)` (设置通用描述)
-    *   `set_role_static_content(alias: str, content: str)` (仅用于 static 类型，更新内容)
-    *   `set_role_system_prompt(alias: str, prompt: str)` (仅用于 ai 类型)
-    *   `set_role_preset_messages(alias: str, presets_json: str)` (仅用于 ai 类型, 需验证 JSON 格式)
-    *   `remove_role_alias(alias: str)` (删除别名及其所有相关数据)
-    *   `get_role_aliases() -> Dict[str, Dict[str, Any]]` (返回包含所有字段的字典)
-    *   `get_role_details_by_alias(alias: str) -> Optional[Dict[str, Any]]` (获取指定别名的所有详情)
-3.  **[Model]** (推荐) 创建 Dataclass `RoleDetails` 来表示角色配置，包含 `alias`, `role_type`, `description`, `static_content`, `system_prompt`, `preset_messages` (解析后的列表或原始 JSON 字符串) 字段。
+2.  **[DB]** 实现 `DatabaseManager` 中的异步方法 (`async def`) 来管理这些表：
+    *   `get_user_bot_settings(user_id: int) -> Optional[Dict]`：获取指定用户的设置。
+    *   `save_user_bot_settings(user_id: int, settings: Dict)`：保存或更新用户设置 (使用 `INSERT OR REPLACE`)。
+    *   `add_target_group(chat_id: int)`：添加目标群组。
+    *   `remove_target_group(chat_id: int)`：移除目标群组。
+    *   `get_target_groups() -> List[int]`：获取所有目标群组 ID。
+    *   `set_model_alias(alias: str, model_id: str)`：设置模型别名。
+    *   `remove_model_alias(alias: str)`：移除模型别名。
+    *   `get_model_aliases() -> Dict[str, str]`：获取所有模型别名。
+    *   `get_model_id_by_alias(alias: str) -> Optional[str]`：通过别名查找模型 ID。
+    *   `create_role_alias(alias: str, role_type: str, static_content: Optional[str] = None)`：创建角色别名，如果是 static 类型则同时设置内容。
+    *   `set_role_description(alias: str, description: str)`：设置角色描述。
+    *   `set_role_static_content(alias: str, content: str)`：更新 static 角色的内容。
+    *   `set_role_system_prompt(alias: str, prompt: str)`：设置 AI 角色的系统提示。
+    *   `set_role_preset_messages(alias: str, presets_json: str)`：设置 AI 角色的预设消息 (传入前需确保 `presets_json` 是有效的 JSON 字符串)。
+    *   `remove_role_alias(alias: str)`：删除角色别名及其配置。
+    *   `get_role_aliases() -> Dict[str, Dict[str, Any]]`：获取所有角色别名及其配置。
+    *   `get_role_details_by_alias(alias: str) -> Optional[Dict[str, Any]]`：获取指定角色别名的详细配置。
+3.  **[Model]** (推荐) 创建 Dataclass `RoleDetails` 来表示从数据库读取的角色配置，包含 `alias`, `role_type`, `description`, `static_content`, `system_prompt`, `preset_messages` (原始 JSON 字符串) 字段。
 
 **阶段 2: 状态管理 (`telegram_logger/services`)**
 
