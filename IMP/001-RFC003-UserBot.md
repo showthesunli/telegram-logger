@@ -30,6 +30,7 @@
 | `user_id`             | INTEGER | 用户自己的 Telegram ID (主键, 通过 `client.get_me().id` 获取的真实、非零 ID) | N/A                |
 | `enabled`             | BOOLEAN | 功能是否启用                             | `False`            |
 | `reply_trigger_enabled` | BOOLEAN | 是否启用回复触发                         | `False`            |
+| `ai_history_length`   | INTEGER | AI 生成回复时考虑的历史消息数量          | `1`                |
 | `current_model_id`    | TEXT    | 当前选择的 AI 模型 ID 或别名             | `gpt-3.5-turbo`    |
 | `current_role_alias`  | TEXT    | 当前选择的 AI 角色别名                   | `default_assistant` |
 | `rate_limit_seconds`  | INTEGER | 同一群组内两次回复的最小间隔（秒）       | `60`               |
