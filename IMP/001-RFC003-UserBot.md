@@ -160,11 +160,23 @@
 7.  `[ ]` **[Send Reply]** 调用 `await event.reply(reply_text)` 发送回复。
 8.  `[ ]` **[Update Limit]** 如果发送成功，调用 `UserBotStateService.update_rate_limit(event.chat_id)`。
 
-**阶段 5: AI 集成 (如果需要) (`telegram_logger/services` 或 `telegram_logger/utils`)**
+**阶段 5: AI 集成 (OpenAI) (`telegram_logger/services` 或 `telegram_logger/utils`)**
 
-1.  `[ ]` **[Interface]** 定义一个通用的 AI 服务调用函数/类，例如 `async def get_ai_completion(model_id: str, system_prompt: str, user_message: str, history: Optional[List] = None) -> str:`。
-2.  `[ ]` **[Implementation]** 实现与具体 AI 提供商 (如 OpenAI) 的 API 交互逻辑。处理认证 (API Key)、请求构建、响应解析和错误处理。
-3.  `[ ]` **[Config]** 可能需要从 `.env` 文件读取 AI 服务的 API Key 和 Base URL 等配置。
+1.  `[ ]` **[Dependency]** 在 `pyproject.toml` 中添加 `openai` 依赖。
+2.  `[ ]` **[Config]** 在 `.env.example` 和 `.env` 中添加 OpenAI 配置：
+    *   `OPENAI_API_KEY`: 必需，用于 API 认证。
+    *   `OPENAI_BASE_URL`: 可选，用于指定自定义的 OpenAI API 端点（例如代理或兼容服务）。
+3.  `[ ]` **[Interface/Implementation]** 创建一个 AI 服务类或模块，例如 `AIService` 或 `ai_service.py`。
+4.  `[ ]` **[Implementation]** 在该服务中实现一个核心的异步函数，例如 `async def get_openai_completion(model_id: str, messages: List[Dict[str, str]]) -> Optional[str]:`。
+    *   此函数接收 OpenAI 兼容的模型 ID 和一个消息列表（格式如 `[{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]`）。
+    *   内部使用 `openai` 库与 OpenAI API 进行交互。
+    *   从环境变量加载 `OPENAI_API_KEY` 和 `OPENAI_BASE_URL` (如果设置了)。
+    *   处理 API 调用可能出现的异常（例如 `openai.APIError`, `openai.AuthenticationError`, `openai.RateLimitError` 等），记录错误日志并返回 `None` 或抛出自定义异常。
+    *   解析 API 响应，提取生成的文本内容并返回。
+5.  `[ ]` **[Integration]** 在阶段 4 的 `handle_mention_or_reply` 函数中，当角色类型为 `ai` 时：
+    *   `[ ]` 导入并（可能需要实例化）`AIService`。
+    *   `[ ]` **构建消息列表:** 按照 OpenAI 格式，正确组合系统提示 (`system_prompt`)、预设消息 (`preset_messages`)、历史对话消息 (`history_context_messages`) 和当前用户消息 (`event.message.text`)。确保角色 (`system`, `user`, `assistant`) 分配正确。
+    *   `[ ]` 调用 `await ai_service.get_openai_completion(model_id=model_id, messages=constructed_messages)` 获取回复。
 
 **阶段 6: 错误处理与日志**
 
@@ -217,16 +229,23 @@
 
 ## 5. 依赖项
 
--   可能需要添加 AI 服务提供商的 Python SDK (例如 `openai`)。
+-   **必需:** `openai` - 用于与 OpenAI API 交互。
 -   其他依赖项应尽量复用项目中已有的库。
 
 ## 6. 配置
 
--   可能需要在 `.env.example` 和 `.env` 中添加新的环境变量：
-    -   `AI_PROVIDER_API_KEY` (例如 `OPENAI_API_KEY`)
-    -   `AI_PROVIDER_BASE_URL` (可选，用于代理或自托管模型)
--   默认的模型 ID 和角色别名可以在代码中硬编码或作为配置项。
+-   需要在 `.env.example` 和 `.env` 中添加以下环境变量：
+    -   `OPENAI_API_KEY`: (必需) 你的 OpenAI API 密钥。
+    -   `OPENAI_BASE_URL`: (可选) 自定义的 OpenAI API 端点 URL。如果留空，将使用 OpenAI 官方默认端点。
+-   默认的模型 ID (`gpt-3.5-turbo`) 和角色别名 (`default_assistant`) 在代码或数据库初始化逻辑中定义。
 
 ## 7. (已移除) 待讨论/决策点
 
 (本章节原包含的决策点已整合入文档相关部分。)
+
+## 8. 后续步骤
+
+1.  根据此 IMP 文档，逐步实现各个阶段的功能。
+2.  在实现过程中，根据实际情况细化或调整具体实现细节。
+3.  编写相应的单元测试和集成测试。
+4.  更新 `README.md` 和 `.env.example` 以反映新功能和配置。
