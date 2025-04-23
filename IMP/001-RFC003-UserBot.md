@@ -65,6 +65,45 @@
 
 ## 4. 详细实现步骤
 
+**阶段 0: 应用初始化与依赖注入 (`telegram_logger/main.py`)**
+
+1.  `[ ]` **[Init]** 在 `main()` 函数中，获取 `TelegramClientService` 实例 (`client_service`)。
+2.  `[ ]` **[Init]** 调用 `user_id = await client_service.initialize()` 并存储返回的用户 ID。
+3.  `[ ]` **[Init]** 创建 `UserBotStateService` 实例，将 `DatabaseManager` 实例 (`db`) 和获取到的 `user_id` 传递给其构造函数。
+    ```python
+    # 示例
+    from telegram_logger.services.user_bot_state import UserBotStateService # 需要创建这个文件和类
+    user_bot_state_service = UserBotStateService(db=db, my_id=user_id)
+    ```
+4.  `[ ]` **[Init]** 调用 `await user_bot_state_service.load_state()` 来加载 UserBot 的初始状态。
+5.  `[ ]` **[Init]** 创建新的 Handler 实例：`UserBotCommandHandler` 和 `MentionReplyHandler`。
+    ```python
+    # 示例
+    from telegram_logger.handlers.user_bot_command import UserBotCommandHandler # 需要创建
+    from telegram_logger.handlers.mention_reply import MentionReplyHandler # 需要创建
+
+    user_bot_command_handler = UserBotCommandHandler(
+        db=db, # 可能需要
+        log_chat_id=LOG_CHAT_ID, # 可能需要
+        ignored_ids=IGNORED_IDS, # 可能需要
+        state_service=user_bot_state_service,
+        my_id=user_id
+    )
+    mention_reply_handler = MentionReplyHandler(
+        db=db, # 可能需要
+        log_chat_id=LOG_CHAT_ID, # 可能需要
+        ignored_ids=IGNORED_IDS, # 可能需要
+        state_service=user_bot_state_service,
+        my_id=user_id
+    )
+    ```
+6.  `[ ]` **[Init]** 将新创建的 Handler (`user_bot_command_handler`, `mention_reply_handler`) 添加到传递给 `TelegramClientService` 的 `handlers` 列表中。
+    ```python
+    # 修改现有 handlers 列表
+    handlers = [persistence_handler, output_handler, user_bot_command_handler, mention_reply_handler]
+    ```
+7.  `[ ]` **[Init]** 确保在 `client_service.initialize()` 之后，将 `client_service.client` 实例正确注入到所有需要它的 Handler 中（包括新添加的 Handler）。现有的循环注入逻辑可能已覆盖此点，但需确认。
+
 **阶段 1: 数据模型与存储层 (`telegram_logger/data`)**
 
 1.  `[ ]` **[DB]** 在 `DatabaseManager._create_tables` 中添加创建上述 `user_bot_settings`, `user_bot_target_groups`, `user_bot_model_aliases`, `user_bot_role_aliases` 四个表的 SQL 语句。
