@@ -63,46 +63,6 @@
 *   **注意:** 频率限制状态（最后回复时间戳）通常更适合存储在内存中（例如 Python 字典），以获得更好的性能。如果需要跨重启保持状态，可以考虑持久化，但这会增加 I/O 开销。**初步实现将使用内存缓存。**
     *   内存结构: `Dict[int, float]`  ( `chat_id` -> `last_reply_timestamp`)
 
-## 4. 详细实现步骤
-
-**阶段 0: 应用初始化与依赖注入 (`telegram_logger/main.py`)**
-
-1.  `[ ]` **[Init]** 在 `main()` 函数中，获取 `TelegramClientService` 实例 (`client_service`)。
-2.  `[ ]` **[Init]** 调用 `user_id = await client_service.initialize()` 并存储返回的用户 ID。
-3.  `[ ]` **[Init]** 创建 `UserBotStateService` 实例，将 `DatabaseManager` 实例 (`db`) 和获取到的 `user_id` 传递给其构造函数。
-    ```python
-    # 示例
-    from telegram_logger.services.user_bot_state import UserBotStateService # 需要创建这个文件和类
-    user_bot_state_service = UserBotStateService(db=db, my_id=user_id)
-    ```
-4.  `[ ]` **[Init]** 调用 `await user_bot_state_service.load_state()` 来加载 UserBot 的初始状态。
-5.  `[ ]` **[Init]** 创建新的 Handler 实例：`UserBotCommandHandler` 和 `MentionReplyHandler`。
-    ```python
-    # 示例
-    from telegram_logger.handlers.user_bot_command import UserBotCommandHandler # 需要创建
-    from telegram_logger.handlers.mention_reply import MentionReplyHandler # 需要创建
-
-    user_bot_command_handler = UserBotCommandHandler(
-        db=db, # 可能需要
-        log_chat_id=LOG_CHAT_ID, # 可能需要
-        ignored_ids=IGNORED_IDS, # 可能需要
-        state_service=user_bot_state_service,
-        my_id=user_id
-    )
-    mention_reply_handler = MentionReplyHandler(
-        db=db, # 可能需要
-        log_chat_id=LOG_CHAT_ID, # 可能需要
-        ignored_ids=IGNORED_IDS, # 可能需要
-        state_service=user_bot_state_service,
-        my_id=user_id
-    )
-    ```
-6.  `[ ]` **[Init]** 将新创建的 Handler (`user_bot_command_handler`, `mention_reply_handler`) 添加到传递给 `TelegramClientService` 的 `handlers` 列表中。
-    ```python
-    # 修改现有 handlers 列表
-    handlers = [persistence_handler, output_handler, user_bot_command_handler, mention_reply_handler]
-    ```
-7.  `[ ]` **[Init]** 确保在 `client_service.initialize()` 之后，将 `client_service.client` 实例正确注入到所有需要它的 Handler 中（包括新添加的 Handler）。现有的循环注入逻辑可能已覆盖此点，但需确认。
 
 **阶段 1: 数据模型与存储层 (`telegram_logger/data`)**
 
@@ -205,7 +165,46 @@
 3.  `[ ]` 确保用户指令处理失败时（如无效输入、权限问题）向用户返回友好的错误提示。
 4.  `[ ]` 确保自动回复过程中的内部错误（如 AI 服务失败、发送消息失败）只记录日志，不打扰用户或群组。
 
-**阶段 7: 测试 (`tests/`)**
+**阶段 7: 应用初始化与依赖注入 (`telegram_logger/main.py`)**
+
+1.  `[ ]` **[Init]** 在 `main()` 函数中，获取 `TelegramClientService` 实例 (`client_service`)。
+2.  `[ ]` **[Init]** 调用 `user_id = await client_service.initialize()` 并存储返回的用户 ID。
+3.  `[ ]` **[Init]** 创建 `UserBotStateService` 实例，将 `DatabaseManager` 实例 (`db`) 和获取到的 `user_id` 传递给其构造函数。
+    ```python
+    # 示例
+    from telegram_logger.services.user_bot_state import UserBotStateService # 需要创建这个文件和类
+    user_bot_state_service = UserBotStateService(db=db, my_id=user_id)
+    ```
+4.  `[ ]` **[Init]** 调用 `await user_bot_state_service.load_state()` 来加载 UserBot 的初始状态。
+5.  `[ ]` **[Init]** 创建新的 Handler 实例：`UserBotCommandHandler` 和 `MentionReplyHandler`。
+    ```python
+    # 示例
+    from telegram_logger.handlers.user_bot_command import UserBotCommandHandler # 需要创建
+    from telegram_logger.handlers.mention_reply import MentionReplyHandler # 需要创建
+
+    user_bot_command_handler = UserBotCommandHandler(
+        db=db, # 可能需要
+        log_chat_id=LOG_CHAT_ID, # 可能需要
+        ignored_ids=IGNORED_IDS, # 可能需要
+        state_service=user_bot_state_service,
+        my_id=user_id
+    )
+    mention_reply_handler = MentionReplyHandler(
+        db=db, # 可能需要
+        log_chat_id=LOG_CHAT_ID, # 可能需要
+        ignored_ids=IGNORED_IDS, # 可能需要
+        state_service=user_bot_state_service,
+        my_id=user_id
+    )
+    ```
+6.  `[ ]` **[Init]** 将新创建的 Handler (`user_bot_command_handler`, `mention_reply_handler`) 添加到传递给 `TelegramClientService` 的 `handlers` 列表中。
+    ```python
+    # 修改现有 handlers 列表
+    handlers = [persistence_handler, output_handler, user_bot_command_handler, mention_reply_handler]
+    ```
+7.  `[ ]` **[Init]** 确保在 `client_service.initialize()` 之后，将 `client_service.client` 实例正确注入到所有需要它的 Handler 中（包括新添加的 Handler）。现有的循环注入逻辑可能已覆盖此点，但需确认。
+
+**阶段 8: 测试 (`tests/`)**
 
 1.  `[ ]` **[Unit Tests]** 为指令解析逻辑、状态服务中的方法（特别是别名解析和状态更新）、频率限制逻辑编写单元测试。
 2.  `[ ]` **[Integration Tests]** 编写集成测试：
