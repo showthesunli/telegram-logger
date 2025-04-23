@@ -85,6 +85,7 @@
     *   `[ ]` `remove_role_alias(alias: str)`：删除角色别名及其配置。
     *   `[ ]` `get_role_aliases() -> Dict[str, Dict[str, Any]]`：获取所有角色别名及其配置。
     *   `[ ]` `get_role_details_by_alias(alias: str) -> Optional[Dict[str, Any]]`：获取指定角色别名的详细配置。
+    *   `[ ]` `async get_messages_before(chat_id: int, before_message_id: int, limit: int) -> List[Message]`：获取指定聊天中某条消息之前的N条消息（按id降序排列）。
 3.  `[ ]` **[Model]** (推荐) 创建 Dataclass `RoleDetails` 来表示从数据库读取的角色配置，包含 `alias`, `role_type`, `description`, `static_content`, `system_prompt`, `preset_messages` (原始 JSON 字符串) 字段。
 
 **阶段 2: 状态管理 (`telegram_logger/services`)**
@@ -147,7 +148,10 @@
         *   `[ ]` **准备 AI 请求上下文:**
             *   `[ ]` 获取系统提示 `system_prompt = role_details.get('system_prompt')`。
             *   `[ ]` 获取并解析预设消息 `preset_messages_json = role_details.get('preset_messages')`。如果存在且有效，解析为列表。
-            *   `[ ]` 获取历史消息（例如最近 5-10 条，可能需要 `await client.get_messages(event.chat_id, limit=10, offset_id=event.message.id)`）。
+            *   `[ ]` 获取配置的历史数量: `history_count = user_bot_state_service.get_ai_history_length()`。
+            *   `[ ]` **If `history_count > 1`:**
+                *   `[ ]` 从数据库获取历史消息: `past_messages = await db.get_messages_before(chat_id=event.chat_id, before_message_id=event.message.id, limit=history_count-1)`。
+                *   `[ ]` 将获取的消息按时间正序排列: `history_context_messages = reversed(past_messages)`。
             *   `[ ]` 获取当前触发消息 `event.message.text`。
         *   `[ ]` **构建消息列表:** 按照 AI 服务要求的格式，组合系统提示、预设消息、历史消息和当前用户消息。
         *   `[ ]` 调用 AI 服务接口 (见阶段 5)，传入模型 ID 和构建好的消息列表，获取生成的 `reply_text`。
