@@ -67,111 +67,111 @@
 
 **阶段 1: 数据模型与存储层 (`telegram_logger/data`)**
 
-1.  **[DB]** 在 `DatabaseManager._create_tables` 中添加创建上述 `user_bot_settings`, `user_bot_target_groups`, `user_bot_model_aliases`, `user_bot_role_aliases` 四个表的 SQL 语句。
-2.  **[DB]** 实现 `DatabaseManager` 中的异步方法 (`async def`) 来管理这些表：
-    *   `get_user_bot_settings(user_id: int) -> Optional[Dict]`：获取指定用户的设置。
-    *   `save_user_bot_settings(user_id: int, settings: Dict)`：保存或更新用户设置 (使用 `INSERT OR REPLACE`)。
-    *   `add_target_group(chat_id: int)`：添加目标群组。
-    *   `remove_target_group(chat_id: int)`：移除目标群组。
-    *   `get_target_groups() -> List[int]`：获取所有目标群组 ID。
-    *   `set_model_alias(alias: str, model_id: str)`：设置模型别名。
-    *   `remove_model_alias(alias: str)`：移除模型别名。
-    *   `get_model_aliases() -> Dict[str, str]`：获取所有模型别名。
-    *   `get_model_id_by_alias(alias: str) -> Optional[str]`：通过别名查找模型 ID。
-    *   `create_role_alias(alias: str, role_type: str, static_content: Optional[str] = None)`：创建角色别名，如果是 static 类型则同时设置内容。
-    *   `set_role_description(alias: str, description: str)`：设置角色描述。
-    *   `set_role_static_content(alias: str, content: str)`：更新 static 角色的内容。
-    *   `set_role_system_prompt(alias: str, prompt: str)`：设置 AI 角色的系统提示。
-    *   `set_role_preset_messages(alias: str, presets_json: str)`：设置 AI 角色的预设消息 (传入前需确保 `presets_json` 是有效的 JSON 字符串)。
-    *   `remove_role_alias(alias: str)`：删除角色别名及其配置。
-    *   `get_role_aliases() -> Dict[str, Dict[str, Any]]`：获取所有角色别名及其配置。
-    *   `get_role_details_by_alias(alias: str) -> Optional[Dict[str, Any]]`：获取指定角色别名的详细配置。
-3.  **[Model]** (推荐) 创建 Dataclass `RoleDetails` 来表示从数据库读取的角色配置，包含 `alias`, `role_type`, `description`, `static_content`, `system_prompt`, `preset_messages` (原始 JSON 字符串) 字段。
+1.  `[ ]` **[DB]** 在 `DatabaseManager._create_tables` 中添加创建上述 `user_bot_settings`, `user_bot_target_groups`, `user_bot_model_aliases`, `user_bot_role_aliases` 四个表的 SQL 语句。
+2.  `[ ]` **[DB]** 实现 `DatabaseManager` 中的异步方法 (`async def`) 来管理这些表：
+    *   `[ ]` `get_user_bot_settings(user_id: int) -> Optional[Dict]`：获取指定用户的设置。
+    *   `[ ]` `save_user_bot_settings(user_id: int, settings: Dict)`：保存或更新用户设置 (使用 `INSERT OR REPLACE`)。
+    *   `[ ]` `add_target_group(chat_id: int)`：添加目标群组。
+    *   `[ ]` `remove_target_group(chat_id: int)`：移除目标群组。
+    *   `[ ]` `get_target_groups() -> List[int]`：获取所有目标群组 ID。
+    *   `[ ]` `set_model_alias(alias: str, model_id: str)`：设置模型别名。
+    *   `[ ]` `remove_model_alias(alias: str)`：移除模型别名。
+    *   `[ ]` `get_model_aliases() -> Dict[str, str]`：获取所有模型别名。
+    *   `[ ]` `get_model_id_by_alias(alias: str) -> Optional[str]`：通过别名查找模型 ID。
+    *   `[ ]` `create_role_alias(alias: str, role_type: str, static_content: Optional[str] = None)`：创建角色别名，如果是 static 类型则同时设置内容。
+    *   `[ ]` `set_role_description(alias: str, description: str)`：设置角色描述。
+    *   `[ ]` `set_role_static_content(alias: str, content: str)`：更新 static 角色的内容。
+    *   `[ ]` `set_role_system_prompt(alias: str, prompt: str)`：设置 AI 角色的系统提示。
+    *   `[ ]` `set_role_preset_messages(alias: str, presets_json: str)`：设置 AI 角色的预设消息 (传入前需确保 `presets_json` 是有效的 JSON 字符串)。
+    *   `[ ]` `remove_role_alias(alias: str)`：删除角色别名及其配置。
+    *   `[ ]` `get_role_aliases() -> Dict[str, Dict[str, Any]]`：获取所有角色别名及其配置。
+    *   `[ ]` `get_role_details_by_alias(alias: str) -> Optional[Dict[str, Any]]`：获取指定角色别名的详细配置。
+3.  `[ ]` **[Model]** (推荐) 创建 Dataclass `RoleDetails` 来表示从数据库读取的角色配置，包含 `alias`, `role_type`, `description`, `static_content`, `system_prompt`, `preset_messages` (原始 JSON 字符串) 字段。
 
 **阶段 2: 状态管理 (`telegram_logger/services`)**
 
-1.  **[Service]** 创建 `UserBotStateService` 类。
-2.  **[Service]** 在 `UserBotStateService.__init__` 中接收 `DatabaseManager` 实例和用户自己的 ID (`my_id: int`)。
-3.  **[Service] [Init]** 实现异步方法 `async load_state()`，在服务启动时调用。此方法应：
-    *   从数据库加载 `user_bot_settings` (使用 `my_id`)。如果记录不存在，则使用 RFC 定义的默认值（包括 `enabled=False`, `reply_trigger_enabled=False`, `current_model_id='gpt-3.5-turbo'`, `current_role_alias='default_assistant'`, `rate_limit_seconds=60`）调用 `db.save_user_bot_settings` 创建记录，并加载这些默认值到内存。
-    *   从数据库加载目标群组列表、模型别名、角色别名到内存属性 (例如 `Set`, `Dict`)。
-    *   考虑是否在此处检查并创建默认的 `default_assistant` 角色别名（如果不存在）。
-4.  **[Service]** 提供访问当前内存状态的属性或方法，例如 `is_enabled() -> bool`, `is_reply_trigger_enabled() -> bool`, `get_current_model_id() -> str`, `get_current_role_alias() -> str`, `get_target_group_ids() -> Set[int]`, `get_rate_limit() -> int` 等。
-5.  **[Service]** 实现异步更新状态的方法 (`async def`)，这些方法应**先更新数据库** (调用 `DatabaseManager` 的方法)，**成功后再更新内存状态**。例如 `enable()`, `disable()`, `set_current_model(model_ref: str)`, `set_current_role(role_alias: str)`, `add_group(chat_id: int)`, `remove_group(chat_id: int)`, `set_rate_limit(seconds: int)` 等。
-6.  **[Service]** 实现异步别名管理和解析逻辑：
-    *   `async set_model_alias(alias: str, model_id: str)`
-    *   `async remove_model_alias(alias: str)`
-    *   `async get_model_aliases() -> Dict[str, str]`
-    *   `async resolve_model_id(ref: str) -> Optional[str]` (根据别名或 ID 返回模型 ID)
-    *   `async create_role_alias(alias: str, role_type: str, static_content: Optional[str] = None)`
-    *   `async set_role_description(alias: str, description: str)`
-    *   `async set_role_static_content(alias: str, content: str)`
-    *   `async set_role_system_prompt(alias: str, prompt: str)`
-    *   `async set_role_preset_messages(alias: str, presets_json: str)` (内部调用 DB 前验证 JSON)
-    *   `async remove_role_alias(alias: str)`
-    *   `async get_role_aliases() -> Dict[str, Dict[str, Any]]`
-    *   `async resolve_role_details(alias: str) -> Optional[Dict[str, Any]]` (根据别名获取角色详情)
-7.  **[Service] [Limit]** 实现频率限制状态管理（内存字典 `Dict[int, float]`）：`check_rate_limit(chat_id: int) -> bool` 和 `update_rate_limit(chat_id: int)` (这些可以是同步方法，因为它们只操作内存)。
+1.  `[ ]` **[Service]** 创建 `UserBotStateService` 类。
+2.  `[ ]` **[Service]** 在 `UserBotStateService.__init__` 中接收 `DatabaseManager` 实例和用户自己的 ID (`my_id: int`)。
+3.  `[ ]` **[Service] [Init]** 实现异步方法 `async load_state()`，在服务启动时调用。此方法应：
+    *   `[ ]` 从数据库加载 `user_bot_settings` (使用 `my_id`)。如果记录不存在，则使用 RFC 定义的默认值（包括 `enabled=False`, `reply_trigger_enabled=False`, `current_model_id='gpt-3.5-turbo'`, `current_role_alias='default_assistant'`, `rate_limit_seconds=60`）调用 `db.save_user_bot_settings` 创建记录，并加载这些默认值到内存。
+    *   `[ ]` 从数据库加载目标群组列表、模型别名、角色别名到内存属性 (例如 `Set`, `Dict`)。
+    *   `[ ]` 考虑是否在此处检查并创建默认的 `default_assistant` 角色别名（如果不存在）。
+4.  `[ ]` **[Service]** 提供访问当前内存状态的属性或方法，例如 `is_enabled() -> bool`, `is_reply_trigger_enabled() -> bool`, `get_current_model_id() -> str`, `get_current_role_alias() -> str`, `get_target_group_ids() -> Set[int]`, `get_rate_limit() -> int` 等。
+5.  `[ ]` **[Service]** 实现异步更新状态的方法 (`async def`)，这些方法应**先更新数据库** (调用 `DatabaseManager` 的方法)，**成功后再更新内存状态**。例如 `enable()`, `disable()`, `set_current_model(model_ref: str)`, `set_current_role(role_alias: str)`, `add_group(chat_id: int)`, `remove_group(chat_id: int)`, `set_rate_limit(seconds: int)` 等。
+6.  `[ ]` **[Service]** 实现异步别名管理和解析逻辑：
+    *   `[ ]` `async set_model_alias(alias: str, model_id: str)`
+    *   `[ ]` `async remove_model_alias(alias: str)`
+    *   `[ ]` `async get_model_aliases() -> Dict[str, str]`
+    *   `[ ]` `async resolve_model_id(ref: str) -> Optional[str]` (根据别名或 ID 返回模型 ID)
+    *   `[ ]` `async create_role_alias(alias: str, role_type: str, static_content: Optional[str] = None)`
+    *   `[ ]` `async set_role_description(alias: str, description: str)`
+    *   `[ ]` `async set_role_static_content(alias: str, content: str)`
+    *   `[ ]` `async set_role_system_prompt(alias: str, prompt: str)`
+    *   `[ ]` `async set_role_preset_messages(alias: str, presets_json: str)` (内部调用 DB 前验证 JSON)
+    *   `[ ]` `async remove_role_alias(alias: str)`
+    *   `[ ]` `async get_role_aliases() -> Dict[str, Dict[str, Any]]`
+    *   `[ ]` `async resolve_role_details(alias: str) -> Optional[Dict[str, Any]]` (根据别名获取角色详情)
+7.  `[ ]` **[Service] [Limit]** 实现频率限制状态管理（内存字典 `Dict[int, float]`）：`check_rate_limit(chat_id: int) -> bool` 和 `update_rate_limit(chat_id: int)` (这些可以是同步方法，因为它们只操作内存)。
 
 **阶段 3: 指令处理器 (`telegram_logger/handlers`)**
 
-1.  **[Handler]** 创建 `UserBotCommandHandler` 类，继承自 `BaseHandler` 或直接实现事件处理。
-2.  **[Registration]** 在 `telegram_logger/main.py` 或 `TelegramClientService` 中，注册 `UserBotCommandHandler` 来处理来自用户自己私聊 (`event.is_private and event.sender_id == self.my_id`) 的 `events.NewMessage`。
-3.  **[Parsing]** 在 `UserBotCommandHandler.process` (或类似方法) 中，检查消息文本是否以 `.` 开头，并解析指令和参数。可以使用 `shlex.split` 处理带引号的参数。
-4.  **[Implementation]** 为 RFC 003 中定义的每个指令 (`.on`, `.off`, `.status`, `.replyon`, `.replyoff`, `.setmodel`, `.listmodels`, `.aliasmodel`, `.unaliasmodel`, `.setrole`, `.listroles`, `.aliasrole`, `.unaliasrole`, `.addgroup`, `.delgroup`, `.listgroups`, `.setlimit`, `.help`) 实现对应的处理逻辑。
-    *   调用 `UserBotStateService` 的方法来读取或更新状态。
-    *   实现输入验证（例如，`.addgroup` 验证群组，`.setlimit` 验证数字，`.setrolepreset` 验证 JSON 格式，确保别名存在等）。
-    *   调用 `client.send_message` (或通过 `LogSender`) 将操作反馈发送回用户的私聊。
-    *   `.listmodels`, `.listroles`, `.listgroups`, `.status`, `.help` 需要格式化输出信息，特别是 `.listroles` 需要显示所有新字段。
+1.  `[ ]` **[Handler]** 创建 `UserBotCommandHandler` 类，继承自 `BaseHandler` 或直接实现事件处理。
+2.  `[ ]` **[Registration]** 在 `telegram_logger/main.py` 或 `TelegramClientService` 中，注册 `UserBotCommandHandler` 来处理来自用户自己私聊 (`event.is_private and event.sender_id == self.my_id`) 的 `events.NewMessage`。
+3.  `[ ]` **[Parsing]** 在 `UserBotCommandHandler.process` (或类似方法) 中，检查消息文本是否以 `.` 开头，并解析指令和参数。可以使用 `shlex.split` 处理带引号的参数。
+4.  `[ ]` **[Implementation]** 为 RFC 003 中定义的每个指令 (`.on`, `.off`, `.status`, `.replyon`, `.replyoff`, `.setmodel`, `.listmodels`, `.aliasmodel`, `.unaliasmodel`, `.setrole`, `.listroles`, `.aliasrole`, `.unaliasrole`, `.addgroup`, `.delgroup`, `.listgroups`, `.setlimit`, `.help`) 实现对应的处理逻辑。
+    *   `[ ]` 调用 `UserBotStateService` 的方法来读取或更新状态。
+    *   `[ ]` 实现输入验证（例如，`.addgroup` 验证群组，`.setlimit` 验证数字，`.setrolepreset` 验证 JSON 格式，确保别名存在等）。
+    *   `[ ]` 调用 `client.send_message` (或通过 `LogSender`) 将操作反馈发送回用户的私聊。
+    *   `[ ]` `.listmodels`, `.listroles`, `.listgroups`, `.status`, `.help` 需要格式化输出信息，特别是 `.listroles` 需要显示所有新字段。
 
 **阶段 4: 自动回复逻辑 (`telegram_logger/handlers`)**
 
-1.  **[Handler]** 创建 `MentionReplyHandler` 类，或在现有合适的 Handler (如果重构后有) 中添加逻辑。
-2.  **[Registration]** 在 `telegram_logger/main.py` 或 `TelegramClientService` 中，注册 `MentionReplyHandler` 来处理 `events.NewMessage`。
-3.  **[Filtering]** 在 `MentionReplyHandler.process` 中实现过滤逻辑：
-    *   检查 `UserBotStateService.is_enabled()` 是否为 `True`。
-    *   检查 `event.chat_id` 是否在 `UserBotStateService.get_target_group_ids()` 中。
-    *   检查 `event.sender_id == self.my_id` (忽略自己发的消息)。
-    *   检查是否满足触发条件：
-        *   `event.mentioned` (是否 @ 了自己)
-        *   或者 (`UserBotStateService.is_reply_trigger_enabled()` 且 `event.is_reply` 且 `event.reply_to_msg_id` 对应的消息是自己发的 - 可能需要 `client.get_messages` 确认)。
-    *   如果同时满足 @ 和回复，确保只处理一次。
-4.  **[Rate Limit]** 调用 `UserBotStateService.check_rate_limit(event.chat_id)`。如果受限，则停止处理。
-5.  **[Get Role]** 获取当前角色详情 `role_details = UserBotStateService.get_current_role()`。如果角色为空，则停止处理。
-6.  **[Generate Reply]**
-    *   **If `role_details['role_type'] == 'static'`:** 直接使用 `reply_text = role_details.get('static_content', '')`。 (使用 `static_content` 字段)
-    *   **If `role_details['role_type'] == 'ai'`:**
-        *   获取当前模型 ID `model_id = UserBotStateService.get_current_model_id()`。
-        *   **准备 AI 请求上下文:**
-            *   获取系统提示 `system_prompt = role_details.get('system_prompt')`。
-            *   获取并解析预设消息 `preset_messages_json = role_details.get('preset_messages')`。如果存在且有效，解析为列表。
-            *   获取历史消息（例如最近 5-10 条）。
-            *   获取当前触发消息 `event.message.text`。
-        *   **构建消息列表:** 按照 AI 服务要求的格式，组合系统提示、预设消息、历史消息和当前用户消息。
-        *   调用 AI 服务接口 (见阶段 5)，传入模型 ID 和构建好的消息列表，获取生成的 `reply_text`。
-        *   处理 AI 服务可能发生的错误。
-7.  **[Send Reply]** 调用 `client.send_message(event.chat_id, reply_text, reply_to=event.message.id)` 发送回复。
-8.  **[Update Limit]** 如果发送成功，调用 `UserBotStateService.update_rate_limit(event.chat_id)`。
+1.  `[ ]` **[Handler]** 创建 `MentionReplyHandler` 类，或在现有合适的 Handler (如果重构后有) 中添加逻辑。
+2.  `[ ]` **[Registration]** 在 `telegram_logger/main.py` 或 `TelegramClientService` 中，注册 `MentionReplyHandler` 来处理 `events.NewMessage`。
+3.  `[ ]` **[Filtering]** 在 `MentionReplyHandler.process` 中实现过滤逻辑：
+    *   `[ ]` 检查 `UserBotStateService.is_enabled()` 是否为 `True`。
+    *   `[ ]` 检查 `event.chat_id` 是否在 `UserBotStateService.get_target_group_ids()` 中。
+    *   `[ ]` 检查 `event.sender_id == self.my_id` (忽略自己发的消息)。
+    *   `[ ]` 检查是否满足触发条件：
+        *   `[ ]` `event.mentioned` (是否 @ 了自己)
+        *   `[ ]` 或者 (`UserBotStateService.is_reply_trigger_enabled()` 且 `event.is_reply` 且 `event.reply_to_msg_id` 对应的消息是自己发的 - 可能需要 `client.get_messages` 确认)。
+    *   `[ ]` 如果同时满足 @ 和回复，确保只处理一次。
+4.  `[ ]` **[Rate Limit]** 调用 `UserBotStateService.check_rate_limit(event.chat_id)`。如果受限，则停止处理。
+5.  `[ ]` **[Get Role]** 获取当前角色详情 `role_details = UserBotStateService.get_current_role()`。如果角色为空，则停止处理。
+6.  `[ ]` **[Generate Reply]**
+    *   `[ ]` **If `role_details['role_type'] == 'static'`:** 直接使用 `reply_text = role_details.get('static_content', '')`。 (使用 `static_content` 字段)
+    *   `[ ]` **If `role_details['role_type'] == 'ai'`:**
+        *   `[ ]` 获取当前模型 ID `model_id = UserBotStateService.get_current_model_id()`。
+        *   `[ ]` **准备 AI 请求上下文:**
+            *   `[ ]` 获取系统提示 `system_prompt = role_details.get('system_prompt')`。
+            *   `[ ]` 获取并解析预设消息 `preset_messages_json = role_details.get('preset_messages')`。如果存在且有效，解析为列表。
+            *   `[ ]` 获取历史消息（例如最近 5-10 条）。
+            *   `[ ]` 获取当前触发消息 `event.message.text`。
+        *   `[ ]` **构建消息列表:** 按照 AI 服务要求的格式，组合系统提示、预设消息、历史消息和当前用户消息。
+        *   `[ ]` 调用 AI 服务接口 (见阶段 5)，传入模型 ID 和构建好的消息列表，获取生成的 `reply_text`。
+        *   `[ ]` 处理 AI 服务可能发生的错误。
+7.  `[ ]` **[Send Reply]** 调用 `client.send_message(event.chat_id, reply_text, reply_to=event.message.id)` 发送回复。
+8.  `[ ]` **[Update Limit]** 如果发送成功，调用 `UserBotStateService.update_rate_limit(event.chat_id)`。
 
 **阶段 5: AI 集成 (如果需要) (`telegram_logger/services` 或 `telegram_logger/utils`)**
 
-1.  **[Interface]** 定义一个通用的 AI 服务调用函数/类，例如 `async def get_ai_completion(model_id: str, system_prompt: str, user_message: str, history: Optional[List] = None) -> str:`。
-2.  **[Implementation]** 实现与具体 AI 提供商 (如 OpenAI) 的 API 交互逻辑。处理认证 (API Key)、请求构建、响应解析和错误处理。
-3.  **[Config]** 可能需要从 `.env` 文件读取 AI 服务的 API Key 和 Base URL 等配置。
+1.  `[ ]` **[Interface]** 定义一个通用的 AI 服务调用函数/类，例如 `async def get_ai_completion(model_id: str, system_prompt: str, user_message: str, history: Optional[List] = None) -> str:`。
+2.  `[ ]` **[Implementation]** 实现与具体 AI 提供商 (如 OpenAI) 的 API 交互逻辑。处理认证 (API Key)、请求构建、响应解析和错误处理。
+3.  `[ ]` **[Config]** 可能需要从 `.env` 文件读取 AI 服务的 API Key 和 Base URL 等配置。
 
 **阶段 6: 错误处理与日志**
 
-1.  在数据库操作、API 调用、消息发送等关键步骤添加 `try...except` 块。
-2.  使用 `logging` 模块记录错误信息和关键执行步骤。
-3.  确保用户指令处理失败时（如无效输入、权限问题）向用户返回友好的错误提示。
-4.  确保自动回复过程中的内部错误（如 AI 服务失败、发送消息失败）只记录日志，不打扰用户或群组。
+1.  `[ ]` 在数据库操作、API 调用、消息发送等关键步骤添加 `try...except` 块。
+2.  `[ ]` 使用 `logging` 模块记录错误信息和关键执行步骤。
+3.  `[ ]` 确保用户指令处理失败时（如无效输入、权限问题）向用户返回友好的错误提示。
+4.  `[ ]` 确保自动回复过程中的内部错误（如 AI 服务失败、发送消息失败）只记录日志，不打扰用户或群组。
 
 **阶段 7: 测试 (`tests/`)**
 
-1.  **[Unit Tests]** 为指令解析逻辑、状态服务中的方法（特别是别名解析和状态更新）、频率限制逻辑编写单元测试。
-2.  **[Integration Tests]** 编写集成测试：
-    *   模拟用户发送指令，验证状态是否正确更新以及反馈消息是否符合预期。
-    *   模拟群组中的 @ 提及和回复事件，验证自动回复是否按预期触发（或不触发）、内容是否正确（区分 static/ai）、频率限制是否生效。可能需要 Mock AI 服务接口。
+1.  `[ ]` **[Unit Tests]** 为指令解析逻辑、状态服务中的方法（特别是别名解析和状态更新）、频率限制逻辑编写单元测试。
+2.  `[ ]` **[Integration Tests]** 编写集成测试：
+    *   `[ ]` 模拟用户发送指令，验证状态是否正确更新以及反馈消息是否符合预期。
+    *   `[ ]` 模拟群组中的 @ 提及和回复事件，验证自动回复是否按预期触发（或不触发）、内容是否正确（区分 static/ai）、频率限制是否生效。可能需要 Mock AI 服务接口。
 
 ## 5. 依赖项
 
