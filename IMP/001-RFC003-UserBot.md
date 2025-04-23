@@ -49,13 +49,16 @@
 
 **3.4. `user_bot_role_aliases` 表 (存储角色别名)**
 
-| 列名        | 类型    | 描述                                     |
-| :---------- | :------ | :--------------------------------------- |
-| `alias`     | TEXT    | 角色别名 (主键)                          |
-| `role_type` | TEXT    | 角色类型 (`static` 或 `ai`)              |
-| `description` | TEXT    | 角色描述 (静态文本或 AI 提示)            |
+| 列名             | 类型    | 描述                                                         |
+| :--------------- | :------ | :----------------------------------------------------------- |
+| `alias`          | TEXT    | 角色别名 (主键)                                              |
+| `role_type`      | TEXT    | 角色类型 (`static` 或 `ai`)                                  |
+| `description`    | TEXT    | 人类可读的角色描述 (适用于所有类型, 可选)                    |
+| `static_content` | TEXT    | 静态回复内容 (仅用于 `static` 类型, 可选)                    |
+| `system_prompt`  | TEXT    | AI 系统提示词 (仅用于 `ai` 类型, 可选)                       |
+| `preset_messages`| TEXT    | AI 预设消息 (JSON 字符串列表，仅用于 `ai` 类型, 可选)        |
 
-**3.5. `user_bot_rate_limit_state` 表 (内存缓存替代，或可选持久化)**
+**3.5. 频率限制状态存储 (内存实现)**
 
 *   **注意:** 频率限制状态（最后回复时间戳）通常更适合存储在内存中（例如 Python 字典），以获得更好的性能。如果需要跨重启保持状态，可以考虑持久化，但这会增加 I/O 开销。**初步实现将使用内存缓存。**
     *   内存结构: `Dict[int, float]`  ( `chat_id` -> `last_reply_timestamp`)
@@ -75,11 +78,15 @@
     *   `remove_model_alias(alias: str)`
     *   `get_model_aliases() -> Dict[str, str]`
     *   `get_model_id_by_alias(alias: str) -> Optional[str]`
-    *   `set_role_alias(alias: str, role_type: str, description: str)`
-    *   `remove_role_alias(alias: str)`
-    *   `get_role_aliases() -> Dict[str, Dict[str, str]]` (返回 `{'alias': {'type': 'ai', 'description': '...'}}`)
-    *   `get_role_details_by_alias(alias: str) -> Optional[Dict[str, str]]`
-3.  **[Model]** (可选) 可以创建 Dataclass 来表示 `UserSettings`, `RoleAlias` 等，使代码更清晰。
+    *   `create_role_alias(alias: str, role_type: str, static_content: Optional[str] = None)` (创建别名，如果是 static 则同时设置内容)
+    *   `set_role_description(alias: str, description: str)` (设置通用描述)
+    *   `set_role_static_content(alias: str, content: str)` (仅用于 static 类型，更新内容)
+    *   `set_role_system_prompt(alias: str, prompt: str)` (仅用于 ai 类型)
+    *   `set_role_preset_messages(alias: str, presets_json: str)` (仅用于 ai 类型, 需验证 JSON 格式)
+    *   `remove_role_alias(alias: str)` (删除别名及其所有相关数据)
+    *   `get_role_aliases() -> Dict[str, Dict[str, Any]]` (返回包含所有字段的字典)
+    *   `get_role_details_by_alias(alias: str) -> Optional[Dict[str, Any]]` (获取指定别名的所有详情)
+3.  **[Model]** (推荐) 创建 Dataclass `RoleDetails` 来表示角色配置，包含 `alias`, `role_type`, `description`, `static_content`, `system_prompt`, `preset_messages` (解析后的列表或原始 JSON 字符串) 字段。
 
 **阶段 2: 状态管理 (`telegram_logger/services`)**
 
@@ -98,9 +105,9 @@
 3.  **[Parsing]** 在 `UserBotCommandHandler.process` (或类似方法) 中，检查消息文本是否以 `.` 开头，并解析指令和参数。可以使用 `shlex.split` 处理带引号的参数。
 4.  **[Implementation]** 为 RFC 003 中定义的每个指令 (`.on`, `.off`, `.status`, `.replyon`, `.replyoff`, `.setmodel`, `.listmodels`, `.aliasmodel`, `.unaliasmodel`, `.setrole`, `.listroles`, `.aliasrole`, `.unaliasrole`, `.addgroup`, `.delgroup`, `.listgroups`, `.setlimit`, `.help`) 实现对应的处理逻辑。
     *   调用 `UserBotStateService` 的方法来读取或更新状态。
-    *   实现输入验证（例如，`.addgroup` 需要调用 `client.get_entity` 验证群组，`.setlimit` 验证数字）。
+    *   实现输入验证（例如，`.addgroup` 验证群组，`.setlimit` 验证数字，`.setrolepreset` 验证 JSON 格式，确保别名存在等）。
     *   调用 `client.send_message` (或通过 `LogSender`) 将操作反馈发送回用户的私聊。
-    *   `.listmodels`, `.listroles`, `.listgroups`, `.status`, `.help` 需要格式化输出信息。
+    *   `.listmodels`, `.listroles`, `.listgroups`, `.status`, `.help` 需要格式化输出信息，特别是 `.listroles` 需要显示所有新字段。
 
 **阶段 4: 自动回复逻辑 (`telegram_logger/handlers`)**
 
@@ -117,12 +124,16 @@
 4.  **[Rate Limit]** 调用 `UserBotStateService.check_rate_limit(event.chat_id)`。如果受限，则停止处理。
 5.  **[Get Role]** 获取当前角色详情 `role_details = UserBotStateService.get_current_role()`。如果角色为空，则停止处理。
 6.  **[Generate Reply]**
-    *   **If `role_details['type'] == 'static'`:** 直接使用 `reply_text = role_details['description']`。
-    *   **If `role_details['type'] == 'ai'`:**
+    *   **If `role_details['role_type'] == 'static'`:** 直接使用 `reply_text = role_details.get('static_content', '')`。 (使用 `static_content` 字段)
+    *   **If `role_details['role_type'] == 'ai'`:**
         *   获取当前模型 ID `model_id = UserBotStateService.get_current_model_id()`。
-        *   准备 AI 请求的上下文（例如，触发消息内容 `event.message.text`，可能需要获取之前的对话历史 `client.get_messages`）。
-        *   将 `role_details['description']` 作为系统提示 (System Prompt)。
-        *   调用 AI 服务接口 (见阶段 5) 获取生成的 `reply_text`。
+        *   **准备 AI 请求上下文:**
+            *   获取系统提示 `system_prompt = role_details.get('system_prompt')`。
+            *   获取并解析预设消息 `preset_messages_json = role_details.get('preset_messages')`。如果存在且有效，解析为列表。
+            *   获取历史消息（例如最近 5-10 条）。
+            *   获取当前触发消息 `event.message.text`。
+        *   **构建消息列表:** 按照 AI 服务要求的格式，组合系统提示、预设消息、历史消息和当前用户消息。
+        *   调用 AI 服务接口 (见阶段 5)，传入模型 ID 和构建好的消息列表，获取生成的 `reply_text`。
         *   处理 AI 服务可能发生的错误。
 7.  **[Send Reply]** 调用 `client.send_message(event.chat_id, reply_text, reply_to=event.message.id)` 发送回复。
 8.  **[Update Limit]** 如果发送成功，调用 `UserBotStateService.update_rate_limit(event.chat_id)`。
@@ -159,8 +170,6 @@
     -   `AI_PROVIDER_BASE_URL` (可选，用于代理或自托管模型)
 -   默认的模型 ID 和角色别名可以在代码中硬编码或作为配置项。
 
-## 7. 待讨论/决策点
+## 7. (已移除) 待讨论/决策点
 
--   **频率限制状态存储:** 是仅内存存储还是需要持久化？(初步决定：内存，以提高性能。如果需要跨重启保持状态，未来可考虑持久化。)
--   **AI 上下文历史长度:** 获取 AI 上下文时，需要包含多少条历史消息以平衡回复质量和 API 成本/延迟？(初步想法：可以从最近 5-10 条消息开始实验，或提供配置选项。)
--   **默认角色/模型内容:** 此项已在 RFC 003 的“默认状态”部分明确。
+(本章节原包含的决策点已整合入文档相关部分。)
