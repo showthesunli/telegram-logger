@@ -92,6 +92,8 @@ DELETION_RATE_LIMIT_WINDOW = int(os.getenv('DELETION_RATE_LIMIT_WINDOW', '60'))
 DELETION_PAUSE_DURATION = int(os.getenv('DELETION_PAUSE_DURATION', '300'))
 from telegram_logger.services.client import TelegramClientService
 from telegram_logger.services.cleanup import CleanupService
+# 导入 UserBot 服务
+from telegram_logger.services.user_bot_state import UserBotStateService
 from telegram_logger.handlers import (
     PersistenceHandler,
     OutputHandler
@@ -146,7 +148,16 @@ async def main():
     # Run services
     try:
         logging.info("Starting all services...")
-        user_id = await client_service.initialize()
+        user_id = await client_service.initialize() # 获取 user_id
+
+        # --- UserBot 功能初始化 ---
+        logger.info("正在初始化 UserBot 功能...")
+
+        # 3. 创建 UserBotStateService 实例
+        user_bot_state_service = UserBotStateService(db=db, my_id=user_id)
+        logger.debug("UserBotStateService 已初始化。")
+        # --- UserBot 功能初始化结束 ---
+
         await cleanup_service.start()
         
         # Inject initialized client into handlers
