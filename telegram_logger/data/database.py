@@ -252,10 +252,11 @@ class DatabaseManager:
             edited_time=datetime.fromisoformat(row['edited_time']) if row['edited_time'] else None
         )
 
-    async def create_role_alias(self, alias: str, role_type: str, static_content: Optional[str] = None):
+    async def create_role_alias(self, alias: str, role_type: str, static_content: Optional[str] = None) -> bool:
         """创建角色别名，如果是 static 类型则同时设置内容。"""
-        def _sync_create():
+        def _sync_create() -> bool:
             if role_type not in ('static', 'ai'):
+                logger.error(f"尝试创建角色别名 '{alias}' 时使用了无效的角色类型: {role_type}")
                 raise ValueError("role_type 必须是 'static' 或 'ai'")
             try:
                 self.conn.execute(
@@ -277,7 +278,7 @@ class DatabaseManager:
                 logger.error(f"创建角色别名 '{alias}' 时出错: {e}", exc_info=True)
                 self.conn.rollback()
                 raise
-        await asyncio.to_thread(_sync_create)
+        return await asyncio.to_thread(_sync_create) # Return the result of _sync_create
 
     async def set_role_description(self, alias: str, description: str) -> bool:
         """设置角色描述。"""
@@ -478,9 +479,9 @@ class DatabaseManager:
                 self.conn.row_factory = sqlite3.Row # Reset row_factory
         return await asyncio.to_thread(_sync_get)
 
-    async def save_user_bot_settings(self, user_id: int, settings: Dict[str, Any]):
+    async def save_user_bot_settings(self, user_id: int, settings: Dict[str, Any]) -> bool:
         """保存或更新用户机器人设置 (使用 INSERT OR REPLACE)。"""
-        def _sync_save():
+        def _sync_save() -> bool:
             data = (
                 user_id,
                 settings.get('enabled', 0),
@@ -506,7 +507,7 @@ class DatabaseManager:
                 self.conn.rollback()
                 raise
 
-        await asyncio.to_thread(_sync_save)
+        return await asyncio.to_thread(_sync_save) # Return the result of _sync_save
 
     async def add_target_group(self, chat_id: int) -> bool:
         """添加目标群组。"""
