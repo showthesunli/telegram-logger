@@ -98,17 +98,20 @@ class AIService:
             logger.error(f"OpenAI API 速率限制: {e}. 请检查您的账户配额或稍后重试。")
             return None
         except BadRequestError as e:
-             logger.error(f"OpenAI API 请求无效 (BadRequestError): {e}. 可能模型不支持或输入格式错误。")
+             logger.error(f"OpenAI API 请求无效 (BadRequestError): {e}. 可能模型不支持或输入格式错误。 Model: {model_id}")
              return None
         except APIError as e: # 捕获更通用的 OpenAI API 错误
-            logger.error(f"OpenAI API 返回错误: Status={e.status_code}, Error={e.body}")
+            logger.error(f"OpenAI API 返回错误: Status={e.status_code}, Error={e.body}. Model: {model_id}")
+            return None
+        except RequestError as e: # 捕获 httpx 网络错误
+            logger.error(f"连接 OpenAI API 时发生网络错误: {e}. Model: {model_id}", exc_info=True)
             return None
         except OpenAIError as e: # 捕获其他 OpenAI 库错误
-            logger.error(f"发生 OpenAI 库错误: {e}", exc_info=True)
+            logger.error(f"发生 OpenAI 库错误: {e}. Model: {model_id}", exc_info=True)
             return None
         # 捕获其他所有意外错误
         except Exception as e:
-            logger.error(f"调用 OpenAI API 时发生未知错误: {e}", exc_info=True)
+            logger.error(f"调用 OpenAI API 时发生未知错误: {e}. Model: {model_id}", exc_info=True)
             return None
 
     # 可以考虑添加一个异步初始化方法，如果需要在服务启动时就创建客户端并验证
