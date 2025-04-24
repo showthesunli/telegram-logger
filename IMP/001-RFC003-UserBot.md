@@ -256,7 +256,7 @@
     # 假设 AIService 在 telegram_logger.services.ai_service
     from telegram_logger.services.ai_service import AIService # 需要创建
     ```
-6.  `[ ]` **[Init]** (可选) 创建 AI 服务实例。
+6.  `[x]` **[Init]** (可选) 创建 AI 服务实例。 (已实现)
     ```python
     ai_service = AIService() # 如果需要实例化
     ```
