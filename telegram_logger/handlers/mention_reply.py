@@ -1,9 +1,10 @@
 import logging
 import shlex
 import json # 新增导入
+import sqlite3 # 新增导入
 from typing import Set, Dict, Any, Optional, List # 增加 List
 
-from telethon import TelegramClient, events
+from telethon import TelegramClient, events, errors as telethon_errors # 增加 errors as telethon_errors
 from telethon.tl.types import Message as TelethonMessage
 
 from .base_handler import BaseHandler
@@ -54,13 +55,15 @@ class MentionReplyHandler(BaseHandler):
     async def handle_event(self, event: events.NewMessage.Event):
         """
         处理新消息事件，判断是否需要自动回复。
+        包含完整的错误处理逻辑。
         """
-        logger.debug(f"MentionReplyHandler 收到事件: ChatID={event.chat_id}, MsgID={event.id}, SenderID={event.sender_id}")
+        try: # 添加顶层 try 块
+            logger.debug(f"MentionReplyHandler 收到事件: ChatID={event.chat_id}, MsgID={event.id}, SenderID={event.sender_id}")
 
-        # 1. 检查功能是否启用
-        if not self.state_service.is_enabled():
-            logger.debug("功能未启用，忽略事件。")
-            return
+            # 1. 检查功能是否启用
+            if not self.state_service.is_enabled():
+                logger.debug("功能未启用，忽略事件。")
+                return
 
         # 2. 检查是否为目标群组
         target_groups = self.state_service.get_target_group_ids()
@@ -102,14 +105,14 @@ class MentionReplyHandler(BaseHandler):
         # 5. 检查频率限制
         if self.state_service.check_rate_limit(event.chat_id):
             logger.info(f"群组 {event.chat_id} 触发频率限制，本次忽略。")
-            return
+            return # 检查返回值 (False 表示受限)
 
         # 6. 获取当前角色详情
         current_role_alias = self.state_service.get_current_role_alias()
         role_details = await self.state_service.resolve_role_details(current_role_alias)
 
-        if not role_details:
-            logger.warning(f"无法获取或解析当前角色 '{current_role_alias}' 的详情，无法生成回复。")
+        if not role_details: # 检查返回值
+            logger.error(f"无法获取或解析当前角色 '{current_role_alias}' 的详情，无法生成回复。")
             return
 
         logger.debug(f"使用角色 '{current_role_alias}' (类型: {role_details.get('role_type')}) 进行回复。")
@@ -126,9 +129,9 @@ class MentionReplyHandler(BaseHandler):
             logger.debug(f"静态回复内容: '{reply_text[:50]}...'")
 
         elif role_type == 'ai':
-            # --- AI 回复逻辑 (部分实现，AI 调用将在阶段 5 完成) ---
+            # --- AI 回复逻辑 ---
             model_id = await self.state_service.resolve_model_id(self.state_service.get_current_model_id())
-            if not model_id:
+            if not model_id: # 检查返回值
                  logger.error(f"无法解析当前模型 '{self.state_service.get_current_model_id()}'，无法生成 AI 回复。")
                  return
 
@@ -150,7 +153,7 @@ class MentionReplyHandler(BaseHandler):
 
             history_messages: List[Message] = []
             if history_count > 0:
-                try:
+                try: # 包裹数据库调用
                     # 注意：get_messages_before 返回的是按时间正序排列的列表
                     history_messages = await self.db.get_messages_before(
                         chat_id=event.chat_id,
@@ -158,9 +161,12 @@ class MentionReplyHandler(BaseHandler):
                         limit=history_count
                     )
                     logger.debug(f"加载了 {len(history_messages)} 条历史消息。")
-                except Exception as e:
-                    logger.error(f"从数据库加载历史消息时出错: {e}", exc_info=True)
-                    # 加载历史失败不应阻止回复，继续执行
+                except sqlite3.Error as e: # 捕获数据库错误
+                    logger.error(f"从数据库加载历史消息时发生 SQLite 错误: {e}", exc_info=True)
+                    return # 数据库错误，终止处理
+                except Exception as e: # 捕获其他可能的错误
+                    logger.error(f"从数据库加载历史消息时发生未知错误: {e}", exc_info=True)
+                    return # 未知错误，终止处理
 
             # --- 构建发送给 AI 的消息列表 ---
             ai_messages: List[Dict[str, str]] = []
@@ -196,16 +202,17 @@ class MentionReplyHandler(BaseHandler):
                     model_id=model_id,
                     messages=ai_messages
                 )
-                if reply_text:
-                    logger.info(f"成功从 AI 模型 '{model_id}' 获取回复。")
-                else:
+                if reply_text is None: # 检查返回值
+                    logger.error(f"AI 模型 '{model_id}' 调用失败或返回了 None。")
+                    return # AI 调用失败，终止处理
+                elif not reply_text:
                     logger.warning(f"AI 模型 '{model_id}' 返回了空回复。")
-                    # 可以选择发送一个默认回复或直接返回
                     reply_text = "抱歉，AI 暂时无法回复。" # 提供一个默认回复
-            except Exception as e:
-                logger.error(f"调用 AI 模型 '{model_id}' 时出错: {e}", exc_info=True)
-                # AI 调用失败，发送错误提示给用户
-                reply_text = f"抱歉，调用 AI ({model_id}) 时遇到错误，请稍后再试。"
+                else:
+                    logger.info(f"成功从 AI 模型 '{model_id}' 获取回复。")
+            except Exception as e: # 捕获 AI 服务内部未处理的异常 (理论上不应发生)
+                logger.error(f"调用 AI 服务时发生意外错误: {e}", exc_info=True)
+                return # 意外错误，终止处理
             # --- AI 回复逻辑结束 ---
 
         else:
