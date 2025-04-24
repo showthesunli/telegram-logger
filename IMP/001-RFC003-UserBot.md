@@ -213,9 +213,9 @@
         *   `[x]` 在 `set_role_preset_messages` 方法中，在调用数据库方法之前，添加 `try...except json.JSONDecodeError` 来验证 `presets_json` 字符串。如果解析失败，记录 `WARNING` 并返回失败指示（例如 `return False`）。 (已实现：记录 WARNING，返回 False)
 
     *   **`AIService`:**
-        *   `[ ]` 在 `get_openai_completion` 方法中，使用 `try...except` 块捕获 `openai` 库的特定异常 (`openai.APIError`, `openai.AuthenticationError`, `openai.RateLimitError`, `openai.BadRequestError` 等) 以及通用的网络异常 (如 `httpx.RequestError`)。
-        *   `[ ]` 在 `except` 块中，使用 `logger.error(...)` 记录错误信息，包含错误类型和上下文（如模型 ID）。
-        *   `[ ]` 确保在任何捕获到的异常情况下，方法返回 `None`。
+        *   `[x]` 在 `get_openai_completion` 方法中，使用 `try...except` 块捕获 `openai` 库的特定异常 (`openai.APIError`, `openai.AuthenticationError`, `openai.RateLimitError`, `openai.BadRequestError` 等) 以及通用的网络异常 (如 `httpx.RequestError`)。
+        *   `[x]` 在 `except` 块中，使用 `logger.error(...)` 记录错误信息，包含错误类型和上下文（如模型 ID）。
+        *   `[x]` 确保在任何捕获到的异常情况下，方法返回 `None`。
 
     *   **`UserBotCommandHandler`:**
         *   `[ ]` 在 `handle_command` 方法的指令解析部分，使用 `try...except (ValueError, IndexError)` 块包裹 `shlex.split` 和参数访问，以处理格式错误的命令。
