@@ -68,7 +68,7 @@
 
 **阶段 1: 数据模型与存储层 (`telegram_logger/data`)**
 
-1.  `[ ]` **[DB]** 在 `DatabaseManager._create_tables` 中添加创建上述 `user_bot_settings`, `user_bot_target_groups`, `user_bot_model_aliases`, `user_bot_role_aliases` 四个表的 SQL 语句。
+1.  `[x]` **[DB]** 在 `DatabaseManager._create_tables` 中添加创建上述 `user_bot_settings`, `user_bot_target_groups`, `user_bot_model_aliases`, `user_bot_role_aliases` 四个表的 SQL 语句。
 2.  `[ ]` **[DB]** 实现 `DatabaseManager` 中的异步方法 (`async def`) 来管理这些表：
     *   `[ ]` `get_user_bot_settings(user_id: int) -> Optional[Dict]`：获取指定用户的设置。
     *   `[ ]` `save_user_bot_settings(user_id: int, settings: Dict)`：保存或更新用户设置 (使用 `INSERT OR REPLACE`)。
