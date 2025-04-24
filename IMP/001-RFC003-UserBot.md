@@ -99,7 +99,7 @@
     *   `[x]` 从数据库加载目标群组列表、模型别名、角色别名到内存属性 (例如 `Set`, `Dict`)。
     *   `[x]` 考虑是否在此处检查并创建默认的 `default_assistant` 角色别名（如果不存在）。
 4.  `[x]` **[Service]** 提供访问当前内存状态的属性或方法，例如 `is_enabled() -> bool`, `is_reply_trigger_enabled() -> bool`, `get_current_model_id() -> str`, `get_current_role_alias() -> str`, `get_target_group_ids() -> Set[int]`, `get_rate_limit() -> int`, `get_ai_history_length() -> int` 等。
-5.  `[ ]` **[Service]** 实现异步更新状态的方法 (`async def`)，这些方法应**先更新数据库** (调用 `DatabaseManager` 的方法)，**成功后再更新内存状态**。例如 `enable()`, `disable()`, `set_current_model(model_ref: str)`, `set_current_role(role_alias: str)`, `add_group(chat_id: int)`, `remove_group(chat_id: int)`, `set_rate_limit(seconds: int)`, `async set_ai_history_length(count: int)` 等。
+5.  `[x]` **[Service]** 实现异步更新状态的方法 (`async def`)，这些方法应**先更新数据库** (调用 `DatabaseManager` 的方法)，**成功后再更新内存状态**。例如 `enable()`, `disable()`, `set_current_model(model_ref: str)`, `set_current_role(role_alias: str)`, `add_group(chat_id: int)`, `remove_group(chat_id: int)`, `set_rate_limit(seconds: int)`, `async set_ai_history_length(count: int)` 等。
 6.  `[x]` **[Service]** 实现异步别名管理和解析逻辑：
     *   `[x]` `async set_model_alias(alias: str, model_id: str)`
     *   `[x]` `async remove_model_alias(alias: str)`
