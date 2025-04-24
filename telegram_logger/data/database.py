@@ -410,23 +410,29 @@ class DatabaseManager:
              raise ValueError("预设消息必须是有效的 JSON 字符串")
 
         def _sync_set() -> bool:
+            conn = None
             try:
-                with self.conn: # Use instance connection and context manager
-                    cursor = self.conn.cursor()
-                    # 确保只更新 ai 类型的角色
-                    cursor.execute(
-                        """
-                        UPDATE user_bot_role_aliases SET preset_messages = ?
-                        WHERE alias = ? AND role_type = 'ai'
-                        """,
-                        (presets_json, alias)
-                    )
-                    updated = cursor.rowcount > 0
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                cursor = conn.cursor()
+                # 确保只更新 ai 类型的角色
+                cursor.execute(
+                    """
+                    UPDATE user_bot_role_aliases SET preset_messages = ?
+                    WHERE alias = ? AND role_type = 'ai'
+                    """,
+                    (presets_json, alias)
+                )
+                updated = cursor.rowcount > 0
+                conn.commit()
                 return updated
             except sqlite3.Error as e:
                 logger.error(f"设置角色别名 '{alias}' 预设消息时数据库错误: {e}", exc_info=True)
+                if conn:
+                    conn.rollback()
                 return False
-            # No finally block needed
+            finally:
+                if conn:
+                    conn.close()
 
         return await asyncio.to_thread(_sync_set)
 
