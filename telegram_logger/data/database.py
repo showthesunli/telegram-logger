@@ -319,69 +319,85 @@ class DatabaseManager:
     async def set_role_description(self, alias: str, description: str) -> bool:
         """设置角色描述。"""
         def _sync_set() -> bool:
+            conn = None
             try:
-                with self.conn: # Use instance connection and context manager
-                    cursor = self.conn.cursor()
-                    cursor.execute(
-                        """
-                        UPDATE user_bot_role_aliases SET description = ? WHERE alias = ?
-                        """,
-                        (description, alias)
-                    )
-                    updated = cursor.rowcount > 0
-                # Commit happens automatically if 'with' block succeeds
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    UPDATE user_bot_role_aliases SET description = ? WHERE alias = ?
+                    """,
+                    (description, alias)
+                )
+                updated = cursor.rowcount > 0
+                conn.commit() # Explicit commit
                 return updated
             except sqlite3.Error as e:
                 logger.error(f"设置角色别名 '{alias}' 描述时数据库错误: {e}", exc_info=True)
-                # Rollback happens automatically as 'with' block exits on exception
+                if conn:
+                    conn.rollback() # Explicit rollback
                 return False
-            # No finally block needed to close conn
+            finally:
+                if conn:
+                    conn.close()
 
         return await asyncio.to_thread(_sync_set)
 
     async def set_role_static_content(self, alias: str, content: str) -> bool:
         """更新 static 角色的内容。"""
         def _sync_set() -> bool:
+            conn = None
             try:
-                with self.conn: # Use instance connection and context manager
-                    cursor = self.conn.cursor()
-                    # 确保只更新 static 类型的角色
-                    cursor.execute(
-                        """
-                        UPDATE user_bot_role_aliases SET static_content = ?
-                        WHERE alias = ? AND role_type = 'static'
-                        """,
-                        (content, alias)
-                    )
-                    updated = cursor.rowcount > 0
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                cursor = conn.cursor()
+                # 确保只更新 static 类型的角色
+                cursor.execute(
+                    """
+                    UPDATE user_bot_role_aliases SET static_content = ?
+                    WHERE alias = ? AND role_type = 'static'
+                    """,
+                    (content, alias)
+                )
+                updated = cursor.rowcount > 0
+                conn.commit()
                 return updated
             except sqlite3.Error as e:
                 logger.error(f"设置角色别名 '{alias}' 静态内容时数据库错误: {e}", exc_info=True)
+                if conn:
+                    conn.rollback()
                 return False
-            # No finally block needed
+            finally:
+                if conn:
+                    conn.close()
 
         return await asyncio.to_thread(_sync_set)
 
     async def set_role_system_prompt(self, alias: str, prompt: str) -> bool:
         """设置 AI 角色的系统提示。"""
         def _sync_set() -> bool:
+            conn = None
             try:
-                with self.conn: # Use instance connection and context manager
-                    cursor = self.conn.cursor()
-                    # 确保只更新 ai 类型的角色
-                    cursor.execute(
-                        """
-                        UPDATE user_bot_role_aliases SET system_prompt = ?
-                        WHERE alias = ? AND role_type = 'ai'
-                        """,
-                        (prompt, alias)
-                    )
-                    updated = cursor.rowcount > 0
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                cursor = conn.cursor()
+                # 确保只更新 ai 类型的角色
+                cursor.execute(
+                    """
+                    UPDATE user_bot_role_aliases SET system_prompt = ?
+                    WHERE alias = ? AND role_type = 'ai'
+                    """,
+                    (prompt, alias)
+                )
+                updated = cursor.rowcount > 0
+                conn.commit()
                 return updated
             except sqlite3.Error as e:
                 logger.error(f"设置角色别名 '{alias}' 系统提示时数据库错误: {e}", exc_info=True)
+                if conn:
+                    conn.rollback()
                 return False
-            # No finally block needed
+            finally:
+                if conn:
+                    conn.close()
 
         return await asyncio.to_thread(_sync_set)
 
@@ -417,16 +433,22 @@ class DatabaseManager:
     async def remove_role_alias(self, alias: str) -> bool:
         """删除角色别名及其配置。"""
         def _sync_remove() -> bool:
+            conn = None
             try:
-                with self.conn: # Use instance connection and context manager
-                    cursor = self.conn.cursor()
-                    cursor.execute("DELETE FROM user_bot_role_aliases WHERE alias = ?", (alias,))
-                    deleted = cursor.rowcount > 0
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM user_bot_role_aliases WHERE alias = ?", (alias,))
+                deleted = cursor.rowcount > 0
+                conn.commit()
                 return deleted
             except sqlite3.Error as e:
                 logger.error(f"删除角色别名 '{alias}' 时数据库错误: {e}", exc_info=True)
+                if conn:
+                    conn.rollback()
                 return False
-            # No finally block needed
+            finally:
+                if conn:
+                    conn.close()
 
         return await asyncio.to_thread(_sync_remove)
 
@@ -434,10 +456,11 @@ class DatabaseManager:
         """获取所有角色别名及其配置。"""
         def _sync_get() -> Dict[str, Dict[str, Any]]:
             roles = {}
+            conn = None
             try:
-                # Use instance connection, ensure row_factory is set if needed per query
-                self.conn.row_factory = sqlite3.Row
-                cursor = self.conn.cursor()
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                conn.row_factory = sqlite3.Row # Set row_factory on the new connection
+                cursor = conn.cursor()
                 cursor.execute("SELECT * FROM user_bot_role_aliases")
                 for row in cursor:
                     roles[row['alias']] = dict(row)
@@ -445,17 +468,19 @@ class DatabaseManager:
                 logger.error(f"获取角色别名列表时数据库错误: {e}", exc_info=True)
                 return {} # Return empty dict on error
             finally:
-                 # Reset row_factory if it's not the default for other methods
-                 self.conn.row_factory = sqlite3.Row # Or None if default is None
+                if conn:
+                    conn.close() # Close the connection
             return roles
         return await asyncio.to_thread(_sync_get)
 
     async def get_role_details_by_alias(self, alias: str) -> Optional[Dict[str, Any]]:
         """获取指定角色别名的详细配置。"""
         def _sync_get() -> Optional[Dict[str, Any]]:
+            conn = None
             try:
-                self.conn.row_factory = sqlite3.Row
-                cursor = self.conn.cursor()
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
                 cursor.execute("SELECT * FROM user_bot_role_aliases WHERE alias = ?", (alias,))
                 row = cursor.fetchone()
                 return dict(row) if row else None
@@ -463,7 +488,8 @@ class DatabaseManager:
                 logger.error(f"获取角色 '{alias}' 详情时数据库错误: {e}", exc_info=True)
                 return None # Return None on error
             finally:
-                self.conn.row_factory = sqlite3.Row # Reset row_factory
+                if conn:
+                    conn.close()
         return await asyncio.to_thread(_sync_get)
 
     async def get_messages_before(
@@ -472,25 +498,27 @@ class DatabaseManager:
         """获取指定聊天中某条消息之前的N条消息（按消息ID降序，即时间倒序）。"""
         def _sync_get() -> List[Message]:
             messages = []
+            conn = None
             try:
-                # Ensure row factory is set for _row_to_message
-                self.conn.row_factory = sqlite3.Row
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                conn.row_factory = sqlite3.Row # Set row factory for _row_to_message
                 query = """
                     SELECT * FROM messages
-                    WHERE chat_id = ? AND id < ? 
-                    ORDER BY id DESC 
+                    WHERE chat_id = ? AND id < ?
+                    ORDER BY id DESC
                     LIMIT ?
                 """
                 params = [chat_id, before_message_id, limit]
-                cursor = self.conn.execute(query, params)
-                messages = [self._row_to_message(row) for row in cursor]
-                messages.reverse() # Reverse to get chronological order (oldest first)
+                cursor = conn.execute(query, params) # Use new connection
+                # 按 ID 降序获取，然后反转得到时间正序
+                messages = [self._row_to_message(row) for row in reversed(list(cursor))]
             except sqlite3.Error as e:
                 logger.error(f"获取 chat_id={chat_id} 中消息 {before_message_id} 之前的消息时出错: {e}", exc_info=True)
                 return [] # Return empty list on error
             finally:
-                self.conn.row_factory = sqlite3.Row # Reset row_factory
-            return messages
+                if conn:
+                    conn.close() # Close the connection
+            return messages # 返回时间正序列表
         return await asyncio.to_thread(_sync_get)
 
     def close(self):
@@ -502,9 +530,11 @@ class DatabaseManager:
     async def get_user_bot_settings(self, user_id: int) -> Optional[Dict[str, Any]]:
         """获取指定用户的机器人设置。"""
         def _sync_get() -> Optional[Dict[str, Any]]:
+            conn = None
             try:
-                self.conn.row_factory = sqlite3.Row
-                cursor = self.conn.cursor()
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
                 cursor.execute("SELECT * FROM user_bot_settings WHERE user_id = ?", (user_id,))
                 row = cursor.fetchone()
                 return dict(row) if row else None
@@ -512,12 +542,14 @@ class DatabaseManager:
                 logger.error(f"获取用户 {user_id} 机器人设置时数据库错误: {e}", exc_info=True)
                 return None # Return None on error
             finally:
-                self.conn.row_factory = sqlite3.Row # Reset row_factory
+                if conn:
+                    conn.close()
         return await asyncio.to_thread(_sync_get)
 
     async def save_user_bot_settings(self, user_id: int, settings: Dict[str, Any]) -> bool:
         """保存或更新用户机器人设置 (使用 INSERT OR REPLACE)。"""
         def _sync_save() -> bool:
+            conn = None
             data = (
                 user_id,
                 settings.get('enabled', 0),
@@ -528,72 +560,90 @@ class DatabaseManager:
                 settings.get('rate_limit_seconds', 60)
             )
             try:
-                self.conn.execute(
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                conn.execute(
                     """
-                    INSERT OR REPLACE INTO user_bot_settings 
-                    (user_id, enabled, reply_trigger_enabled, ai_history_length, current_model_id, current_role_alias, rate_limit_seconds) 
+                    INSERT OR REPLACE INTO user_bot_settings
+                    (user_id, enabled, reply_trigger_enabled, ai_history_length, current_model_id, current_role_alias, rate_limit_seconds)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     data
                 )
-                self.conn.commit()
+                conn.commit()
                 logger.info(f"已保存用户 {user_id} 的机器人设置。")
                 return True # Indicate success
             except sqlite3.Error as e:
                 logger.error(f"保存用户 {user_id} 机器人设置时出错: {e}", exc_info=True)
-                self.conn.rollback()
-                # raise # Don't raise, return False to indicate failure
+                if conn:
+                    conn.rollback()
                 return False # Indicate failure
+            finally:
+                if conn:
+                    conn.close()
 
         return await asyncio.to_thread(_sync_save) # Return the boolean result
 
     async def add_target_group(self, chat_id: int) -> bool:
         """添加目标群组。"""
         def _sync_add() -> bool:
+            conn = None
             try:
-                with self.conn: # Use instance connection and context manager
-                    cursor = self.conn.cursor()
-                    # 使用 INSERT OR IGNORE 避免重复插入时出错
-                    cursor.execute("INSERT OR IGNORE INTO user_bot_target_groups (chat_id) VALUES (?)", (chat_id,))
-                    # Check if a row was actually inserted (not ignored)
-                    added = cursor.rowcount > 0
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                cursor = conn.cursor()
+                # 使用 INSERT OR IGNORE 避免重复插入时出错
+                cursor.execute("INSERT OR IGNORE INTO user_bot_target_groups (chat_id) VALUES (?)", (chat_id,))
+                # Check if a row was actually inserted (not ignored)
+                added = cursor.rowcount > 0
+                conn.commit()
                 return added
             except sqlite3.Error as e:
                 logger.error(f"添加目标群组 {chat_id} 时数据库错误: {e}", exc_info=True)
+                if conn:
+                    conn.rollback()
                 return False
-            # No finally block needed
+            finally:
+                if conn:
+                    conn.close()
         return await asyncio.to_thread(_sync_add)
 
     async def remove_target_group(self, chat_id: int) -> bool:
         """移除目标群组。"""
         def _sync_remove() -> bool:
+            conn = None
             try:
-                with self.conn: # Use instance connection and context manager
-                    cursor = self.conn.cursor()
-                    cursor.execute("DELETE FROM user_bot_target_groups WHERE chat_id = ?", (chat_id,))
-                    deleted = cursor.rowcount > 0
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM user_bot_target_groups WHERE chat_id = ?", (chat_id,))
+                deleted = cursor.rowcount > 0
+                conn.commit()
                 return deleted
             except sqlite3.Error as e:
                 logger.error(f"移除目标群组 {chat_id} 时数据库错误: {e}", exc_info=True)
+                if conn:
+                    conn.rollback()
                 return False
-            # No finally block needed
+            finally:
+                if conn:
+                    conn.close()
         return await asyncio.to_thread(_sync_remove)
 
     async def get_target_groups(self) -> List[int]:
         """获取所有目标群组 ID。"""
         def _sync_get() -> List[int]:
             groups = []
+            conn = None
             try:
-                # Ensure row factory is set if needed
-                self.conn.row_factory = sqlite3.Row
-                cursor = self.conn.cursor()
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                conn.row_factory = sqlite3.Row # Set row factory
+                cursor = conn.cursor()
                 cursor.execute("SELECT chat_id FROM user_bot_target_groups")
                 groups = [row['chat_id'] for row in cursor]
             except sqlite3.Error as e:
                 logger.error(f"获取目标群组列表时数据库错误: {e}", exc_info=True)
                 return [] # Return empty list on error
             finally:
-                self.conn.row_factory = sqlite3.Row # Reset row_factory
+                if conn:
+                    conn.close() # Close connection
             return groups
         return await asyncio.to_thread(_sync_get)
 
@@ -608,42 +658,55 @@ class DatabaseManager:
     async def set_model_alias(self, alias: str, model_id: str) -> bool:
         """设置模型别名。"""
         def _sync_set() -> bool:
+            conn = None
             try:
-                with self.conn: # Use instance connection and context manager
-                    cursor = self.conn.cursor()
-                    # 使用 INSERT OR REPLACE 简化逻辑
-                    cursor.execute("INSERT OR REPLACE INTO user_bot_model_aliases (alias, model_id) VALUES (?, ?)", (alias, model_id))
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                cursor = conn.cursor()
+                # 使用 INSERT OR REPLACE 简化逻辑
+                cursor.execute("INSERT OR REPLACE INTO user_bot_model_aliases (alias, model_id) VALUES (?, ?)", (alias, model_id))
+                conn.commit()
                 logger.info(f"已设置模型别名: {alias} -> {model_id}")
                 return True
             except sqlite3.Error as e:
                 logger.error(f"设置模型别名 '{alias}' -> '{model_id}' 时数据库错误: {e}", exc_info=True)
+                if conn:
+                    conn.rollback()
                 return False
-            # No finally block needed
+            finally:
+                if conn:
+                    conn.close()
         return await asyncio.to_thread(_sync_set)
 
     async def remove_model_alias(self, alias: str) -> bool:
         """移除模型别名。"""
         def _sync_remove() -> bool:
+            conn = None
             try:
-                with self.conn: # Use instance connection and context manager
-                    cursor = self.conn.cursor()
-                    cursor.execute("DELETE FROM user_bot_model_aliases WHERE alias = ?", (alias,))
-                    deleted = cursor.rowcount > 0
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM user_bot_model_aliases WHERE alias = ?", (alias,))
+                deleted = cursor.rowcount > 0
+                conn.commit()
                 return deleted
             except sqlite3.Error as e:
                 logger.error(f"移除模型别名 '{alias}' 时数据库错误: {e}", exc_info=True)
+                if conn:
+                    conn.rollback()
                 return False
-            # No finally block needed
+            finally:
+                if conn:
+                    conn.close()
         return await asyncio.to_thread(_sync_remove)
 
     async def get_model_aliases(self) -> Dict[str, str]:
         """获取所有模型别名。"""
         def _sync_get() -> Dict[str, str]:
             aliases = {}
+            conn = None
             try:
-                # Ensure row factory is set if needed
-                self.conn.row_factory = sqlite3.Row
-                cursor = self.conn.cursor()
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                conn.row_factory = sqlite3.Row # Set row factory
+                cursor = conn.cursor()
                 cursor.execute("SELECT alias, model_id FROM user_bot_model_aliases")
                 for row in cursor:
                     aliases[row['alias']] = row['model_id']
@@ -651,17 +714,19 @@ class DatabaseManager:
                 logger.error(f"获取模型别名列表时数据库错误: {e}", exc_info=True)
                 return {} # Return empty dict on error
             finally:
-                self.conn.row_factory = sqlite3.Row # Reset row_factory
+                if conn:
+                    conn.close() # Close connection
             return aliases
         return await asyncio.to_thread(_sync_get)
 
     async def get_model_id_by_alias(self, alias: str) -> Optional[str]:
         """通过别名查找模型 ID。"""
         def _sync_get() -> Optional[str]:
+            conn = None
             try:
-                # Ensure row factory is set if needed
-                self.conn.row_factory = sqlite3.Row
-                cursor = self.conn.cursor()
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
                 cursor.execute("SELECT model_id FROM user_bot_model_aliases WHERE alias = ?", (alias,))
                 row = cursor.fetchone()
                 return row['model_id'] if row else None
@@ -669,6 +734,7 @@ class DatabaseManager:
                 logger.error(f"通过别名 '{alias}' 查找模型 ID 时数据库错误: {e}", exc_info=True)
                 return None # Return None on error
             finally:
-                self.conn.row_factory = sqlite3.Row # Reset row_factory
+                if conn:
+                    conn.close()
         return await asyncio.to_thread(_sync_get)
 
