@@ -178,12 +178,12 @@
     *   `[x]` `OPENAI_API_KEY`: 必需，用于 API 认证。
     *   `[x]` `OPENAI_BASE_URL`: 可选，用于指定自定义的 OpenAI API 端点（例如代理或兼容服务）。
 3.  `[x]` **[Interface/Implementation]** 创建一个 AI 服务类或模块，例如 `AIService` 或 `ai_service.py`。 (已创建 `AIService` 类和文件)
-4.  `[ ]` **[Implementation]** 在该服务中实现一个核心的异步函数，例如 `async def get_openai_completion(model_id: str, messages: List[Dict[str, str]]) -> Optional[str]:`。
-    *   此函数接收 OpenAI 兼容的模型 ID 和一个消息列表（格式如 `[{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]`）。
-    *   内部使用 `openai` 库与 OpenAI API 进行交互。
-    *   从环境变量加载 `OPENAI_API_KEY` 和 `OPENAI_BASE_URL` (如果设置了)。
-    *   处理 API 调用可能出现的异常（例如 `openai.APIError`, `openai.AuthenticationError`, `openai.RateLimitError` 等），记录错误日志并返回 `None` 或抛出自定义异常。
-    *   解析 API 响应，提取生成的文本内容并返回。
+4.  `[x]` **[Implementation]** 在该服务中实现一个核心的异步函数，例如 `async def get_openai_completion(model_id: str, messages: List[Dict[str, str]]) -> Optional[str]:`。
+    *   `[x]` 此函数接收 OpenAI 兼容的模型 ID 和一个消息列表（格式如 `[{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]`）。 (已实现)
+    *   `[x]` 内部使用 `openai` 库与 OpenAI API 进行交互。 (已实现)
+    *   `[x]` 从环境变量加载 `OPENAI_API_KEY` 和 `OPENAI_BASE_URL` (如果设置了)。 (已实现，通过惰性初始化)
+    *   `[x]` 处理 API 调用可能出现的异常（例如 `openai.APIError`, `openai.AuthenticationError`, `openai.RateLimitError`, `openai.BadRequestError` 等），记录错误日志并返回 `None`。 (已实现)
+    *   `[x]` 解析 API 响应，提取生成的文本内容并返回。 (已实现)
 5.  `[ ]` **[Integration]** 在阶段 4 的 `handle_mention_or_reply` 函数中，当角色类型为 `ai` 时：
     *   `[ ]` 导入并（可能需要实例化）`AIService`。
     *   `[ ]` **构建消息列表:** 按照 OpenAI 格式，正确组合系统提示 (`system_prompt`)、预设消息 (`preset_messages`)、历史对话消息 (`history_context_messages`) 和当前用户消息 (`event.message.text`)。确保角色 (`system`, `user`, `assistant`) 分配正确。
