@@ -15,9 +15,10 @@
 
 -   **数据存储:** 需要扩展现有数据库 (`DatabaseManager`) 或引入新的存储机制来持久化用户配置和别名数据。
 -   **状态管理:** 需要一个服务或管理器来加载、缓存和访问当前用户的配置状态。
--   **指令处理器 (`CommandHandler`):** 一个新的处理器，专门负责监听用户在私聊中发送的控制指令，并执行相应的操作。
--   **事件监听器 (`MentionReplyHandler`):** 一个新的处理器或逻辑单元，负责监听目标群组中的新消息事件，判断是否满足触发条件，并执行自动回复。
+-   **指令处理器 (`UserBotCommandHandler`):** 一个新的 Handler 类，继承自 `BaseHandler` 或类似基类，负责处理用户在私聊中发送的控制指令。
+-   **事件监听器 (`MentionReplyHandler`):** 一个新的 Handler 类，继承自 `BaseHandler` 或类似基类，负责监听目标群组中的新消息事件，判断是否满足触发条件，并执行自动回复。
 -   **AI 服务接口 (可选):** 如果需要与外部 AI 服务（如 OpenAI, Claude 等）交互，需要定义清晰的接口。
+-   **事件注册:** 在应用初始化阶段，显式地将 Handler 类的方法注册到 `telethon` 客户端的事件分发器。
 
 ## 3. 数据存储设计
 
@@ -114,51 +115,53 @@
     *   `[ ]` `async resolve_role_details(alias: str) -> Optional[Dict[str, Any]]` (根据别名获取角色详情)
 7.  `[ ]` **[Service] [Limit]** 实现频率限制状态管理（内存字典 `Dict[int, float]`）：`check_rate_limit(chat_id: int) -> bool` 和 `update_rate_limit(chat_id: int)` (这些可以是同步方法，因为它们只操作内存)。
 
-**阶段 3: 指令处理器 (使用 `@client.on` 装饰器)**
+**阶段 3: 指令处理器 (`UserBotCommandHandler`)**
 
-1.  `[ ]` **[Handler Function]** 定义一个异步函数，例如 `async def handle_user_commands(event):`。
-2.  `[ ]` **[Registration]** 使用 `@client.on(events.NewMessage(from_users=my_id, chats='me'))` 装饰器将上述函数注册为事件处理器。`my_id` 需要在定义此函数时可用。
-    *   **注意:** 这要求 `client` 对象和 `my_id` 在定义处理函数的文件作用域内可用。
-3.  `[ ]` **[Parsing]** 在 `handle_user_commands` 函数内部，检查 `event.message.text` 是否以 `.` 开头，并解析指令和参数。可以使用 `shlex.split` 处理带引号的参数。
-4.  `[ ]` **[Implementation]** 在 `handle_user_commands` 函数内部，为 RFC 003 中定义的每个指令 (`.on`, `.off`, `.status`, `.replyon`, `.replyoff`, `.setmodel`, `.listmodels`, `.aliasmodel`, `.unaliasmodel`, `.setrole`, `.listroles`, `.aliasrole`, `.unaliasrole`, `.addgroup`, `.delgroup`, `.listgroups`, `.setlimit`, `.help`) 实现对应的处理逻辑。
-    *   `[ ]` 需要访问 `UserBotStateService` 实例来读取或更新状态 (该实例需要在函数作用域内可用)。
+1.  `[ ]` **[Handler Class]** 创建 `telegram_logger/handlers/user_bot_command.py` 文件并定义 `UserBotCommandHandler` 类。考虑继承自 `BaseHandler` 或创建一个新的基类。
+2.  `[ ]` **[Dependencies]** 在 `UserBotCommandHandler.__init__` 中接收依赖项：`client`, `db`, `UserBotStateService` 实例, `my_id`。
+3.  `[ ]` **[Handler Method]** 定义一个核心的异步方法，例如 `async def handle_command(self, event: events.NewMessage.Event):`。此方法将由事件分发器调用（在阶段 7 中注册）。
+4.  `[ ]` **[Parsing]** 在 `handle_command` 方法内部，检查 `event.message.text` 是否以 `.` 开头，并解析指令和参数。可以使用 `shlex.split` 处理带引号的参数。
+5.  `[ ]` **[Implementation]** 在 `handle_command` 方法内部，为 RFC 003 中定义的每个指令 (`.on`, `.off`, `.status`, `.replyon`, `.replyoff`, `.setmodel`, `.listmodels`, `.aliasmodel`, `.unaliasmodel`, `.setrole`, `.listroles`, `.aliasrole`, `.unaliasrole`, `.addgroup`, `.delgroup`, `.listgroups`, `.setlimit`, `.help`) 实现对应的处理逻辑。
+    *   `[ ]` 使用注入的 `self.state_service` 实例来读取或更新状态。
     *   `[ ]` 实现输入验证（例如，`.addgroup` 验证群组，`.setlimit` 验证数字，`.setrolepreset` 验证 JSON 格式，确保别名存在等）。
-    *   `[ ]` 调用 `await event.respond(...)` 或 `await client.send_message(event.chat_id, ...)` 将操作反馈发送回用户的私聊。
+    *   `[ ]` 调用 `await event.respond(...)` 或 `await self.client.send_message(event.chat_id, ...)` 将操作反馈发送回用户的私聊。
     *   `[ ]` `.listmodels`, `.listroles`, `.listgroups`, `.status`, `.help` 需要格式化输出信息，特别是 `.listroles` 需要显示所有新字段。
+6.  `[ ]` **[Registration]** 事件注册将在阶段 7 中通过 `client.add_event_handler` 显式完成，而不是在此处使用装饰器。
 
-**阶段 4: 自动回复逻辑 (使用 `@client.on` 装饰器)**
+**阶段 4: 自动回复逻辑 (`MentionReplyHandler`)**
 
-1.  `[ ]` **[Handler Function]** 定义一个异步函数，例如 `async def handle_mention_or_reply(event):`。
-2.  `[ ]` **[Registration]** 使用 `@client.on(events.NewMessage)` 装饰器将上述函数注册为事件处理器。
-    *   **注意:** 这要求 `client` 对象在定义此函数的文件作用域内可用。
-3.  `[ ]` **[Filtering]** 在 `handle_mention_or_reply` 函数内部实现过滤逻辑：
-    *   `[ ]` 需要访问 `UserBotStateService` 实例 (该实例需要在函数作用域内可用)。
-    *   `[ ]` 检查 `UserBotStateService.is_enabled()` 是否为 `True`。
-    *   `[ ]` 检查 `event.chat_id` 是否在 `UserBotStateService.get_target_group_ids()` 中。
-    *   `[ ]` 需要访问 `my_id` (需要在函数作用域内可用)。检查 `event.sender_id == my_id` (忽略自己发的消息)。
+1.  `[ ]` **[Handler Class]** 创建 `telegram_logger/handlers/mention_reply.py` 文件并定义 `MentionReplyHandler` 类。考虑继承自 `BaseHandler` 或一个新的基类。
+2.  `[ ]` **[Dependencies]** 在 `MentionReplyHandler.__init__` 中接收依赖项：`client`, `db`, `UserBotStateService` 实例, `my_id`。
+3.  `[ ]` **[Handler Method]** 定义一个核心的异步方法，例如 `async def handle_event(self, event: events.NewMessage.Event):`。此方法将由事件分发器调用（在阶段 7 中注册）。
+4.  `[ ]` **[Filtering]** 在 `handle_event` 方法内部实现过滤逻辑：
+    *   `[ ]` 使用注入的 `self.state_service` 实例。
+    *   `[ ]` 检查 `self.state_service.is_enabled()` 是否为 `True`。
+    *   `[ ]` 检查 `event.chat_id` 是否在 `self.state_service.get_target_group_ids()` 中。
+    *   `[ ]` 使用注入的 `self.my_id`。检查 `event.sender_id == self.my_id` (忽略自己发的消息)。
     *   `[ ]` 检查是否满足触发条件：
         *   `[ ]` `event.mentioned` (是否 @ 了自己)
-        *   `[ ]` 或者 (`UserBotStateService.is_reply_trigger_enabled()` 且 `event.is_reply` 且 `event.reply_to_msg_id` 对应的消息是自己发的 - 可能需要 `await event.get_reply_message()` 然后检查 `reply_msg.sender_id == my_id`)。
+        *   `[ ]` 或者 (`self.state_service.is_reply_trigger_enabled()` 且 `event.is_reply` 且 `event.reply_to_msg_id` 对应的消息是自己发的 - 可能需要 `reply_msg = await event.get_reply_message()` 然后检查 `reply_msg.sender_id == self.my_id`)。
     *   `[ ]` 如果同时满足 @ 和回复，确保只处理一次。
-4.  `[ ]` **[Rate Limit]** 调用 `UserBotStateService.check_rate_limit(event.chat_id)`。如果受限，则 `return` 停止处理。
-5.  `[ ]` **[Get Role]** 获取当前角色详情 `role_details = await UserBotStateService.resolve_role_details(UserBotStateService.get_current_role_alias())`。如果角色为空或获取失败，则 `return` 停止处理。
-6.  `[ ]` **[Generate Reply]**
+5.  `[ ]` **[Rate Limit]** 调用 `self.state_service.check_rate_limit(event.chat_id)`。如果受限，则 `return` 停止处理。
+6.  `[ ]` **[Get Role]** 获取当前角色详情 `role_details = await self.state_service.resolve_role_details(self.state_service.get_current_role_alias())`。如果角色为空或获取失败，则 `return` 停止处理。
+7.  `[ ]` **[Generate Reply]**
     *   `[ ]` **If `role_details['role_type'] == 'static'`:** 直接使用 `reply_text = role_details.get('static_content', '')`。
     *   `[ ]` **If `role_details['role_type'] == 'ai'`:**
-        *   `[ ]` 获取当前模型 ID `model_id = UserBotStateService.get_current_model_id()`。
+        *   `[ ]` 获取当前模型 ID `model_id = self.state_service.get_current_model_id()`。
         *   `[ ]` **准备 AI 请求上下文:**
             *   `[ ]` 获取系统提示 `system_prompt = role_details.get('system_prompt')`。
             *   `[ ]` 获取并解析预设消息 `preset_messages_json = role_details.get('preset_messages')`。如果存在且有效，解析为列表。
-            *   `[ ]` 获取配置的历史数量: `history_count = user_bot_state_service.get_ai_history_length()`。
+            *   `[ ]` 获取配置的历史数量: `history_count = self.state_service.get_ai_history_length()`。
             *   `[ ]` **If `history_count > 1`:**
-                *   `[ ]` 从数据库获取历史消息: `past_messages = await db.get_messages_before(chat_id=event.chat_id, before_message_id=event.message.id, limit=history_count-1)`。
+                *   `[ ]` 从数据库获取历史消息: `past_messages = await self.db.get_messages_before(chat_id=event.chat_id, before_message_id=event.message.id, limit=history_count-1)`。
                 *   `[ ]` 将获取的消息按时间正序排列: `history_context_messages = reversed(past_messages)`。
             *   `[ ]` 获取当前触发消息 `event.message.text`。
         *   `[ ]` **构建消息列表:** 按照 AI 服务要求的格式，组合系统提示、预设消息、历史消息和当前用户消息。
         *   `[ ]` 调用 AI 服务接口 (见阶段 5)，传入模型 ID 和构建好的消息列表，获取生成的 `reply_text`。
         *   `[ ]` 处理 AI 服务可能发生的错误 (例如，记录日志并 `return`)。
-7.  `[ ]` **[Send Reply]** 调用 `await event.reply(reply_text)` 发送回复。
-8.  `[ ]` **[Update Limit]** 如果发送成功，调用 `UserBotStateService.update_rate_limit(event.chat_id)`。
+8.  `[ ]` **[Send Reply]** 调用 `await event.reply(reply_text)` 发送回复。
+9.  `[ ]` **[Update Limit]** 如果发送成功，调用 `self.state_service.update_rate_limit(event.chat_id)`。
+10. `[ ]` **[Registration]** 事件注册将在阶段 7 中通过 `client.add_event_handler` 显式完成，而不是在此处使用装饰器。
 
 **阶段 5: AI 集成 (OpenAI) (`telegram_logger/services` 或 `telegram_logger/utils`)**
 
@@ -177,6 +180,7 @@
     *   `[ ]` 导入并（可能需要实例化）`AIService`。
     *   `[ ]` **构建消息列表:** 按照 OpenAI 格式，正确组合系统提示 (`system_prompt`)、预设消息 (`preset_messages`)、历史对话消息 (`history_context_messages`) 和当前用户消息 (`event.message.text`)。确保角色 (`system`, `user`, `assistant`) 分配正确。
     *   `[ ]` 调用 `await ai_service.get_openai_completion(model_id=model_id, messages=constructed_messages)` 获取回复。
+    *   `[ ]` **(补充) 转换历史消息:** 需要明确如何将从数据库获取的 `Message` 对象列表 (`history_context_messages`) 转换为 OpenAI 需要的 `{"role": "...", "content": "..."}` 格式列表，根据 `message.from_id == self.my_id` 判断 `role` 是 `assistant` 还是 `user`。
 
 **阶段 6: 错误处理与日志**
 
@@ -196,28 +200,55 @@
     user_bot_state_service = UserBotStateService(db=db, my_id=user_id)
     ```
 4.  `[ ]` **[Init]** 调用 `await user_bot_state_service.load_state()` 来加载 UserBot 的初始状态。
-5.  `[ ]` **[Init]** 创建新的 Handler 实例：`UserBotCommandHandler` 和 `MentionReplyHandler`。
+5.  `[ ]` **[Init]** 导入新的 Handler 类。
     ```python
-    # 示例
     from telegram_logger.handlers.user_bot_command import UserBotCommandHandler # 需要创建
     from telegram_logger.handlers.mention_reply import MentionReplyHandler # 需要创建
-
+    # 假设 AIService 在 telegram_logger.services.ai_service
+    from telegram_logger.services.ai_service import AIService # 需要创建
+    ```
+6.  `[ ]` **[Init]** (可选) 创建 AI 服务实例。
+    ```python
+    ai_service = AIService() # 如果需要实例化
+    ```
+7.  `[ ]` **[Init]** 创建新的 Handler 实例，并注入所有必要的依赖。
+    ```python
+    # 示例
     user_bot_command_handler = UserBotCommandHandler(
-        db=db, # 可能需要
-        log_chat_id=LOG_CHAT_ID, # 可能需要
-        ignored_ids=IGNORED_IDS, # 可能需要
+        client=client_service.client, # 注入 client
+        db=db,
         state_service=user_bot_state_service,
         my_id=user_id
+        # log_chat_id=LOG_CHAT_ID, # 如果需要
+        # ignored_ids=IGNORED_IDS, # 如果需要
     )
     mention_reply_handler = MentionReplyHandler(
-        db=db, # 可能需要
-        log_chat_id=LOG_CHAT_ID, # 可能需要
-        ignored_ids=IGNORED_IDS, # 可能需要
+        client=client_service.client, # 注入 client
+        db=db,
         state_service=user_bot_state_service,
-        my_id=user_id
+        my_id=user_id,
+        ai_service=ai_service # 注入 AI 服务
+        # log_chat_id=LOG_CHAT_ID, # 如果需要
+        # ignored_ids=IGNORED_IDS, # 如果需要
     )
     ```
-7.  `[ ]` **[Init]** 确保 `client` 实例 (`client_service.client`)、`user_bot_state_service` 实例和 `my_id` 在定义事件处理函数（使用 `@client.on` 装饰的函数）的文件/模块作用域内可用。这可能需要调整代码结构，例如将事件处理函数定义在 `main.py` 或一个可以访问这些核心对象的模块中。
+8.  `[ ]` **[Registration]** 使用 `client_service.client.add_event_handler` 显式注册 Handler 的方法。
+    ```python
+    # 注册处理用户命令的方法
+    client_service.client.add_event_handler(
+        user_bot_command_handler.handle_command, # Handler 实例的方法
+        events.NewMessage(from_users=user_id, chats='me') # 事件过滤器
+    )
+    # 注册处理提及/回复的方法
+    client_service.client.add_event_handler(
+        mention_reply_handler.handle_event, # Handler 实例的方法
+        events.NewMessage() # 更精细的过滤在 handle_event 方法内部完成
+    )
+    ```
+9.  `[ ]` **[Management]** (可选) 如果需要统一管理所有 Handler，可以将新创建的 Handler 实例添加到 `client_service` 的 `handlers` 列表中（如果 `TelegramClientService` 设计支持）。
+    ```python
+    # client_service.handlers.extend([user_bot_command_handler, mention_reply_handler])
+    ```
 
 **阶段 8: 测试 (`tests/`)**
 
