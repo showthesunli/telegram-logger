@@ -23,28 +23,53 @@ class TelegramClientService:
         self._last_error = None
 
     async def initialize(self) -> int:
-        """初始化客户端并返回当前用户 ID。"""
-        if not self._is_initialized:
-            try:
-                await self.client.start()
-                me = await self.client.get_me()
-                if not me:
-                    logger.critical("无法获取当前用户信息，请检查 API ID/Hash 和会话文件。")
-                    raise ConnectionError("无法获取当前用户信息")
+        """初始化客户端，连接到 Telegram 并返回用户 ID。"""
+        logger.info("正在初始化 Telegram 客户端...")
+        try:
+            # 尝试连接和登录
+            # 注意：如果需要输入验证码或密码，Telethon 会在控制台提示
+            await self.client.connect()
+            if not await self.client.is_user_authorized():
+                logger.info("用户未授权，可能需要登录。")
+                # 根据 Telethon 的行为，start() 会处理登录流程
+                # 如果需要电话号码，它会要求输入
+                # 如果需要验证码或密码，它也会要求输入
+                # 这里假设必要的交互在控制台进行
+                await self.client.start() # start() 包含了登录逻辑
 
-                logger.info(f"客户端已连接，用户 ID: {me.id}")
-                self._register_handlers() # 在确认连接成功后注册处理器
-                self._is_initialized = True
-                logger.info(f"客户端为用户 {me.id} 初始化完成。")
-                return me.id
-            except Exception as e:
-                logger.critical(f"客户端初始化失败: {e}", exc_info=True)
-                self._last_error = str(e)
-                raise # 重新引发异常，让调用者知道初始化失败
-        else:
-            logger.warning("客户端已初始化，跳过重复初始化。")
+            # 再次检查连接状态，因为 start() 可能失败但未抛出特定异常
+            if not await self.client.is_connected():
+                 logger.critical("客户端未能成功连接。")
+                 sys.exit(1)
+
             me = await self.client.get_me()
-            return me.id if me else 0 # 如果已初始化但无法获取 me，返回 0
+            if me is None:
+                 logger.critical("无法获取用户信息 (get_me 返回 None)，请检查网络或会话文件。")
+                 # 抛出异常或返回特定错误代码可能更好，但这里先记录并退出
+                 sys.exit(1)
+
+            my_id = me.id
+            logger.info(f"客户端初始化成功。用户 ID: {my_id}")
+
+            # 注册事件处理器 (移动到获取 my_id 之后，确保 client 正常)
+            self._register_handlers()
+            logger.info("事件处理器已注册。")
+
+            return my_id
+
+        except telethon_errors.AuthKeyError:
+            logger.critical("授权密钥无效或已过期。请删除 session 文件并重新运行以登录。", exc_info=True)
+            sys.exit(1) # 认证失败，无法继续
+        except telethon_errors.PhoneNumberInvalidError:
+            logger.critical("提供的电话号码无效。", exc_info=True)
+            sys.exit(1) # 配置错误，无法继续
+        except ConnectionError as e:
+             logger.critical(f"连接 Telegram 时发生网络错误: {e}", exc_info=True)
+             sys.exit(1) # 网络问题，无法继续
+        except Exception as e:
+            # 捕获其他可能的 Telethon 启动错误或意外异常
+            logger.critical(f"初始化 Telegram 客户端时发生未处理的异常: {e}", exc_info=True)
+            sys.exit(1) # 未知严重错误，无法继续
 
     def _register_handlers(self):
         """根据新的统一接口方案注册事件处理器。"""
