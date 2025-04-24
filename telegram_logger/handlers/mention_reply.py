@@ -48,7 +48,7 @@ class MentionReplyHandler(BaseHandler):
         super().__init__(client=client, db=db, log_chat_id=log_chat_id, ignored_ids=ignored_ids, **kwargs)
         self.state_service = state_service
         self.my_id = my_id
-        # self.ai_service = ai_service # 稍后在阶段 5 添加
+        self.ai_service = ai_service # 注入 AI 服务实例
         logger.info(f"MentionReplyHandler 初始化完成。 My ID: {self.my_id}")
 
     async def handle_event(self, event: events.NewMessage.Event):
