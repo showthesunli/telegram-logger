@@ -103,7 +103,17 @@ class MentionReplyHandler(BaseHandler):
             logger.info(f"群组 {event.chat_id} 触发频率限制，本次忽略。")
             return
 
-        # --- 后续逻辑：获取角色、生成回复等将在后续步骤实现 ---
+        # 6. 获取当前角色详情
+        current_role_alias = self.state_service.get_current_role_alias()
+        role_details = await self.state_service.resolve_role_details(current_role_alias)
+
+        if not role_details:
+            logger.warning(f"无法获取或解析当前角色 '{current_role_alias}' 的详情，无法生成回复。")
+            return
+
+        logger.debug(f"使用角色 '{current_role_alias}' (类型: {role_details.get('role_type')}) 进行回复。")
+
+        # --- 后续逻辑：生成回复、发送回复等将在后续步骤实现 ---
         pass # 占位符
 
     async def process(self, event: events.common.EventCommon) -> Optional[Message]:
