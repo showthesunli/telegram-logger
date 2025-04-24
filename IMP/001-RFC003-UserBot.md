@@ -31,7 +31,7 @@
 | `user_id`             | INTEGER | 用户自己的 Telegram ID (主键, 通过 `client.get_me().id` 获取的真实、非零 ID) | N/A                |
 | `enabled`             | BOOLEAN | 功能是否启用                             | `False`            |
 | `reply_trigger_enabled` | BOOLEAN | 是否启用回复触发                         | `False`            |
-| `ai_history_length`   | INTEGER | AI 生成回复时考虑的历史消息数量          | `1`                |
+| `ai_history_length`   | INTEGER | AI 生成回复时额外加载的历史消息数量 (0 表示不加载额外历史) | `1`                |
 | `current_model_id`    | TEXT    | 当前选择的 AI 模型 ID 或别名             | `gpt-3.5-turbo`    |
 | `current_role_alias`  | TEXT    | 当前选择的 AI 角色别名                   | `default_assistant` |
 | `rate_limit_seconds`  | INTEGER | 同一群组内两次回复的最小间隔（秒）       | `60`               |
@@ -152,8 +152,8 @@
             *   `[ ]` 获取系统提示 `system_prompt = role_details.get('system_prompt')`。
             *   `[ ]` 获取并解析预设消息 `preset_messages_json = role_details.get('preset_messages')`。如果存在且有效，解析为列表。
             *   `[ ]` 获取配置的历史数量: `history_count = self.state_service.get_ai_history_length()`。
-            *   `[ ]` **If `history_count > 1`:**
-                *   `[ ]` 从数据库获取历史消息: `past_messages = await self.db.get_messages_before(chat_id=event.chat_id, before_message_id=event.message.id, limit=history_count-1)`。
+            *   `[ ]` **If `history_count > 0`:**
+                *   `[ ]` 从数据库获取历史消息: `past_messages = await self.db.get_messages_before(chat_id=event.chat_id, before_message_id=event.message.id, limit=history_count)`。
                 *   `[ ]` 将获取的消息按时间正序排列: `history_context_messages = reversed(past_messages)`。
             *   `[ ]` 获取当前触发消息 `event.message.text`。
         *   `[ ]` **构建消息列表:** 按照 AI 服务要求的格式，组合系统提示、预设消息、历史消息和当前用户消息。
