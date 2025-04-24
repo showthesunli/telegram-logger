@@ -92,8 +92,8 @@
 
 **阶段 2: 状态管理 (`telegram_logger/services`)**
 
-1.  `[ ]` **[Service]** 创建 `UserBotStateService` 类。
-2.  `[ ]` **[Service]** 在 `UserBotStateService.__init__` 中接收 `DatabaseManager` 实例和用户自己的 ID (`my_id: int`)。
+1.  `[x]` **[Service]** 创建 `UserBotStateService` 类。
+2.  `[x]` **[Service]** 在 `UserBotStateService.__init__` 中接收 `DatabaseManager` 实例和用户自己的 ID (`my_id: int`)。
 3.  `[ ]` **[Service] [Init]** 实现异步方法 `async load_state()`，在服务启动时调用。此方法应：
     *   `[ ]` 从数据库加载 `user_bot_settings` (使用 `my_id`)。如果记录不存在，则使用 RFC 定义的默认值（包括 `enabled=False`, `reply_trigger_enabled=False`, `ai_history_length=1`, `current_model_id='gpt-3.5-turbo'`, `current_role_alias='default_assistant'`, `rate_limit_seconds=60`）调用 `db.save_user_bot_settings` 创建记录，并加载这些默认值到内存。
     *   `[ ]` 从数据库加载目标群组列表、模型别名、角色别名到内存属性 (例如 `Set`, `Dict`)。
