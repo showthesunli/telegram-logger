@@ -218,11 +218,11 @@
         *   `[x]` 确保在任何捕获到的异常情况下，方法返回 `None`。
 
     *   **`UserBotCommandHandler`:**
-        *   `[ ]` 在 `handle_command` 方法的指令解析部分，使用 `try...except (ValueError, IndexError)` 块包裹 `shlex.split` 和参数访问，以处理格式错误的命令。
-        *   `[ ]` 对每个指令的参数实现严格验证逻辑（检查类型、范围、格式等，例如 `.sethistory` 的数字范围，`.setrolepreset` 的 JSON 格式）。
-        *   `[ ]` 在调用 `UserBotStateService` 的修改状态方法后，检查其返回值（通常是 `bool`）以判断操作是否成功。
-        *   `[ ]` 如果命令解析、参数验证或状态更新失败，记录 `WARNING` 或 `INFO` 日志，并使用 `await event.respond(...)` 向用户发送清晰、具体的错误消息。
-        *   `[ ]` 使用 `try...except telethon.errors.FloodWaitError` 等 `telethon` 相关异常包裹 `await event.respond(...)` 调用，并在捕获异常时记录 `ERROR`。
+        *   `[x]` 在 `handle_command` 方法的指令解析部分，使用 `try...except (ValueError, IndexError)` 块包裹 `shlex.split` 和参数访问，以处理格式错误的命令。 (已实现 `shlex` 的 `ValueError` 和通用的 `IndexError` 捕获)
+        *   `[x]` 对每个指令的参数实现严格验证逻辑（检查类型、范围、格式等，例如 `.sethistory` 的数字范围，`.setrolepreset` 的 JSON 格式）。 (已为已实现的指令添加验证)
+        *   `[x]` 在调用 `UserBotStateService` 的修改状态方法后，检查其返回值（通常是 `bool`）以判断操作是否成功。 (已为已实现的指令添加检查)
+        *   `[x]` 如果命令解析、参数验证或状态更新失败，记录 `WARNING` 或 `INFO` 日志，并使用 `await event.respond(...)` 向用户发送清晰、具体的错误消息。 (已实现)
+        *   `[x]` 使用 `try...except telethon.errors.FloodWaitError` 等 `telethon` 相关异常包裹 `await event.respond(...)` 调用，并在捕获异常时记录 `ERROR`。 (已通过 `_safe_respond` 实现)
 
     *   **`MentionReplyHandler`:**
         *   `[ ]` 在 `handle_event` 方法的开头，添加一个顶层的 `try...except Exception as e:` 块包裹整个处理逻辑。
