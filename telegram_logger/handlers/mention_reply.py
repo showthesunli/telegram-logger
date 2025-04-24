@@ -53,11 +53,53 @@ class MentionReplyHandler(BaseHandler):
     async def handle_event(self, event: events.NewMessage.Event):
         """
         处理新消息事件，判断是否需要自动回复。
-        (具体逻辑将在后续步骤实现)
         """
-        logger.debug(f"MentionReplyHandler 收到事件: ChatID={event.chat_id}, MsgID={event.id}")
-        # --- 过滤和回复逻辑将在后续步骤实现 ---
-        pass
+        logger.debug(f"MentionReplyHandler 收到事件: ChatID={event.chat_id}, MsgID={event.id}, SenderID={event.sender_id}")
+
+        # 1. 检查功能是否启用
+        if not self.state_service.is_enabled():
+            logger.debug("功能未启用，忽略事件。")
+            return
+
+        # 2. 检查是否为目标群组
+        target_groups = self.state_service.get_target_group_ids()
+        if event.chat_id not in target_groups:
+            logger.debug(f"事件来自非目标群组 {event.chat_id}，忽略。")
+            return
+
+        # 3. 忽略自己发送的消息
+        if event.sender_id == self.my_id:
+            logger.debug("事件来自自己，忽略。")
+            return
+
+        # 4. 检查触发条件：@提及 或 回复
+        is_mention = event.mentioned
+        is_reply = event.is_reply
+        is_reply_trigger_enabled = self.state_service.is_reply_trigger_enabled()
+        is_reply_to_me = False
+
+        if is_reply and is_reply_trigger_enabled:
+            try:
+                reply_msg = await event.get_reply_message()
+                if reply_msg and reply_msg.sender_id == self.my_id:
+                    is_reply_to_me = True
+                    logger.debug(f"事件是对我的消息 (MsgID: {reply_msg.id}) 的回复。")
+                else:
+                    logger.debug("事件是回复，但不是回复我的消息。")
+            except Exception as e:
+                # 获取回复消息失败，可能已被删除或权限问题
+                logger.warning(f"获取回复消息失败 (可能已被删除): {e}", exc_info=True)
+                # 即使获取失败，如果被 @ 了，仍然可以继续处理
+
+        if not is_mention and not is_reply_to_me:
+            logger.debug("事件既不是 @提及 也不是对我的回复（或回复触发未启用），忽略。")
+            return
+
+        # 如果同时满足 @ 和回复，也只处理一次
+        logger.info(f"事件满足触发条件 (Mention: {is_mention}, ReplyToMe: {is_reply_to_me})，继续处理...")
+
+        # --- 后续逻辑：频率限制、获取角色、生成回复等将在后续步骤实现 ---
+        pass # 占位符
 
     async def process(self, event: events.common.EventCommon) -> Optional[Message]:
         """

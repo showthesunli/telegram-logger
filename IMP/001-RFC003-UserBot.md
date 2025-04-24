@@ -140,15 +140,15 @@
 1.  `[x]` **[Handler Class]** 创建 `telegram_logger/handlers/mention_reply.py` 文件并定义 `MentionReplyHandler` 类。考虑继承自 `BaseHandler` 或一个新的基类。
 2.  `[x]` **[Dependencies]** 在 `MentionReplyHandler.__init__` 中接收依赖项：`client`, `db`, `UserBotStateService` 实例, `my_id`。
 3.  `[x]` **[Handler Method]** 定义一个核心的异步方法，例如 `async def handle_event(self, event: events.NewMessage.Event):`。此方法将由事件分发器调用（在阶段 7 中注册）。
-4.  `[ ]` **[Filtering]** 在 `handle_event` 方法内部实现过滤逻辑：
-    *   `[ ]` 使用注入的 `self.state_service` 实例。
-    *   `[ ]` 检查 `self.state_service.is_enabled()` 是否为 `True`。
-    *   `[ ]` 检查 `event.chat_id` 是否在 `self.state_service.get_target_group_ids()` 中。
-    *   `[ ]` 使用注入的 `self.my_id`。检查 `event.sender_id == self.my_id` (忽略自己发的消息)。
-    *   `[ ]` 检查是否满足触发条件：
-        *   `[ ]` `event.mentioned` (是否 @ 了自己)
-        *   `[ ]` 或者 (`self.state_service.is_reply_trigger_enabled()` 且 `event.is_reply` 且 `event.reply_to_msg_id` 对应的消息是自己发的 - 可能需要 `reply_msg = await event.get_reply_message()` 然后检查 `reply_msg.sender_id == self.my_id`)。
-    *   `[ ]` 如果同时满足 @ 和回复，确保只处理一次。
+4.  `[x]` **[Filtering]** 在 `handle_event` 方法内部实现过滤逻辑：
+    *   `[x]` 使用注入的 `self.state_service` 实例。
+    *   `[x]` 检查 `self.state_service.is_enabled()` 是否为 `True`。
+    *   `[x]` 检查 `event.chat_id` 是否在 `self.state_service.get_target_group_ids()` 中。
+    *   `[x]` 使用注入的 `self.my_id`。检查 `event.sender_id == self.my_id` (忽略自己发的消息)。
+    *   `[x]` 检查是否满足触发条件：
+        *   `[x]` `event.mentioned` (是否 @ 了自己)
+        *   `[x]` 或者 (`self.state_service.is_reply_trigger_enabled()` 且 `event.is_reply` 且 `event.reply_to_msg_id` 对应的消息是自己发的 - 可能需要 `reply_msg = await event.get_reply_message()` 然后检查 `reply_msg.sender_id == self.my_id`)。
+    *   `[x]` 如果同时满足 @ 和回复，确保只处理一次。
 5.  `[ ]` **[Rate Limit]** 调用 `self.state_service.check_rate_limit(event.chat_id)`。如果受限，则 `return` 停止处理。
 6.  `[ ]` **[Get Role]** 获取当前角色详情 `role_details = await self.state_service.resolve_role_details(self.state_service.get_current_role_alias())`。如果角色为空或获取失败，则 `return` 停止处理。
 7.  `[ ]` **[Generate Reply]**
