@@ -199,9 +199,9 @@
 *   **具体实现步骤:**
 
     *   **`DatabaseManager`:**
-        *   `[ ]` 在执行 SQL 查询和修改的内部同步方法（例如 `_sync_create`, `_sync_set`, `_sync_remove`, `_sync_get`, `_sync_save`, `_sync_add` 等的 `def _sync_...():` 块内）添加 `try...except sqlite3.Error` 块。
-        *   `[ ]` 在 `except sqlite3.Error` 块中，使用 `logger.error(...)` 记录详细错误信息（包括操作类型、涉及的表、错误消息）。
-        *   `[ ]` 在 `except` 块中，根据方法约定返回适当的错误指示值（例如 `None`, `False`, 空列表 `[]`, 空字典 `{}`）。
+        *   `[x]` 在执行 SQL 查询和修改的内部同步方法（例如 `_sync_create`, `_sync_set`, `_sync_remove`, `_sync_get`, `_sync_save`, `_sync_add` 等的 `def _sync_...():` 块内）添加 `try...except sqlite3.Error` 块。
+        *   `[x]` 在 `except sqlite3.Error` 块中，使用 `logger.error(...)` 记录详细错误信息（包括操作类型、涉及的表、错误消息）。
+        *   `[x]` 在 `except` 块中，根据方法约定返回适当的错误指示值（例如 `None`, `False`, 空列表 `[]`, 空字典 `{}`）。
 
     *   **`UserBotStateService`:**
         *   `[ ]` 在 `load_state` 方法中，为每个数据库调用（如 `self.db.get_user_bot_settings`, `self.db.get_target_groups` 等）添加错误处理逻辑（检查返回是否为 `None` 或捕获异常）。
