@@ -177,6 +177,28 @@ async def main():
         ai_service = AIService()
         logger.debug("AIService 已初始化。")
 
+        # 7. 创建 UserBot Handler 实例并注入依赖
+        user_bot_command_handler = UserBotCommandHandler(
+            client=client_service.client, # 注入 client
+            db=db,
+            state_service=user_bot_state_service,
+            my_id=user_id,
+            log_chat_id=LOG_CHAT_ID, # 传递 log_chat_id
+            ignored_ids=IGNORED_IDS  # 传递 ignored_ids
+        )
+        logger.debug("UserBotCommandHandler 已初始化。")
+
+        mention_reply_handler = MentionReplyHandler(
+            client=client_service.client, # 注入 client
+            db=db,
+            state_service=user_bot_state_service,
+            my_id=user_id,
+            ai_service=ai_service, # 注入 AI 服务
+            log_chat_id=LOG_CHAT_ID, # 传递 log_chat_id
+            ignored_ids=IGNORED_IDS  # 传递 ignored_ids
+        )
+        logger.debug("MentionReplyHandler 已初始化。")
+
         # --- UserBot 功能初始化结束 ---
 
         await cleanup_service.start()
