@@ -25,10 +25,10 @@ class MentionReplyHandler(BaseHandler):
         client: TelegramClient,
         db: DatabaseManager,
         state_service: UserBotStateService,
-        my_id: int,
+        # my_id: int, # 不再直接传递 my_id
         ai_service: AIService,
-        log_chat_id: int, # 从 BaseHandler 继承，但可能不需要
-        ignored_ids: Set[int], # 从 BaseHandler 继承，但可能不需要
+        log_chat_id: int, # 从 BaseHandler 继承
+        ignored_ids: Set[int], # 从 BaseHandler 继承
         **kwargs: Dict[str, Any]
     ):
         """
@@ -38,19 +38,19 @@ class MentionReplyHandler(BaseHandler):
             client: Telethon 客户端实例。
             db: DatabaseManager 实例。
             state_service: UserBotStateService 实例。
-            my_id: 用户自己的 Telegram ID。
+            # my_id: 用户自己的 Telegram ID (将通过 init() 设置)。
             ai_service: AI 服务实例。
-            log_chat_id: 日志频道 ID (可能未使用)。
-            ignored_ids: 忽略的用户/群组 ID (可能未使用)。
+            log_chat_id: 日志频道 ID。
+            ignored_ids: 忽略的用户/群组 ID。
             **kwargs: 其他传递给 BaseHandler 的参数。
         """
         # 调用父类构造函数，注意 UserBot 功能可能不需要 log_chat_id 和 ignored_ids
-        # 但为了兼容 BaseHandler 签名，暂时传入
+        # 调用父类构造函数
         super().__init__(client=client, db=db, log_chat_id=log_chat_id, ignored_ids=ignored_ids, **kwargs)
         self.state_service = state_service
-        self.my_id = my_id
+        # self.my_id = my_id # 移除直接赋值，my_id 将通过 init() 设置
         self.ai_service = ai_service # 注入 AI 服务实例
-        logger.info(f"MentionReplyHandler 初始化完成。 My ID: {self.my_id}")
+        logger.info("MentionReplyHandler 初始化完成。") # 移除 my_id 的日志记录，因为它此时尚未设置
 
     async def handle_event(self, event: events.NewMessage.Event):
         """
