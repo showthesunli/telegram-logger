@@ -186,8 +186,9 @@ class MentionReplyHandler(BaseHandler):
         try:
             await event.reply(reply_text)
             logger.info(f"已成功发送回复到 ChatID={event.chat_id}, MsgID={event.id}")
-            # 9. 更新频率限制 (将在下一步实现)
-            # self.state_service.update_rate_limit(event.chat_id)
+            # 9. 更新频率限制
+            self.state_service.update_rate_limit(event.chat_id)
+            logger.debug(f"已更新群组 {event.chat_id} 的频率限制时间戳。")
         except Exception as e:
             logger.error(f"发送回复到 ChatID={event.chat_id} 失败: {e}", exc_info=True)
             # 发送失败不应阻止后续操作，但需要记录日志
