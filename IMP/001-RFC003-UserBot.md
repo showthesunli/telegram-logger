@@ -95,11 +95,11 @@
 1.  `[ ]` **[Service]** 创建 `UserBotStateService` 类。
 2.  `[ ]` **[Service]** 在 `UserBotStateService.__init__` 中接收 `DatabaseManager` 实例和用户自己的 ID (`my_id: int`)。
 3.  `[ ]` **[Service] [Init]** 实现异步方法 `async load_state()`，在服务启动时调用。此方法应：
-    *   `[ ]` 从数据库加载 `user_bot_settings` (使用 `my_id`)。如果记录不存在，则使用 RFC 定义的默认值（包括 `enabled=False`, `reply_trigger_enabled=False`, `current_model_id='gpt-3.5-turbo'`, `current_role_alias='default_assistant'`, `rate_limit_seconds=60`）调用 `db.save_user_bot_settings` 创建记录，并加载这些默认值到内存。
+    *   `[ ]` 从数据库加载 `user_bot_settings` (使用 `my_id`)。如果记录不存在，则使用 RFC 定义的默认值（包括 `enabled=False`, `reply_trigger_enabled=False`, `ai_history_length=1`, `current_model_id='gpt-3.5-turbo'`, `current_role_alias='default_assistant'`, `rate_limit_seconds=60`）调用 `db.save_user_bot_settings` 创建记录，并加载这些默认值到内存。
     *   `[ ]` 从数据库加载目标群组列表、模型别名、角色别名到内存属性 (例如 `Set`, `Dict`)。
     *   `[ ]` 考虑是否在此处检查并创建默认的 `default_assistant` 角色别名（如果不存在）。
-4.  `[ ]` **[Service]** 提供访问当前内存状态的属性或方法，例如 `is_enabled() -> bool`, `is_reply_trigger_enabled() -> bool`, `get_current_model_id() -> str`, `get_current_role_alias() -> str`, `get_target_group_ids() -> Set[int]`, `get_rate_limit() -> int` 等。
-5.  `[ ]` **[Service]** 实现异步更新状态的方法 (`async def`)，这些方法应**先更新数据库** (调用 `DatabaseManager` 的方法)，**成功后再更新内存状态**。例如 `enable()`, `disable()`, `set_current_model(model_ref: str)`, `set_current_role(role_alias: str)`, `add_group(chat_id: int)`, `remove_group(chat_id: int)`, `set_rate_limit(seconds: int)` 等。
+4.  `[ ]` **[Service]** 提供访问当前内存状态的属性或方法，例如 `is_enabled() -> bool`, `is_reply_trigger_enabled() -> bool`, `get_current_model_id() -> str`, `get_current_role_alias() -> str`, `get_target_group_ids() -> Set[int]`, `get_rate_limit() -> int`, `get_ai_history_length() -> int` 等。
+5.  `[ ]` **[Service]** 实现异步更新状态的方法 (`async def`)，这些方法应**先更新数据库** (调用 `DatabaseManager` 的方法)，**成功后再更新内存状态**。例如 `enable()`, `disable()`, `set_current_model(model_ref: str)`, `set_current_role(role_alias: str)`, `add_group(chat_id: int)`, `remove_group(chat_id: int)`, `set_rate_limit(seconds: int)`, `async set_ai_history_length(count: int)` 等。
 6.  `[ ]` **[Service]** 实现异步别名管理和解析逻辑：
     *   `[ ]` `async set_model_alias(alias: str, model_id: str)`
     *   `[ ]` `async remove_model_alias(alias: str)`
@@ -123,9 +123,16 @@
 4.  `[ ]` **[Parsing]** 在 `handle_command` 方法内部，检查 `event.message.text` 是否以 `.` 开头，并解析指令和参数。可以使用 `shlex.split` 处理带引号的参数。
 5.  `[ ]` **[Implementation]** 在 `handle_command` 方法内部，为 RFC 003 中定义的每个指令 (`.on`, `.off`, `.status`, `.replyon`, `.replyoff`, `.setmodel`, `.listmodels`, `.aliasmodel`, `.unaliasmodel`, `.setrole`, `.listroles`, `.aliasrole`, `.unaliasrole`, `.addgroup`, `.delgroup`, `.listgroups`, `.setlimit`, `.help`) 实现对应的处理逻辑。
     *   `[ ]` 使用注入的 `self.state_service` 实例来读取或更新状态。
-    *   `[ ]` 实现输入验证（例如，`.addgroup` 验证群组，`.setlimit` 验证数字，`.setrolepreset` 验证 JSON 格式，确保别名存在等）。
+    *   `[ ]` 实现输入验证（例如，`.addgroup` 验证群组，`.setlimit` 验证数字，`.setrolepreset` 验证 JSON 格式，`.sethistory` 验证数字范围，确保别名存在等）。
     *   `[ ]` 调用 `await event.respond(...)` 或 `await self.client.send_message(event.chat_id, ...)` 将操作反馈发送回用户的私聊。
-    *   `[ ]` `.listmodels`, `.listroles`, `.listgroups`, `.status`, `.help` 需要格式化输出信息，特别是 `.listroles` 需要显示所有新字段。
+    *   `[ ]` `.listmodels`, `.listroles`, `.listgroups`, `.status`, `.help` 需要格式化输出信息，特别是 `.listroles` 需要显示所有新字段，`.status` 需要包含历史数量。
+    *   `[ ]` **实现 `.sethistory <数量>` 指令处理:**
+        *   解析 `<数量>` 参数。
+        *   验证参数为非负整数，并进行上限检查 (例如 `0 <= count <= 20`)。若无效则回复错误信息。
+        *   调用 `self.state_service.set_ai_history_length(count)`。
+        *   回复确认消息，例如 `await event.respond(f"AI 上下文历史消息数量已设置为 {count}。")`。
+    *   `[ ]` 确保 `.status` 指令调用 `self.state_service.get_ai_history_length()` 并将其包含在回复给用户的状态信息中。
+    *   `[ ]` 将 `.sethistory <数量>` 指令及其描述添加到 `.help` 命令的输出中。
 6.  `[ ]` **[Registration]** 事件注册将在阶段 7 中通过 `client.add_event_handler` 显式完成，而不是在此处使用装饰器。
 
 **阶段 4: 自动回复逻辑 (`MentionReplyHandler`)**
@@ -252,10 +259,13 @@
 
 **阶段 8: 测试 (`tests/`)**
 
-1.  `[ ]` **[Unit Tests]** 为指令解析逻辑、状态服务中的方法（特别是别名解析和状态更新）、频率限制逻辑编写单元测试。
+1.  `[ ]` **[Unit Tests]** 为指令解析逻辑、状态服务中的方法（特别是别名解析、状态更新、`set_ai_history_length` 输入验证）、频率限制逻辑编写单元测试。
 2.  `[ ]` **[Integration Tests]** 编写集成测试：
     *   `[ ]` 模拟用户发送指令，验证状态是否正确更新以及反馈消息是否符合预期。
-    *   `[ ]` 模拟群组中的 @ 提及和回复事件，验证自动回复是否按预期触发（或不触发）、内容是否正确（区分 static/ai）、频率限制是否生效。可能需要 Mock AI 服务接口。
+    *   `[ ]` **[Integration Test]** 测试 `.sethistory` 指令：发送指令（包括有效和无效参数），验证状态服务中的值是否更新，验证用户收到的反馈消息。
+    *   `[ ]` **[Integration Test]** 测试 `.status` 指令的输出是否正确包含了更新后的历史数量。
+    *   `[ ]` 模拟群组中的 @ 提及和回复事件，验证自动回复是否按预期触发（或不触发）、内容是否正确（区分 static/ai）、频率限制是否生效。
+    *   `[ ]` **[Integration Test]** (可能需要 Mock) 测试自动回复逻辑：设置不同的历史数量，触发回复，验证传递给 AI 服务接口的上下文消息数量是否符合预期（可以通过 Mock `db.get_messages_before` 或检查日志来验证）。
 
 ## 5. 依赖项
 
