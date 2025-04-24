@@ -169,7 +169,7 @@
         *   `[x]` (临时) 使用占位符作为 `reply_text`。 (已实现)
 8.  `[x]` **[Send Reply]** 调用 `await event.reply(reply_text)` 发送回复。 (已实现)
 9.  `[x]` **[Update Limit]** 如果发送成功，调用 `self.state_service.update_rate_limit(event.chat_id)`。 (已实现)
-10. `[ ]` **[Registration]** 事件注册将在阶段 7 中通过 `client.add_event_handler` 显式完成，而不是在此处使用装饰器。
+10. `[x]` **[Registration]** 事件注册将在阶段 7 中通过 `client.add_event_handler` 显式完成，而不是在此处使用装饰器。 (已确认，无代码实现)
 
 **阶段 5: AI 集成 (OpenAI) (`telegram_logger/services` 或 `telegram_logger/utils`)**
 
