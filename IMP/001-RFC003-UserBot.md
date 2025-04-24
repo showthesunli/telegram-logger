@@ -137,8 +137,8 @@
 
 **阶段 4: 自动回复逻辑 (`MentionReplyHandler`)**
 
-1.  `[ ]` **[Handler Class]** 创建 `telegram_logger/handlers/mention_reply.py` 文件并定义 `MentionReplyHandler` 类。考虑继承自 `BaseHandler` 或一个新的基类。
-2.  `[ ]` **[Dependencies]** 在 `MentionReplyHandler.__init__` 中接收依赖项：`client`, `db`, `UserBotStateService` 实例, `my_id`。
+1.  `[x]` **[Handler Class]** 创建 `telegram_logger/handlers/mention_reply.py` 文件并定义 `MentionReplyHandler` 类。考虑继承自 `BaseHandler` 或一个新的基类。
+2.  `[x]` **[Dependencies]** 在 `MentionReplyHandler.__init__` 中接收依赖项：`client`, `db`, `UserBotStateService` 实例, `my_id`。
 3.  `[ ]` **[Handler Method]** 定义一个核心的异步方法，例如 `async def handle_event(self, event: events.NewMessage.Event):`。此方法将由事件分发器调用（在阶段 7 中注册）。
 4.  `[ ]` **[Filtering]** 在 `handle_event` 方法内部实现过滤逻辑：
     *   `[ ]` 使用注入的 `self.state_service` 实例。
