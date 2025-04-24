@@ -143,44 +143,6 @@ class UserBotStateService:
 
     # 状态访问方法
     def is_enabled(self) -> bool:
-                'reply_trigger_enabled': False,
-                'ai_history_length': 1,
-                'current_model_id': 'gpt-3.5-turbo',
-                'current_role_alias': 'default_assistant',
-                'rate_limit_seconds': 60
-            }
-            await self.db.save_user_bot_settings(self.my_id, settings)
-        
-        self._enabled = bool(settings['enabled'])
-        self._reply_trigger_enabled = bool(settings['reply_trigger_enabled'])
-        self._ai_history_length = int(settings['ai_history_length'])
-        self._current_model_id = settings['current_model_id']
-        self._current_role_alias = settings['current_role_alias']
-        self._rate_limit_seconds = int(settings['rate_limit_seconds'])
-
-        # 加载目标群组
-        self._target_groups = set(await self.db.get_target_groups())
-
-        # 加载模型别名
-        self._model_aliases = await self.db.get_model_aliases()
-
-        # 加载角色别名
-        self._role_aliases = await self.db.get_role_aliases()
-        
-        # 检查并创建默认角色
-        if 'default_assistant' not in self._role_aliases:
-            await self.db.create_role_alias(
-                alias='default_assistant',
-                role_type='ai',
-            )
-            await self.db.set_role_description(
-                alias='default_assistant',
-                description='你是一个通用 AI 助手，请根据对话上下文进行回复。'
-            )
-            self._role_aliases = await self.db.get_role_aliases()
-
-    # 状态访问方法
-    def is_enabled(self) -> bool:
         return self._enabled
 
     def is_reply_trigger_enabled(self) -> bool:
