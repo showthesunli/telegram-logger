@@ -181,7 +181,16 @@ class MentionReplyHandler(BaseHandler):
 
         # --- 后续逻辑：发送回复、更新频率限制等将在后续步骤实现 ---
         logger.info(f"准备发送回复 (类型: {role_type})")
-        pass # 占位符
+
+        # 8. 发送回复
+        try:
+            await event.reply(reply_text)
+            logger.info(f"已成功发送回复到 ChatID={event.chat_id}, MsgID={event.id}")
+            # 9. 更新频率限制 (将在下一步实现)
+            # self.state_service.update_rate_limit(event.chat_id)
+        except Exception as e:
+            logger.error(f"发送回复到 ChatID={event.chat_id} 失败: {e}", exc_info=True)
+            # 发送失败不应阻止后续操作，但需要记录日志
 
     async def process(self, event: events.common.EventCommon) -> Optional[Message]:
         """

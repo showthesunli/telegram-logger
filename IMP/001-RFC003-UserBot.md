@@ -167,7 +167,7 @@
         *   `[ ]` 调用 AI 服务接口 (见阶段 5)，传入模型 ID 和构建好的消息列表，获取生成的 `reply_text`。 (将在阶段 5 实现)
         *   `[ ]` 处理 AI 服务可能发生的错误 (例如，记录日志并 `return`)。 (将在阶段 5 实现)
         *   `[x]` (临时) 使用占位符作为 `reply_text`。 (已实现)
-8.  `[ ]` **[Send Reply]** 调用 `await event.reply(reply_text)` 发送回复。
+8.  `[x]` **[Send Reply]** 调用 `await event.reply(reply_text)` 发送回复。 (已实现)
 9.  `[ ]` **[Update Limit]** 如果发送成功，调用 `self.state_service.update_rate_limit(event.chat_id)`。
 10. `[ ]` **[Registration]** 事件注册将在阶段 7 中通过 `client.add_event_handler` 显式完成，而不是在此处使用装饰器。
 
