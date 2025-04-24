@@ -196,12 +196,13 @@ async def main():
             client=client_service.client, # 注入 client
             db=db,
             state_service=user_bot_state_service,
-            my_id=user_id,
+            # my_id=user_id, # 移除 my_id 参数
             ai_service=ai_service, # 注入 AI 服务
             log_chat_id=LOG_CHAT_ID, # 传递 log_chat_id
             ignored_ids=IGNORED_IDS  # 传递 ignored_ids
         )
         logger.debug("MentionReplyHandler 已初始化。")
+        await mention_reply_handler.init() # 调用 init 来设置 my_id
 
         # 8. 注册 UserBot 事件处理器
         try:
