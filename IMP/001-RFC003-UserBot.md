@@ -281,7 +281,7 @@
         # ignored_ids=IGNORED_IDS, # 如果需要
     )
     ```
-8.  `[ ]` **[Registration]** 使用 `client_service.client.add_event_handler` 显式注册 Handler 的方法。
+8.  `[x]` **[Registration]** 使用 `client_service.client.add_event_handler` 显式注册 Handler 的方法。
     ```python
     # 注册处理用户命令的方法
     client_service.client.add_event_handler(

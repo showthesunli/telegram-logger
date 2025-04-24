@@ -90,6 +90,10 @@ PERSIST_TIME_IN_DAYS_BOT = int(os.getenv('PERSIST_TIME_IN_DAYS_BOT', '1'))
 DELETION_RATE_LIMIT_THRESHOLD = int(os.getenv('DELETION_RATE_LIMIT_THRESHOLD', '5'))
 DELETION_RATE_LIMIT_WINDOW = int(os.getenv('DELETION_RATE_LIMIT_WINDOW', '60'))
 DELETION_PAUSE_DURATION = int(os.getenv('DELETION_PAUSE_DURATION', '300'))
+
+# 导入 telethon 事件
+from telethon import events
+
 from telegram_logger.services.client import TelegramClientService
 from telegram_logger.services.cleanup import CleanupService
 # 导入 UserBot 服务
@@ -199,13 +203,36 @@ async def main():
         )
         logger.debug("MentionReplyHandler 已初始化。")
 
+        # 8. 注册 UserBot 事件处理器
+        try:
+            # 注册处理用户命令的方法
+            client_service.client.add_event_handler(
+                user_bot_command_handler.handle_command, # Handler 实例的方法
+                events.NewMessage(from_users=user_id, chats='me') # 事件过滤器：仅来自自己的私聊
+            )
+            logger.info("UserBot 命令处理器已注册。")
+
+            # 注册处理提及/回复的方法
+            # 注意：使用 incoming=True 可能会捕获所有收到的消息，包括来自其他设备/会话的自己的消息
+            # 如果只想处理来自他人的消息，可能需要更复杂的过滤或在 handler 内部检查 event.out is False
+            client_service.client.add_event_handler(
+                mention_reply_handler.handle_event, # Handler 实例的方法
+                events.NewMessage(incoming=True) # 监听所有收到的新消息，内部再过滤
+            )
+            logger.info("UserBot 提及/回复处理器已注册。")
+        except Exception as e:
+            logger.critical(f"注册 UserBot 事件处理器时发生错误: {e}", exc_info=True)
+            sys.exit(1) # 注册失败是严重问题，退出
+
+        logger.info("UserBot 功能初始化完成。")
         # --- UserBot 功能初始化结束 ---
 
         await cleanup_service.start()
-        
-        # Inject initialized client into handlers
-        logging.info("Injecting initialized client into handlers...")
-        for handler in handlers:
+
+        # Inject initialized client into core handlers (PersistenceHandler, OutputHandler)
+        # UserBot handlers receive the client via __init__
+        logging.info("Injecting initialized client into core handlers...")
+        for handler in handlers: # 'handlers' 列表只包含 PersistenceHandler 和 OutputHandler
             if hasattr(handler, 'set_client'):
                 handler.set_client(client_service.client)
             else:
