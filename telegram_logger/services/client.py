@@ -1,5 +1,6 @@
 import time
-from telethon import TelegramClient, events
+from telethon import TelegramClient, events, errors as telethon_errors
+import sys # 确保 sys 已导入，因为后面用到了 sys.exit
 from typing import List
 import logging
 from telegram_logger.handlers.base_handler import BaseHandler
@@ -38,7 +39,7 @@ class TelegramClientService:
                 await self.client.start() # start() 包含了登录逻辑
 
             # 再次检查连接状态，因为 start() 可能失败但未抛出特定异常
-            if not await self.client.is_connected():
+            if not self.client.is_connected():
                  logger.critical("客户端未能成功连接。")
                  sys.exit(1)
 
@@ -139,7 +140,7 @@ class TelegramClientService:
         try:
             me = await self.client.get_me() if self._is_initialized else None
             return {
-                'connected': await self.client.is_connected(),
+                'connected': self.client.is_connected(),
                 'handlers': len(self.client.list_event_handlers()),
                 'logged_in': self._is_initialized,
                 'user_id': me.id if me else None,
