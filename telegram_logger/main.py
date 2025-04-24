@@ -156,6 +156,17 @@ async def main():
         # 3. 创建 UserBotStateService 实例
         user_bot_state_service = UserBotStateService(db=db, my_id=user_id)
         logger.debug("UserBotStateService 已初始化。")
+
+        # 4. 加载 UserBot 状态 (包含错误处理)
+        try:
+            await user_bot_state_service.load_state()
+            logger.info("UserBot 状态加载成功。")
+        except Exception as e:
+            # load_state 内部应记录具体错误，这里记录关键错误并退出
+            logger.critical(f"加载 UserBot 状态时发生致命错误: {e}", exc_info=True)
+            logger.critical("由于无法加载 UserBot 状态，程序将退出。")
+            sys.exit(1) # 退出程序
+
         # --- UserBot 功能初始化结束 ---
 
         await cleanup_service.start()
