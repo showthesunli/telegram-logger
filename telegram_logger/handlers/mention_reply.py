@@ -10,7 +10,7 @@ from .base_handler import BaseHandler
 from telegram_logger.data.database import DatabaseManager
 from telegram_logger.data.models import Message
 from telegram_logger.services.user_bot_state import UserBotStateService
-# from telegram_logger.services.ai_service import AIService # 稍后在阶段 5 添加
+from telegram_logger.services.ai_service import AIService
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class MentionReplyHandler(BaseHandler):
         db: DatabaseManager,
         state_service: UserBotStateService,
         my_id: int,
-        # ai_service: AIService, # 稍后在阶段 5 添加
+        ai_service: AIService,
         log_chat_id: int, # 从 BaseHandler 继承，但可能不需要
         ignored_ids: Set[int], # 从 BaseHandler 继承，但可能不需要
         **kwargs: Dict[str, Any]
@@ -38,7 +38,7 @@ class MentionReplyHandler(BaseHandler):
             db: DatabaseManager 实例。
             state_service: UserBotStateService 实例。
             my_id: 用户自己的 Telegram ID。
-            ai_service: AI 服务实例 (稍后添加)。
+            ai_service: AI 服务实例。
             log_chat_id: 日志频道 ID (可能未使用)。
             ignored_ids: 忽略的用户/群组 ID (可能未使用)。
             **kwargs: 其他传递给 BaseHandler 的参数。
@@ -162,13 +162,50 @@ class MentionReplyHandler(BaseHandler):
                     logger.error(f"从数据库加载历史消息时出错: {e}", exc_info=True)
                     # 加载历史失败不应阻止回复，继续执行
 
-            # --- 构建消息列表和调用 AI 服务的逻辑将在阶段 5 实现 ---
-            # Placeholder for constructing messages list for AI
-            # Placeholder for calling ai_service.get_openai_completion(...)
+            # --- 构建发送给 AI 的消息列表 ---
+            ai_messages: List[Dict[str, str]] = []
 
-            # 临时占位回复
-            reply_text = f"[AI 回复占位符 - 模型: {model_id}, 历史: {len(history_messages)}]"
-            logger.debug(f"准备调用 AI 模型 '{model_id}' 生成回复...")
+            # 1. 添加系统提示 (如果存在)
+            if system_prompt:
+                ai_messages.append({"role": "system", "content": system_prompt})
+                logger.debug("已添加系统提示到 AI 消息列表。")
+
+            # 2. 添加预设消息 (如果存在)
+            ai_messages.extend(preset_messages)
+            if preset_messages:
+                logger.debug(f"已添加 {len(preset_messages)} 条预设消息到 AI 消息列表。")
+
+            # 3. 添加历史消息 (按时间顺序)
+            # 注意：数据库返回的是按时间倒序，需要反转
+            for msg in reversed(history_messages):
+                # 假设 self.my_id 是机器人的 ID
+                role = "assistant" if msg.sender_id == self.my_id else "user"
+                content = msg.text or "[空消息或非文本]" # 确保有内容
+                ai_messages.append({"role": role, "content": content})
+            if history_messages:
+                 logger.debug(f"已添加 {len(history_messages)} 条历史消息到 AI 消息列表。")
+
+            # 4. 添加当前用户消息
+            ai_messages.append({"role": "user", "content": current_message_text})
+            logger.debug("已添加当前用户消息到 AI 消息列表。")
+
+            # --- 调用 AI 服务 ---
+            logger.debug(f"准备调用 AI 模型 '{model_id}' 生成回复，共 {len(ai_messages)} 条消息。")
+            try:
+                reply_text = await self.ai_service.get_openai_completion(
+                    model_id=model_id,
+                    messages=ai_messages
+                )
+                if reply_text:
+                    logger.info(f"成功从 AI 模型 '{model_id}' 获取回复。")
+                else:
+                    logger.warning(f"AI 模型 '{model_id}' 返回了空回复。")
+                    # 可以选择发送一个默认回复或直接返回
+                    reply_text = "抱歉，AI 暂时无法回复。" # 提供一个默认回复
+            except Exception as e:
+                logger.error(f"调用 AI 模型 '{model_id}' 时出错: {e}", exc_info=True)
+                # AI 调用失败，发送错误提示给用户
+                reply_text = f"抱歉，调用 AI ({model_id}) 时遇到错误，请稍后再试。"
             # --- AI 回复逻辑结束 ---
 
         else:
