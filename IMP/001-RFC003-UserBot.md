@@ -191,10 +191,48 @@
 
 **阶段 6: 错误处理与日志**
 
-1.  `[ ]` 在数据库操作、API 调用、消息发送等关键步骤添加 `try...except` 块。
-2.  `[ ]` 使用 `logging` 模块记录错误信息和关键执行步骤。
-3.  `[ ]` 确保用户指令处理失败时（如无效输入、权限问题）向用户返回友好的错误提示。
-4.  `[ ]` 确保自动回复过程中的内部错误（如 AI 服务失败、发送消息失败）只记录日志，不打扰用户或群组。
+*   **目标:** 确保系统在遇到预期和意外错误时能够健壮地运行，提供有用的日志信息，并向用户提供适当的反馈（仅在私聊指令中）。
+
+*   **通用原则:**
+    *   `[ ]` **日志记录:** 在所有关键操作（数据库交互、API 调用、状态变更、消息发送/接收）前后及异常处理块中使用 `logging` 模块记录信息。区分日志级别 (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`)。
+    *   `[ ]` **用户反馈:** 仅在处理用户私聊指令 (`UserBotCommandHandler`) 时，将操作成功或失败（及原因）反馈给用户。自动回复 (`MentionReplyHandler`) 中的内部错误**绝不**应在群组中发送错误消息，只记录日志。
+
+*   **具体模块实现:**
+
+    *   `[ ]` **`DatabaseManager`:**
+        *   `[ ]` 在执行 SQL 查询和修改的方法（如 `_sync_create`, `_sync_set`, `_sync_remove`, `_sync_get`, `_sync_save`, `_sync_add` 等的内部实现）中添加 `try...except sqlite3.Error` 块。
+        *   `[ ]` 在异常块中记录详细错误信息（例如，操作类型、涉及的表、错误消息）。
+        *   `[ ]` 根据方法约定，在捕获异常后返回 `None`, `False`, 空列表/字典，或重新引发包装后的自定义异常，以清晰地通知调用者操作失败。
+
+    *   `[ ]` **`UserBotStateService`:**
+        *   `[ ]` 在 `load_state` 方法中，为数据库调用（如 `get_user_bot_settings`, `get_target_groups` 等）添加错误处理。如果加载关键设置失败，记录 `CRITICAL` 错误，并考虑是否应该阻止服务完全启动或以安全的默认状态运行。加载非关键列表（如别名、群组）失败时记录 `ERROR` 并使用空列表/字典继续。
+        *   `[ ]` 在所有修改状态的方法（如 `set_model_alias`, `remove_group`, `set_ai_history_length` 等）中，处理来自 `DatabaseManager` 的调用可能返回的错误指示（`None`, `False` 等）。
+        *   `[ ]` 如果数据库更新失败，记录 `ERROR`，**不**更新内存状态，并向上层（通常是 `UserBotCommandHandler`）返回失败指示（例如 `False`）。
+        *   `[ ]` 在 `resolve_model_id` 和 `resolve_role_details` 中，处理别名不存在或数据库查询失败的情况，返回 `None` 并根据需要记录 `WARNING` 或 `DEBUG` 日志。
+        *   `[ ]` 在 `set_role_preset_messages` 中添加对输入 `presets_json` 的 `json.loads` 异常处理 (`json.JSONDecodeError`)，如果解析失败则返回错误指示。
+
+    *   `[ ]` **`AIService`:**
+        *   `[ ]` (已部分在阶段 5 实现) 在 `get_openai_completion` 中捕获 `openai` 库的特定异常 (`APIError`, `AuthenticationError`, `RateLimitError`, `BadRequestError` 等) 以及通用的网络异常 (如 `httpx.RequestError`)。
+        *   `[ ]` 记录 `ERROR` 级别的日志，包含错误类型和必要的上下文信息（如模型 ID）。
+        *   `[ ]` 确保在任何 API 或相关处理错误时返回 `None`。
+
+    *   `[ ]` **`UserBotCommandHandler`:**
+        *   `[ ]` 在 `handle_command` 的指令解析部分（如 `shlex.split`）添加 `try...except ValueError` 或 `IndexError` 来处理格式错误的命令。
+        *   `[ ]` 对每个指令的参数进行严格验证（类型、范围、格式如 JSON）。例如，验证 `.sethistory` 的数字范围，验证 `.setrolepreset` 的 JSON 格式。
+        *   `[ ]` 在调用 `UserBotStateService` 的修改状态方法后，检查其返回值以判断操作是否成功。
+        *   `[ ]` 如果解析、验证或状态更新失败，记录 `WARNING` 或 `INFO` 日志，并使用 `await event.respond()` 向用户发送清晰、具体的错误消息（例如：“无效的参数：历史数量必须是 0 到 20 之间的整数。” 或 “操作失败：无法更新角色预设，请检查 JSON 格式。” 或 “数据库错误，无法保存设置。”）。
+        *   `[ ]` 捕获发送响应消息 (`event.respond`) 时可能出现的 `telethon` 异常（如 `telethon.errors.FloodWaitError`），记录 `ERROR`。
+
+    *   `[ ]` **`MentionReplyHandler`:**
+        *   `[ ]` 在 `handle_event` 的开头，为整个处理过程添加一个顶层 `try...except Exception` 块，以捕获任何未预料的错误，记录 `CRITICAL` 日志并确保处理流程安全终止，不影响后续事件的处理。
+        *   `[ ]` 在调用 `UserBotStateService` (如 `is_enabled`, `resolve_role_details`, `check_rate_limit`) 时，处理可能出现的异常或错误返回值（如 `None`），记录 `ERROR` 并 `return` 终止当前事件的处理。
+        *   `[ ]` 在调用 `db.get_messages_before` 时添加 `try...except sqlite3.Error`，记录 `ERROR` 并 `return`。
+        *   `[ ]` 在调用 `ai_service.get_openai_completion` 后，检查返回值是否为 `None`。如果是，表示 AI 调用失败，记录 `ERROR` 并 `return`。
+        *   `[ ]` 在调用 `event.reply()` 发送消息时添加 `try...except` (捕获 `telethon` 相关异常，如权限错误 `telethon.errors.rpcerrorlist.ChatWriteForbiddenError` 或消息格式错误)。记录 `ERROR`，**绝不**在群组中回复错误信息。只有在发送成功后才调用 `state_service.update_rate_limit`。
+
+    *   `[ ]` **`main.py` / `TelegramClientService`:**
+        *   `[ ]` 在 `main` 函数中，捕获 `UserBotStateService.load_state()` 可能引发的严重错误，记录 `CRITICAL` 日志并决定是否需要优雅地退出程序。
+        *   `[ ]` 在 `TelegramClientService.initialize` 或相关启动逻辑中，处理客户端连接 (`client.start()`) 可能出现的认证错误 (`telethon.errors.AuthKeyError`, `telethon.errors.PhoneNumberInvalidError` 等) 或网络错误，记录 `CRITICAL` 日志并确保程序无法在失败状态下继续运行。
 
 **阶段 7: 应用初始化与依赖注入 (`telegram_logger/main.py`)**
 
