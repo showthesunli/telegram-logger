@@ -240,8 +240,8 @@
 
 **阶段 7: 应用初始化与依赖注入 (`telegram_logger/main.py`)**
 
-1.  `[ ]` **[Init]** 在 `main()` 函数中，获取 `TelegramClientService` 实例 (`client_service`)。
-2.  `[ ]` **[Init]** 调用 `user_id = await client_service.initialize()` 并存储返回的用户 ID。
+1.  `[x]` **[Init]** 在 `main()` 函数中，获取 `TelegramClientService` 实例 (`client_service`)。 (已实现)
+2.  `[x]` **[Init]** 调用 `user_id = await client_service.initialize()` 并存储返回的用户 ID。 (已实现)
 3.  `[ ]` **[Init]** 创建 `UserBotStateService` 实例，将 `DatabaseManager` 实例 (`db`) 和获取到的 `user_id` 传递给其构造函数。
     ```python
     # 示例
