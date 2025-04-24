@@ -1,9 +1,11 @@
 import sqlite3
 import os
 import logging
+import asyncio
+import json
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from .models import Message
 
 logger = logging.getLogger(__name__)
@@ -240,9 +242,264 @@ class DatabaseManager:
             edited_time=datetime.fromisoformat(row['edited_time']) if row['edited_time'] else None
         )
 
+    async def create_role_alias(self, alias: str, role_type: str, static_content: Optional[str] = None):
+        """创建角色别名，如果是 static 类型则同时设置内容。"""
+        def _sync_create():
+            if role_type not in ('static', 'ai'):
+                raise ValueError("role_type 必须是 'static' 或 'ai'")
+            try:
+                self.conn.execute(
+                    """
+                    INSERT OR IGNORE INTO user_bot_role_aliases 
+                    (alias, role_type, static_content) 
+                    VALUES (?, ?, ?)
+                    """,
+                    (alias, role_type, static_content if role_type == 'static' else None)
+                )
+                if role_type == 'static' and static_content is not None:
+                     self.conn.execute(
+                         "UPDATE user_bot_role_aliases SET static_content = ? WHERE alias = ? AND role_type = 'static'",
+                         (static_content, alias)
+                     )
+                self.conn.commit()
+                logger.info(f"已创建或更新角色别名: {alias} (类型: {role_type})")
+            except sqlite3.Error as e:
+                logger.error(f"创建角色别名 '{alias}' 时出错: {e}", exc_info=True)
+                self.conn.rollback()
+                raise
+        await asyncio.to_thread(_sync_create)
+
+    async def set_role_description(self, alias: str, description: str):
+        """设置角色描述。"""
+        def _sync_set():
+            try:
+                cursor = self.conn.execute("UPDATE user_bot_role_aliases SET description = ? WHERE alias = ?", (description, alias))
+                self.conn.commit()
+                if cursor.rowcount > 0:
+                    logger.info(f"已更新角色 '{alias}' 的描述。")
+                else:
+                    logger.warning(f"尝试更新角色 '{alias}' 的描述，但未找到该别名。")
+            except sqlite3.Error as e:
+                logger.error(f"更新角色 '{alias}' 描述时出错: {e}", exc_info=True)
+                self.conn.rollback()
+                raise
+        await asyncio.to_thread(_sync_set)
+
+    async def set_role_static_content(self, alias: str, content: str):
+        """更新 static 角色的内容。"""
+        def _sync_set():
+            try:
+                cursor = self.conn.execute(
+                    "UPDATE user_bot_role_aliases SET static_content = ? WHERE alias = ? AND role_type = 'static'",
+                    (content, alias)
+                )
+                self.conn.commit()
+                if cursor.rowcount > 0:
+                    logger.info(f"已更新 static 角色 '{alias}' 的内容。")
+                else:
+                    logger.warning(f"尝试更新 static 角色 '{alias}' 的内容，但未找到该别名或类型不匹配。")
+            except sqlite3.Error as e:
+                logger.error(f"更新 static 角色 '{alias}' 内容时出错: {e}", exc_info=True)
+                self.conn.rollback()
+                raise
+        await asyncio.to_thread(_sync_set)
+
+    async def set_role_system_prompt(self, alias: str, prompt: str):
+        """设置 AI 角色的系统提示。"""
+        def _sync_set():
+            try:
+                cursor = self.conn.execute(
+                    "UPDATE user_bot_role_aliases SET system_prompt = ? WHERE alias = ? AND role_type = 'ai'",
+                    (prompt, alias)
+                )
+                self.conn.commit()
+                if cursor.rowcount > 0:
+                    logger.info(f"已更新 AI 角色 '{alias}' 的系统提示。")
+                else:
+                    logger.warning(f"尝试更新 AI 角色 '{alias}' 的系统提示，但未找到该别名或类型不匹配。")
+            except sqlite3.Error as e:
+                logger.error(f"更新 AI 角色 '{alias}' 系统提示时出错: {e}", exc_info=True)
+                self.conn.rollback()
+                raise
+        await asyncio.to_thread(_sync_set)
+
+    async def set_role_preset_messages(self, alias: str, presets_json: str):
+        """设置 AI 角色的预设消息 (传入前需确保 presets_json 是有效的 JSON 字符串)。"""
+        try:
+            json.loads(presets_json)
+        except json.JSONDecodeError:
+             logger.error(f"为角色 '{alias}' 设置的预设消息不是有效的 JSON 字符串。")
+             raise ValueError("预设消息必须是有效的 JSON 字符串")
+
+        def _sync_set():
+            try:
+                cursor = self.conn.execute(
+                    "UPDATE user_bot_role_aliases SET preset_messages = ? WHERE alias = ? AND role_type = 'ai'",
+                    (presets_json, alias)
+                )
+                self.conn.commit()
+                if cursor.rowcount > 0:
+                    logger.info(f"已更新 AI 角色 '{alias}' 的预设消息。")
+                else:
+                    logger.warning(f"尝试更新 AI 角色 '{alias}' 的预设消息，但未找到该别名或类型不匹配。")
+            except sqlite3.Error as e:
+                logger.error(f"更新 AI 角色 '{alias}' 预设消息时出错: {e}", exc_info=True)
+                self.conn.rollback()
+                raise
+        await asyncio.to_thread(_sync_set)
+
+    async def remove_role_alias(self, alias: str):
+        """删除角色别名及其配置。"""
+        def _sync_remove():
+            try:
+                cursor = self.conn.execute("DELETE FROM user_bot_role_aliases WHERE alias = ?", (alias,))
+                self.conn.commit()
+                if cursor.rowcount > 0:
+                    logger.info(f"已删除角色别名: {alias}")
+                else:
+                    logger.warning(f"尝试删除角色别名 '{alias}'，但未找到该记录。")
+            except sqlite3.Error as e:
+                logger.error(f"删除角色别名 '{alias}' 时出错: {e}", exc_info=True)
+                self.conn.rollback()
+                raise
+        await asyncio.to_thread(_sync_remove)
+
+    async def get_role_aliases(self) -> Dict[str, Dict[str, Any]]:
+        """获取所有角色别名及其配置。"""
+        def _sync_get():
+            roles = {}
+            try:
+                cursor = self.conn.execute("SELECT * FROM user_bot_role_aliases")
+                for row in cursor:
+                    roles[row['alias']] = dict(row)
+            except sqlite3.Error as e:
+                logger.error(f"获取角色别名列表时出错: {e}", exc_info=True)
+            return roles
+        return await asyncio.to_thread(_sync_get)
+
+    async def get_role_details_by_alias(self, alias: str) -> Optional[Dict[str, Any]]:
+        """获取指定角色别名的详细配置。"""
+        def _sync_get():
+            try:
+                cursor = self.conn.cursor()
+                cursor.execute("SELECT * FROM user_bot_role_aliases WHERE alias = ?", (alias,))
+                row = cursor.fetchone()
+                return dict(row) if row else None
+            except sqlite3.Error as e:
+                logger.error(f"获取角色 '{alias}' 详情时出错: {e}", exc_info=True)
+                return None
+        return await asyncio.to_thread(_sync_get)
+
+    async def get_messages_before(
+        self, chat_id: int, before_message_id: int, limit: int
+    ) -> List[Message]:
+        """获取指定聊天中某条消息之前的N条消息（按消息ID降序，即时间倒序）。"""
+        def _sync_get():
+            messages = []
+            try:
+                query = """
+                    SELECT * FROM messages 
+                    WHERE chat_id = ? AND id < ? 
+                    ORDER BY id DESC 
+                    LIMIT ?
+                """
+                params = [chat_id, before_message_id, limit]
+                cursor = self.conn.execute(query, params)
+                messages = [self._row_to_message(row) for row in cursor]
+                messages.reverse()
+            except sqlite3.Error as e:
+                logger.error(f"获取 chat_id={chat_id} 中消息 {before_message_id} 之前的消息时出错: {e}", exc_info=True)
+            return messages
+        return await asyncio.to_thread(_sync_get)
+
     def close(self):
         """Close database connection"""
         self.conn.close()
+
+    # --- User Bot Settings Methods ---
+    
+    async def get_user_bot_settings(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """获取指定用户的机器人设置。"""
+        def _sync_get():
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT * FROM user_bot_settings WHERE user_id = ?", (user_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        try:
+            return await asyncio.to_thread(_sync_get)
+        except sqlite3.Error as e:
+            logger.error(f"获取用户 {user_id} 机器人设置时出错: {e}", exc_info=True)
+            return None
+
+    async def save_user_bot_settings(self, user_id: int, settings: Dict[str, Any]):
+        """保存或更新用户机器人设置 (使用 INSERT OR REPLACE)。"""
+        def _sync_save():
+            data = (
+                user_id,
+                settings.get('enabled', 0),
+                settings.get('reply_trigger_enabled', 0),
+                settings.get('ai_history_length', 1),
+                settings.get('current_model_id', 'gpt-3.5-turbo'),
+                settings.get('current_role_alias', 'default_assistant'),
+                settings.get('rate_limit_seconds', 60)
+            )
+            try:
+                self.conn.execute(
+                    """
+                    INSERT OR REPLACE INTO user_bot_settings 
+                    (user_id, enabled, reply_trigger_enabled, ai_history_length, current_model_id, current_role_alias, rate_limit_seconds) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    data
+                )
+                self.conn.commit()
+                logger.info(f"已保存用户 {user_id} 的机器人设置。")
+            except sqlite3.Error as e:
+                logger.error(f"保存用户 {user_id} 机器人设置时出错: {e}", exc_info=True)
+                self.conn.rollback()
+                raise
+
+        await asyncio.to_thread(_sync_save)
+
+    async def add_target_group(self, chat_id: int):
+        """添加目标群组。"""
+        def _sync_add():
+            try:
+                self.conn.execute("INSERT OR IGNORE INTO user_bot_target_groups (chat_id) VALUES (?)", (chat_id,))
+                self.conn.commit()
+                logger.info(f"已添加目标群组: {chat_id}")
+            except sqlite3.Error as e:
+                logger.error(f"添加目标群组 {chat_id} 时出错: {e}", exc_info=True)
+                self.conn.rollback()
+                raise
+        await asyncio.to_thread(_sync_add)
+
+    async def remove_target_group(self, chat_id: int):
+        """移除目标群组。"""
+        def _sync_remove():
+            try:
+                cursor = self.conn.execute("DELETE FROM user_bot_target_groups WHERE chat_id = ?", (chat_id,))
+                self.conn.commit()
+                if cursor.rowcount > 0:
+                     logger.info(f"已移除目标群组: {chat_id}")
+                else:
+                     logger.warning(f"尝试移除目标群组 {chat_id}，但未找到该记录。")
+            except sqlite3.Error as e:
+                logger.error(f"移除目标群组 {chat_id} 时出错: {e}", exc_info=True)
+                self.conn.rollback()
+                raise
+        await asyncio.to_thread(_sync_remove)
+
+    async def get_target_groups(self) -> List[int]:
+        """获取所有目标群组 ID。"""
+        def _sync_get():
+            try:
+                cursor = self.conn.execute("SELECT chat_id FROM user_bot_target_groups")
+                return [row['chat_id'] for row in cursor]
+            except sqlite3.Error as e:
+                logger.error(f"获取目标群组列表时出错: {e}", exc_info=True)
+                return []
+        return await asyncio.to_thread(_sync_get)
 
     # Message type constants and validation
     MSG_TYPE_MAP = {
@@ -251,4 +508,59 @@ class DatabaseManager:
         'group': 3,
         'bot': 4
     }
+
+    async def set_model_alias(self, alias: str, model_id: str):
+        """设置模型别名。"""
+        def _sync_set():
+            try:
+                self.conn.execute("INSERT OR REPLACE INTO user_bot_model_aliases (alias, model_id) VALUES (?, ?)", (alias, model_id))
+                self.conn.commit()
+                logger.info(f"已设置模型别名: {alias} -> {model_id}")
+            except sqlite3.Error as e:
+                logger.error(f"设置模型别名 '{alias}' 时出错: {e}", exc_info=True)
+                self.conn.rollback()
+                raise
+        await asyncio.to_thread(_sync_set)
+
+    async def remove_model_alias(self, alias: str):
+        """移除模型别名。"""
+        def _sync_remove():
+            try:
+                cursor = self.conn.execute("DELETE FROM user_bot_model_aliases WHERE alias = ?", (alias,))
+                self.conn.commit()
+                if cursor.rowcount > 0:
+                    logger.info(f"已移除模型别名: {alias}")
+                else:
+                    logger.warning(f"尝试移除模型别名 '{alias}'，但未找到该记录。")
+            except sqlite3.Error as e:
+                logger.error(f"移除模型别名 '{alias}' 时出错: {e}", exc_info=True)
+                self.conn.rollback()
+                raise
+        await asyncio.to_thread(_sync_remove)
+
+    async def get_model_aliases(self) -> Dict[str, str]:
+        """获取所有模型别名。"""
+        def _sync_get():
+            aliases = {}
+            try:
+                cursor = self.conn.execute("SELECT alias, model_id FROM user_bot_model_aliases")
+                for row in cursor:
+                    aliases[row['alias']] = row['model_id']
+            except sqlite3.Error as e:
+                logger.error(f"获取模型别名列表时出错: {e}", exc_info=True)
+            return aliases
+        return await asyncio.to_thread(_sync_get)
+
+    async def get_model_id_by_alias(self, alias: str) -> Optional[str]:
+        """通过别名查找模型 ID。"""
+        def _sync_get():
+            try:
+                cursor = self.conn.cursor()
+                cursor.execute("SELECT model_id FROM user_bot_model_aliases WHERE alias = ?", (alias,))
+                row = cursor.fetchone()
+                return row['model_id'] if row else None
+            except sqlite3.Error as e:
+                logger.error(f"通过别名 '{alias}' 查找模型 ID 时出错: {e}", exc_info=True)
+                return None
+        return await asyncio.to_thread(_sync_get)
 
