@@ -69,25 +69,25 @@
 **阶段 1: 数据模型与存储层 (`telegram_logger/data`)**
 
 1.  `[x]` **[DB]** 在 `DatabaseManager._create_tables` 中添加创建上述 `user_bot_settings`, `user_bot_target_groups`, `user_bot_model_aliases`, `user_bot_role_aliases` 四个表的 SQL 语句。
-2.  `[ ]` **[DB]** 实现 `DatabaseManager` 中的异步方法 (`async def`) 来管理这些表：
-    *   `[ ]` `get_user_bot_settings(user_id: int) -> Optional[Dict]`：获取指定用户的设置。
-    *   `[ ]` `save_user_bot_settings(user_id: int, settings: Dict)`：保存或更新用户设置 (使用 `INSERT OR REPLACE`)。
-    *   `[ ]` `add_target_group(chat_id: int)`：添加目标群组。
-    *   `[ ]` `remove_target_group(chat_id: int)`：移除目标群组。
-    *   `[ ]` `get_target_groups() -> List[int]`：获取所有目标群组 ID。
-    *   `[ ]` `set_model_alias(alias: str, model_id: str)`：设置模型别名。
-    *   `[ ]` `remove_model_alias(alias: str)`：移除模型别名。
-    *   `[ ]` `get_model_aliases() -> Dict[str, str]`：获取所有模型别名。
-    *   `[ ]` `get_model_id_by_alias(alias: str) -> Optional[str]`：通过别名查找模型 ID。
-    *   `[ ]` `create_role_alias(alias: str, role_type: str, static_content: Optional[str] = None)`：创建角色别名，如果是 static 类型则同时设置内容。
-    *   `[ ]` `set_role_description(alias: str, description: str)`：设置角色描述。
-    *   `[ ]` `set_role_static_content(alias: str, content: str)`：更新 static 角色的内容。
-    *   `[ ]` `set_role_system_prompt(alias: str, prompt: str)`：设置 AI 角色的系统提示。
-    *   `[ ]` `set_role_preset_messages(alias: str, presets_json: str)`：设置 AI 角色的预设消息 (传入前需确保 `presets_json` 是有效的 JSON 字符串)。
-    *   `[ ]` `remove_role_alias(alias: str)`：删除角色别名及其配置。
-    *   `[ ]` `get_role_aliases() -> Dict[str, Dict[str, Any]]`：获取所有角色别名及其配置。
-    *   `[ ]` `get_role_details_by_alias(alias: str) -> Optional[Dict[str, Any]]`：获取指定角色别名的详细配置。
-    *   `[ ]` `async get_messages_before(chat_id: int, before_message_id: int, limit: int) -> List[Message]`：获取指定聊天中某条消息之前的N条消息（按id降序排列）。
+2.  `[x]` **[DB]** 实现 `DatabaseManager` 中的异步方法 (`async def`) 来管理这些表：
+    *   `[x]` `get_user_bot_settings(user_id: int) -> Optional[Dict]`：获取指定用户的设置。
+    *   `[x]` `save_user_bot_settings(user_id: int, settings: Dict)`：保存或更新用户设置 (使用 `INSERT OR REPLACE`)。
+    *   `[x]` `add_target_group(chat_id: int)`：添加目标群组。
+    *   `[x]` `remove_target_group(chat_id: int)`：移除目标群组。
+    *   `[x]` `get_target_groups() -> List[int]`：获取所有目标群组 ID。
+    *   `[x]` `set_model_alias(alias: str, model_id: str)`：设置模型别名。
+    *   `[x]` `remove_model_alias(alias: str)`：移除模型别名。
+    *   `[x]` `get_model_aliases() -> Dict[str, str]`：获取所有模型别名。
+    *   `[x]` `get_model_id_by_alias(alias: str) -> Optional[str]`：通过别名查找模型 ID。
+    *   `[x]` `create_role_alias(alias: str, role_type: str, static_content: Optional[str] = None)`：创建角色别名，如果是 static 类型则同时设置内容。
+    *   `[x]` `set_role_description(alias: str, description: str)`：设置角色描述。
+    *   `[x]` `set_role_static_content(alias: str, content: str)`：更新 static 角色的内容。
+    *   `[x]` `set_role_system_prompt(alias: str, prompt: str)`：设置 AI 角色的系统提示。
+    *   `[x]` `set_role_preset_messages(alias: str, presets_json: str)`：设置 AI 角色的预设消息 (传入前需确保 `presets_json` 是有效的 JSON 字符串)。
+    *   `[x]` `remove_role_alias(alias: str)`：删除角色别名及其配置。
+    *   `[x]` `get_role_aliases() -> Dict[str, Dict[str, Any]]`：获取所有角色别名及其配置。
+    *   `[x]` `get_role_details_by_alias(alias: str) -> Optional[Dict[str, Any]]`：获取指定角色别名的详细配置。
+    *   `[x]` `async get_messages_before(chat_id: int, before_message_id: int, limit: int) -> List[Message]`：获取指定聊天中某条消息之前的N条消息（按id降序排列）。
 3.  `[ ]` **[Model]** (推荐) 创建 Dataclass `RoleDetails` 来表示从数据库读取的角色配置，包含 `alias`, `role_type`, `description`, `static_content`, `system_prompt`, `preset_messages` (原始 JSON 字符串) 字段。
 
 **阶段 2: 状态管理 (`telegram_logger/services`)**
