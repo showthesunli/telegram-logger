@@ -225,14 +225,14 @@
         *   `[x]` 使用 `try...except telethon.errors.FloodWaitError` 等 `telethon` 相关异常包裹 `await event.respond(...)` 调用，并在捕获异常时记录 `ERROR`。 (已通过 `_safe_respond` 实现)
 
     *   **`MentionReplyHandler`:**
-        *   `[ ]` 在 `handle_event` 方法的开头，添加一个顶层的 `try...except Exception as e:` 块包裹整个处理逻辑。
-        *   `[ ]` 在顶层 `except` 块中，使用 `logger.critical("Unhandled exception in MentionReplyHandler: %s", e, exc_info=True)` 记录未预料的错误，然后 `return` 以确保处理流程安全终止。
-        *   `[ ]` 在调用 `UserBotStateService` 的方法（如 `is_enabled`, `resolve_role_details`, `check_rate_limit`）后，检查其返回值是否表示错误或无效状态（例如 `None`）。如果是，记录 `ERROR` 并 `return` 提前终止处理。
-        *   `[ ]` 使用 `try...except sqlite3.Error` 包裹对 `self.db.get_messages_before(...)` 的调用。在 `except` 块中记录 `ERROR` 并 `return`。
-        *   `[ ]` 在调用 `self.ai_service.get_openai_completion(...)` 后，检查返回值是否为 `None`。如果是，表示 AI 调用失败，记录 `ERROR` 并 `return`。
-        *   `[ ]` 使用 `try...except (telethon.errors.rpcerrorlist.ChatWriteForbiddenError, Exception) as e:` 包裹对 `await event.reply(...)` 的调用。
-        *   `[ ]` 在 `event.reply` 的 `except` 块中，记录 `ERROR`，**不要**尝试在群组中发送任何错误信息。
-        *   `[ ]` 确保 `self.state_service.update_rate_limit(event.chat_id)` 只在 `await event.reply(...)` 调用**成功后**（即没有抛出异常）才被执行。
+        *   `[x]` 在 `handle_event` 方法的开头，添加一个顶层的 `try...except Exception as e:` 块包裹整个处理逻辑。 (已实现)
+        *   `[x]` 在顶层 `except` 块中，使用 `logger.critical("Unhandled exception in MentionReplyHandler: %s", e, exc_info=True)` 记录未预料的错误，然后 `return` 以确保处理流程安全终止。 (已实现)
+        *   `[x]` 在调用 `UserBotStateService` 的方法（如 `is_enabled`, `resolve_role_details`, `check_rate_limit`）后，检查其返回值是否表示错误或无效状态（例如 `None`）。如果是，记录 `ERROR` 并 `return` 提前终止处理。 (已实现)
+        *   `[x]` 使用 `try...except sqlite3.Error` 包裹对 `self.db.get_messages_before(...)` 的调用。在 `except` 块中记录 `ERROR` 并 `return`。 (已实现)
+        *   `[x]` 在调用 `self.ai_service.get_openai_completion(...)` 后，检查返回值是否为 `None`。如果是，表示 AI 调用失败，记录 `ERROR` 并 `return`。 (已实现)
+        *   `[x]` 使用 `try...except (telethon.errors.rpcerrorlist.ChatWriteForbiddenError, Exception) as e:` 包裹对 `await event.reply(...)` 的调用。 (已实现)
+        *   `[x]` 在 `event.reply` 的 `except` 块中，记录 `ERROR`，**不要**尝试在群组中发送任何错误信息。 (已实现)
+        *   `[x]` 确保 `self.state_service.update_rate_limit(event.chat_id)` 只在 `await event.reply(...)` 调用**成功后**（即没有抛出异常）才被执行。 (已实现)
 
     *   **`main.py` / `TelegramClientService`:**
         *   `[ ]` 在 `main.py` 的 `main` 函数中，使用 `try...except Exception` 包裹对 `user_bot_state_service.load_state()` 的调用。在 `except` 块中记录 `CRITICAL` 错误，并考虑是否需要 `sys.exit(1)` 退出程序。
