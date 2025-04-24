@@ -1,6 +1,7 @@
 import logging
 import shlex
-from typing import Set, Dict, Any, Optional
+import json # 新增导入
+from typing import Set, Dict, Any, Optional, List # 增加 List
 
 from telethon import TelegramClient, events
 from telethon.tl.types import Message as TelethonMessage
@@ -113,7 +114,73 @@ class MentionReplyHandler(BaseHandler):
 
         logger.debug(f"使用角色 '{current_role_alias}' (类型: {role_details.get('role_type')}) 进行回复。")
 
-        # --- 后续逻辑：生成回复、发送回复等将在后续步骤实现 ---
+        # 7. 生成回复内容
+        reply_text: Optional[str] = None
+        role_type = role_details.get('role_type')
+
+        if role_type == 'static':
+            reply_text = role_details.get('static_content')
+            if not reply_text:
+                logger.warning(f"静态角色 '{current_role_alias}' 没有设置回复内容，无法回复。")
+                return
+            logger.debug(f"静态回复内容: '{reply_text[:50]}...'")
+
+        elif role_type == 'ai':
+            # --- AI 回复逻辑 (部分实现，AI 调用将在阶段 5 完成) ---
+            model_id = await self.state_service.resolve_model_id(self.state_service.get_current_model_id())
+            if not model_id:
+                 logger.error(f"无法解析当前模型 '{self.state_service.get_current_model_id()}'，无法生成 AI 回复。")
+                 return
+
+            system_prompt = role_details.get('system_prompt')
+            preset_messages_json = role_details.get('preset_messages')
+            history_count = self.state_service.get_ai_history_length()
+            current_message_text = event.message.text or "" # 获取当前消息文本
+
+            preset_messages: List[Dict[str, str]] = []
+            if preset_messages_json:
+                try:
+                    preset_messages = json.loads(preset_messages_json)
+                    if not isinstance(preset_messages, list):
+                        raise ValueError("预设消息 JSON 不是列表")
+                    logger.debug(f"加载了 {len(preset_messages)} 条预设消息。")
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.warning(f"解析角色 '{current_role_alias}' 的预设消息失败: {e}，将忽略预设。")
+                    preset_messages = []
+
+            history_messages: List[Message] = []
+            if history_count > 0:
+                try:
+                    # 注意：get_messages_before 返回的是按时间正序排列的列表
+                    history_messages = await self.db.get_messages_before(
+                        chat_id=event.chat_id,
+                        before_message_id=event.message.id,
+                        limit=history_count
+                    )
+                    logger.debug(f"加载了 {len(history_messages)} 条历史消息。")
+                except Exception as e:
+                    logger.error(f"从数据库加载历史消息时出错: {e}", exc_info=True)
+                    # 加载历史失败不应阻止回复，继续执行
+
+            # --- 构建消息列表和调用 AI 服务的逻辑将在阶段 5 实现 ---
+            # Placeholder for constructing messages list for AI
+            # Placeholder for calling ai_service.get_openai_completion(...)
+
+            # 临时占位回复
+            reply_text = f"[AI 回复占位符 - 模型: {model_id}, 历史: {len(history_messages)}]"
+            logger.debug(f"准备调用 AI 模型 '{model_id}' 生成回复...")
+            # --- AI 回复逻辑结束 ---
+
+        else:
+            logger.error(f"未知的角色类型 '{role_type}'，无法生成回复。")
+            return
+
+        if reply_text is None: # 再次检查，确保 reply_text 已被赋值
+             logger.error("未能生成有效的回复文本。")
+             return
+
+        # --- 后续逻辑：发送回复、更新频率限制等将在后续步骤实现 ---
+        logger.info(f"准备发送回复 (类型: {role_type})")
         pass # 占位符
 
     async def process(self, event: events.common.EventCommon) -> Optional[Message]:
