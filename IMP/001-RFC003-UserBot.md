@@ -133,7 +133,7 @@
         *   `[x]` 回复确认消息，例如 `await event.respond(f"AI 上下文历史消息数量已设置为 {count}。")`。
     *   `[x]` 确保 `.status` 指令调用 `self.state_service.get_ai_history_length()` 并将其包含在回复给用户的状态信息中。
     *   `[x]` 将 `.sethistory <数量>` 指令及其描述添加到 `.help` 命令的输出中。
-6.  `[ ]` **[Registration]** 事件注册将在阶段 7 中通过 `client.add_event_handler` 显式完成，而不是在此处使用装饰器。
+6.  `[x]` **[Registration]** 事件注册将在阶段 7 中通过 `client.add_event_handler` 显式完成，而不是在此处使用装饰器。 (已确认，无代码实现)
 
 **阶段 4: 自动回复逻辑 (`MentionReplyHandler`)**
 
