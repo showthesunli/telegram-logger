@@ -184,11 +184,11 @@
     *   `[x]` 从环境变量加载 `OPENAI_API_KEY` 和 `OPENAI_BASE_URL` (如果设置了)。 (已实现，通过惰性初始化)
     *   `[x]` 处理 API 调用可能出现的异常（例如 `openai.APIError`, `openai.AuthenticationError`, `openai.RateLimitError`, `openai.BadRequestError` 等），记录错误日志并返回 `None`。 (已实现)
     *   `[x]` 解析 API 响应，提取生成的文本内容并返回。 (已实现)
-5.  `[ ]` **[Integration]** 在阶段 4 的 `handle_mention_or_reply` 函数中，当角色类型为 `ai` 时：
-    *   `[ ]` 导入并（可能需要实例化）`AIService`。
-    *   `[ ]` **构建消息列表:** 按照 OpenAI 格式，正确组合系统提示 (`system_prompt`)、预设消息 (`preset_messages`)、历史对话消息 (`history_context_messages`) 和当前用户消息 (`event.message.text`)。确保角色 (`system`, `user`, `assistant`) 分配正确。
-    *   `[ ]` 调用 `await ai_service.get_openai_completion(model_id=model_id, messages=constructed_messages)` 获取回复。
-    *   `[ ]` **(补充) 转换历史消息:** 需要明确如何将从数据库获取的 `Message` 对象列表 (`history_context_messages`) 转换为 OpenAI 需要的 `{"role": "...", "content": "..."}` 格式列表，根据 `message.from_id == self.my_id` 判断 `role` 是 `assistant` 还是 `user`。
+5.  `[x]` **[Integration]** 在阶段 4 的 `handle_mention_or_reply` 函数中，当角色类型为 `ai` 时：
+    *   `[x]` 导入并（可能需要实例化）`AIService`。 (已实现，通过 __init__ 注入)
+    *   `[x]` **构建消息列表:** 按照 OpenAI 格式，正确组合系统提示 (`system_prompt`)、预设消息 (`preset_messages`)、历史对话消息 (`history_context_messages`) 和当前用户消息 (`event.message.text`)。确保角色 (`system`, `user`, `assistant`) 分配正确。 (已实现)
+    *   `[x]` 调用 `await ai_service.get_openai_completion(model_id=model_id, messages=constructed_messages)` 获取回复。 (已实现)
+    *   `[x]` **(补充) 转换历史消息:** 需要明确如何将从数据库获取的 `Message` 对象列表 (`history_context_messages`) 转换为 OpenAI 需要的 `{"role": "...", "content": "..."}` 格式列表，根据 `message.from_id == self.my_id` 判断 `role` 是 `assistant` 还是 `user`。 (已实现)
 
 **阶段 6: 错误处理与日志**
 
