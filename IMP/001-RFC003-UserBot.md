@@ -235,8 +235,8 @@
         *   `[x]` 确保 `self.state_service.update_rate_limit(event.chat_id)` 只在 `await event.reply(...)` 调用**成功后**（即没有抛出异常）才被执行。 (已实现)
 
     *   **`main.py` / `TelegramClientService`:**
-        *   `[ ]` 在 `main.py` 的 `main` 函数中，使用 `try...except Exception` 包裹对 `user_bot_state_service.load_state()` 的调用。在 `except` 块中记录 `CRITICAL` 错误，并考虑是否需要 `sys.exit(1)` 退出程序。
-        *   `[ ]` 在 `TelegramClientService.initialize` 方法中，使用 `try...except (telethon.errors.AuthKeyError, telethon.errors.PhoneNumberInvalidError, Exception) as e:` 包裹对 `self.client.start()` 的调用。在 `except` 块中记录 `CRITICAL` 错误，并确保方法返回或引发异常，以阻止程序在客户端未成功连接的情况下继续运行。
+        *   `[x]` 在 `main.py` 的 `main` 函数中，使用 `try...except Exception` 包裹对 `user_bot_state_service.load_state()` 的调用。在 `except` 块中记录 `CRITICAL` 错误，并考虑是否需要 `sys.exit(1)` 退出程序。 (已在阶段 7 实现)
+        *   `[x]` 在 `TelegramClientService.initialize` 方法中，使用 `try...except (telethon.errors.AuthKeyError, telethon.errors.PhoneNumberInvalidError, Exception) as e:` 包裹对 `self.client.start()` 的调用。在 `except` 块中记录 `CRITICAL` 错误，并确保方法返回或引发异常，以阻止程序在客户端未成功连接的情况下继续运行。 (已实现)
 
 **阶段 7: 应用初始化与依赖注入 (`telegram_logger/main.py`)**
 
