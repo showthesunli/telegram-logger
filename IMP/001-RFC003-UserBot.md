@@ -88,7 +88,7 @@
     *   `[x]` `get_role_aliases() -> Dict[str, Dict[str, Any]]`：获取所有角色别名及其配置。
     *   `[x]` `get_role_details_by_alias(alias: str) -> Optional[Dict[str, Any]]`：获取指定角色别名的详细配置。
     *   `[x]` `async get_messages_before(chat_id: int, before_message_id: int, limit: int) -> List[Message]`：获取指定聊天中某条消息之前的N条消息（按id降序排列）。
-3.  `[ ]` **[Model]** (推荐) 创建 Dataclass `RoleDetails` 来表示从数据库读取的角色配置，包含 `alias`, `role_type`, `description`, `static_content`, `system_prompt`, `preset_messages` (原始 JSON 字符串) 字段。
+3.  `[x]` **[Model]** (推荐) 创建 Dataclass `RoleDetails` 来表示从数据库读取的角色配置，包含 `alias`, `role_type`, `description`, `static_content`, `system_prompt`, `preset_messages` (原始 JSON 字符串) 字段。
 
 **阶段 2: 状态管理 (`telegram_logger/services`)**
 
