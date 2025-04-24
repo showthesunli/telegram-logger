@@ -291,10 +291,10 @@
     # 注册处理提及/回复的方法
     client_service.client.add_event_handler(
         mention_reply_handler.handle_event, # Handler 实例的方法
-        events.NewMessage() # 更精细的过滤在 handle_event 方法内部完成
+        events.NewMessage(incoming=True) # 更精细的过滤在 handle_event 方法内部完成
     )
     ```
-9.  `[ ]` **[Management]** (可选) 如果需要统一管理所有 Handler，可以将新创建的 Handler 实例添加到 `client_service` 的 `handlers` 列表中（如果 `TelegramClientService` 设计支持）。
+9.  `[x]` **[Management]** (可选) 如果需要统一管理所有 Handler，可以将新创建的 Handler 实例添加到 `client_service` 的 `handlers` 列表中（如果 `TelegramClientService` 设计支持）。 (已确认：当前 `TelegramClientService._register_handlers` 设计不适用于需要特定过滤器/方法的 Handler，因此不添加。特定注册已在步骤 8 完成。)
     ```python
     # client_service.handlers.extend([user_bot_command_handler, mention_reply_handler])
     ```
