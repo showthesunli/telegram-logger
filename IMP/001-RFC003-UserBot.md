@@ -119,7 +119,7 @@
 
 1.  `[x]` **[Handler Class]** 创建 `telegram_logger/handlers/user_bot_command.py` 文件并定义 `UserBotCommandHandler` 类。考虑继承自 `BaseHandler` 或创建一个新的基类。
 2.  `[x]` **[Dependencies]** 在 `UserBotCommandHandler.__init__` 中接收依赖项：`client`, `db`, `UserBotStateService` 实例, `my_id`。
-3.  `[ ]` **[Handler Method]** 定义一个核心的异步方法，例如 `async def handle_command(self, event: events.NewMessage.Event):`。此方法将由事件分发器调用（在阶段 7 中注册）。
+3.  `[x]` **[Handler Method]** 定义一个核心的异步方法，例如 `async def handle_command(self, event: events.NewMessage.Event):`。此方法将由事件分发器调用（在阶段 7 中注册）。
 4.  `[ ]` **[Parsing]** 在 `handle_command` 方法内部，检查 `event.message.text` 是否以 `.` 开头，并解析指令和参数。可以使用 `shlex.split` 处理带引号的参数。
 5.  `[ ]` **[Implementation]** 在 `handle_command` 方法内部，为 RFC 003 中定义的每个指令 (`.on`, `.off`, `.status`, `.replyon`, `.replyoff`, `.setmodel`, `.listmodels`, `.aliasmodel`, `.unaliasmodel`, `.setrole`, `.listroles`, `.aliasrole`, `.unaliasrole`, `.addgroup`, `.delgroup`, `.listgroups`, `.setlimit`, `.help`) 实现对应的处理逻辑。
     *   `[ ]` 使用注入的 `self.state_service` 实例来读取或更新状态。
