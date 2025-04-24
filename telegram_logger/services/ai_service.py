@@ -5,6 +5,8 @@ from typing import List, Dict, Optional
 
 # 导入更具体的错误类型
 from openai import AsyncOpenAI, OpenAIError, APIError, AuthenticationError, RateLimitError, BadRequestError
+# 导入 httpx 错误类型
+from httpx import RequestError
 
 logger = logging.getLogger(__name__)
 
