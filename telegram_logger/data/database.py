@@ -42,6 +42,42 @@ class DatabaseManager:
             CREATE INDEX IF NOT EXISTS idx_msg_created 
             ON messages (created_time DESC)
         """)
+
+        # --- 新增用户机器人配置表 ---
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_bot_settings (
+                user_id INTEGER PRIMARY KEY,
+                enabled BOOLEAN DEFAULT 0,
+                reply_trigger_enabled BOOLEAN DEFAULT 0,
+                ai_history_length INTEGER DEFAULT 1,
+                current_model_id TEXT DEFAULT 'gpt-3.5-turbo',
+                current_role_alias TEXT DEFAULT 'default_assistant',
+                rate_limit_seconds INTEGER DEFAULT 60
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_bot_target_groups (
+                chat_id INTEGER PRIMARY KEY
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_bot_model_aliases (
+                alias TEXT PRIMARY KEY,
+                model_id TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_bot_role_aliases (
+                alias TEXT PRIMARY KEY,
+                role_type TEXT NOT NULL CHECK(role_type IN ('static', 'ai')),
+                description TEXT,
+                static_content TEXT,
+                system_prompt TEXT,
+                preset_messages TEXT -- 存储 JSON 字符串
+            )
+        """)
+        # --- 新增表结束 ---
+
         conn.commit()
 
     def save_message(self, message: Message):
