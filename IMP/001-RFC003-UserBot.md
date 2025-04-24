@@ -151,21 +151,22 @@
     *   `[x]` 如果同时满足 @ 和回复，确保只处理一次。
 5.  `[x]` **[Rate Limit]** 调用 `self.state_service.check_rate_limit(event.chat_id)`。如果受限，则 `return` 停止处理。
 6.  `[x]` **[Get Role]** 获取当前角色详情 `role_details = await self.state_service.resolve_role_details(self.state_service.get_current_role_alias())`。如果角色为空或获取失败，则 `return` 停止处理。
-7.  `[ ]` **[Generate Reply]**
-    *   `[ ]` **If `role_details['role_type'] == 'static'`:** 直接使用 `reply_text = role_details.get('static_content', '')`。
-    *   `[ ]` **If `role_details['role_type'] == 'ai'`:**
-        *   `[ ]` 获取当前模型 ID `model_id = self.state_service.get_current_model_id()`。
-        *   `[ ]` **准备 AI 请求上下文:**
-            *   `[ ]` 获取系统提示 `system_prompt = role_details.get('system_prompt')`。
-            *   `[ ]` 获取并解析预设消息 `preset_messages_json = role_details.get('preset_messages')`。如果存在且有效，解析为列表。
-            *   `[ ]` 获取配置的历史数量: `history_count = self.state_service.get_ai_history_length()`。
-            *   `[ ]` **If `history_count > 0`:**
-                *   `[ ]` 从数据库获取历史消息: `past_messages = await self.db.get_messages_before(chat_id=event.chat_id, before_message_id=event.message.id, limit=history_count)`。
-                *   `[ ]` 将获取的消息按时间正序排列: `history_context_messages = reversed(past_messages)`。
-            *   `[ ]` 获取当前触发消息 `event.message.text`。
-        *   `[ ]` **构建消息列表:** 按照 AI 服务要求的格式，组合系统提示、预设消息、历史消息和当前用户消息。
-        *   `[ ]` 调用 AI 服务接口 (见阶段 5)，传入模型 ID 和构建好的消息列表，获取生成的 `reply_text`。
-        *   `[ ]` 处理 AI 服务可能发生的错误 (例如，记录日志并 `return`)。
+7.  `[x]` **[Generate Reply]**
+    *   `[x]` **If `role_details['role_type'] == 'static'`:** 直接使用 `reply_text = role_details.get('static_content', '')`。 (已实现)
+    *   `[x]` **If `role_details['role_type'] == 'ai'`:**
+        *   `[x]` 获取当前模型 ID `model_id = await self.state_service.resolve_model_id(...)`。 (已实现)
+        *   `[x]` **准备 AI 请求上下文:**
+            *   `[x]` 获取系统提示 `system_prompt = role_details.get('system_prompt')`。 (已实现)
+            *   `[x]` 获取并解析预设消息 `preset_messages_json = role_details.get('preset_messages')`。如果存在且有效，解析为列表。 (已实现)
+            *   `[x]` 获取配置的历史数量: `history_count = self.state_service.get_ai_history_length()`。 (已实现)
+            *   `[x]` **If `history_count > 0`:**
+                *   `[x]` 从数据库获取历史消息: `history_messages = await self.db.get_messages_before(...)`。 (已实现)
+                *   `[x]` 将获取的消息按时间正序排列: `history_context_messages = reversed(past_messages)`。(注意：`get_messages_before` 返回的是正序列表，无需反转) (已实现，并修正了注释)
+            *   `[x]` 获取当前触发消息 `event.message.text`。 (已实现)
+        *   `[ ]` **构建消息列表:** 按照 AI 服务要求的格式，组合系统提示、预设消息、历史消息和当前用户消息。 (将在阶段 5 实现)
+        *   `[ ]` 调用 AI 服务接口 (见阶段 5)，传入模型 ID 和构建好的消息列表，获取生成的 `reply_text`。 (将在阶段 5 实现)
+        *   `[ ]` 处理 AI 服务可能发生的错误 (例如，记录日志并 `return`)。 (将在阶段 5 实现)
+        *   `[x]` (临时) 使用占位符作为 `reply_text`。 (已实现)
 8.  `[ ]` **[Send Reply]** 调用 `await event.reply(reply_text)` 发送回复。
 9.  `[ ]` **[Update Limit]** 如果发送成功，调用 `self.state_service.update_rate_limit(event.chat_id)`。
 10. `[ ]` **[Registration]** 事件注册将在阶段 7 中通过 `client.add_event_handler` 显式完成，而不是在此处使用装饰器。
