@@ -173,10 +173,10 @@
 
 **阶段 5: AI 集成 (OpenAI) (`telegram_logger/services` 或 `telegram_logger/utils`)**
 
-1.  `[ ]` **[Dependency]** 在 `pyproject.toml` 中添加 `openai` 依赖。
-2.  `[ ]` **[Config]** 在 `.env.example` 和 `.env` 中添加 OpenAI 配置：
-    *   `OPENAI_API_KEY`: 必需，用于 API 认证。
-    *   `OPENAI_BASE_URL`: 可选，用于指定自定义的 OpenAI API 端点（例如代理或兼容服务）。
+1.  `[x]` **[Dependency]** 在 `pyproject.toml` 中添加 `openai` 依赖。 (已由用户确认完成)
+2.  `[x]` **[Config]** 在 `.env.example` 和 `.env` 中添加 OpenAI 配置： (已更新 `.env.example`)
+    *   `[x]` `OPENAI_API_KEY`: 必需，用于 API 认证。
+    *   `[x]` `OPENAI_BASE_URL`: 可选，用于指定自定义的 OpenAI API 端点（例如代理或兼容服务）。
 3.  `[ ]` **[Interface/Implementation]** 创建一个 AI 服务类或模块，例如 `AIService` 或 `ai_service.py`。
 4.  `[ ]` **[Implementation]** 在该服务中实现一个核心的异步函数，例如 `async def get_openai_completion(model_id: str, messages: List[Dict[str, str]]) -> Optional[str]:`。
     *   此函数接收 OpenAI 兼容的模型 ID 和一个消息列表（格式如 `[{"role": "system", "content": "..."}, {"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]`）。
