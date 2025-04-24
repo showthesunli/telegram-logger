@@ -260,7 +260,7 @@
     ```python
     ai_service = AIService() # 如果需要实例化
     ```
-7.  `[ ]` **[Init]** 创建新的 Handler 实例，并注入所有必要的依赖。
+7.  `[x]` **[Init]** 创建新的 Handler 实例，并注入所有必要的依赖。 (已实现)
     ```python
     # 示例
     user_bot_command_handler = UserBotCommandHandler(
