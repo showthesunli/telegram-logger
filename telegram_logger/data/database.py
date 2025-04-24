@@ -257,30 +257,64 @@ class DatabaseManager:
         def _sync_create() -> bool:
             if role_type not in ('static', 'ai'):
                 logger.error(f"尝试创建角色别名 '{alias}' 时使用了无效的角色类型: {role_type}")
-                raise ValueError("role_type 必须是 'static' 或 'ai'")
+                # 不在此处 raise ValueError，改为返回 False
+                # raise ValueError("role_type 必须是 'static' 或 'ai'")
+                return False
+
+            conn = None # 初始化 conn
             try:
-                self.conn.execute(
+                # 在线程内创建新的数据库连接
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                cursor = conn.cursor() # 使用新连接的 cursor
+
+                # 检查别名是否已存在 (使用 INSERT OR IGNORE 可以简化，但显式检查更清晰)
+                cursor.execute("SELECT 1 FROM user_bot_role_aliases WHERE alias = ?", (alias,))
+                if cursor.fetchone():
+                    # 如果已存在，根据类型决定是否更新 static_content
+                    if role_type == 'static' and static_content is not None:
+                        cursor.execute(
+                            "UPDATE user_bot_role_aliases SET static_content = ? WHERE alias = ? AND role_type = 'static'",
+                            (static_content, alias)
+                        )
+                        if cursor.rowcount > 0:
+                             logger.info(f"已更新现有静态角色别名 '{alias}' 的内容。")
+                        else:
+                             logger.warning(f"尝试更新角色别名 '{alias}' 的静态内容，但其类型不是 'static' 或内容未改变。")
+                    else:
+                        logger.warning(f"角色别名 '{alias}' 已存在，未进行创建或更新。")
+                    # 无论是否更新，都认为操作“成功”完成（没有错误）
+                    conn.commit() # 提交可能的 UPDATE
+                    return True
+
+                # 如果不存在，则插入新记录
+                cursor.execute(
                     """
-                    INSERT OR IGNORE INTO user_bot_role_aliases 
-                    (alias, role_type, static_content) 
-                    VALUES (?, ?, ?)
+                    INSERT INTO user_bot_role_aliases
+                    (alias, role_type, description, static_content, system_prompt, preset_messages)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (alias, role_type, static_content if role_type == 'static' else None)
+                    # 插入时为所有字段提供默认值或 None
+                    (alias, role_type, None, static_content if role_type == 'static' else None, None, None)
                 )
-                if role_type == 'static' and static_content is not None:
-                     self.conn.execute(
-                         "UPDATE user_bot_role_aliases SET static_content = ? WHERE alias = ? AND role_type = 'static'",
-                         (static_content, alias)
-                     )
-                self.conn.commit()
-                logger.info(f"已创建或更新角色别名: {alias} (类型: {role_type})")
-                return True # Indicate success
+                conn.commit() # 提交 INSERT
+                logger.info(f"成功创建角色别名 '{alias}' (类型: {role_type})。")
+                return True # 指示成功
+
             except sqlite3.Error as e:
-                logger.error(f"创建角色别名 '{alias}' 时数据库出错: {e}", exc_info=True)
-                self.conn.rollback()
-                # raise # Don't raise, return False
-                return False # Indicate failure
-        return await asyncio.to_thread(_sync_create) # Return the boolean result
+                logger.error(f"创建或更新角色别名 '{alias}' 时数据库出错: {e}", exc_info=True)
+                if conn:
+                    conn.rollback() # 回滚事务
+                return False # 指示失败
+            except Exception as e:
+                 logger.error(f"创建或更新角色别名 '{alias}' 时发生意外错误: {e}", exc_info=True)
+                 if conn:
+                     conn.rollback()
+                 return False
+            finally:
+                if conn:
+                    conn.close() # 确保关闭连接
+
+        return await asyncio.to_thread(_sync_create) # 返回布尔结果
 
     async def set_role_description(self, alias: str, description: str) -> bool:
         """设置角色描述。"""
