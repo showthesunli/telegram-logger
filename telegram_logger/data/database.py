@@ -274,11 +274,13 @@ class DatabaseManager:
                      )
                 self.conn.commit()
                 logger.info(f"已创建或更新角色别名: {alias} (类型: {role_type})")
+                return True # Indicate success
             except sqlite3.Error as e:
-                logger.error(f"创建角色别名 '{alias}' 时出错: {e}", exc_info=True)
+                logger.error(f"创建角色别名 '{alias}' 时数据库出错: {e}", exc_info=True)
                 self.conn.rollback()
-                raise
-        return await asyncio.to_thread(_sync_create) # Return the result of _sync_create
+                # raise # Don't raise, return False
+                return False # Indicate failure
+        return await asyncio.to_thread(_sync_create) # Return the boolean result
 
     async def set_role_description(self, alias: str, description: str) -> bool:
         """设置角色描述。"""
@@ -502,12 +504,14 @@ class DatabaseManager:
                 )
                 self.conn.commit()
                 logger.info(f"已保存用户 {user_id} 的机器人设置。")
+                return True # Indicate success
             except sqlite3.Error as e:
                 logger.error(f"保存用户 {user_id} 机器人设置时出错: {e}", exc_info=True)
                 self.conn.rollback()
-                raise
+                # raise # Don't raise, return False to indicate failure
+                return False # Indicate failure
 
-        return await asyncio.to_thread(_sync_save) # Return the result of _sync_save
+        return await asyncio.to_thread(_sync_save) # Return the boolean result
 
     async def add_target_group(self, chat_id: int) -> bool:
         """添加目标群组。"""
