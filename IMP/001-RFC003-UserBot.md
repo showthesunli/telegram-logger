@@ -121,10 +121,10 @@
 2.  `[x]` **[Dependencies]** 在 `UserBotCommandHandler.__init__` 中接收依赖项：`client`, `db`, `UserBotStateService` 实例, `my_id`。
 3.  `[x]` **[Handler Method]** 定义一个核心的异步方法，例如 `async def handle_command(self, event: events.NewMessage.Event):`。此方法将由事件分发器调用（在阶段 7 中注册）。
 4.  `[x]` **[Parsing]** 在 `handle_command` 方法内部，检查 `event.message.text` 是否以 `.` 开头，并解析指令和参数。可以使用 `shlex.split` 处理带引号的参数。
-5.  `[ ]` **[Implementation]** 在 `handle_command` 方法内部，为 RFC 003 中定义的每个指令 (`.on`, `.off`, `.status`, `.replyon`, `.replyoff`, `.setmodel`, `.listmodels`, `.aliasmodel`, `.unaliasmodel`, `.setrole`, `.listroles`, `.aliasrole`, `.unaliasrole`, `.addgroup`, `.delgroup`, `.listgroups`, `.setlimit`, `.help`) 实现对应的处理逻辑。
-    *   `[ ]` 使用注入的 `self.state_service` 实例来读取或更新状态。
-    *   `[ ]` 实现输入验证（例如，`.addgroup` 验证群组，`.setlimit` 验证数字，`.setrolepreset` 验证 JSON 格式，`.sethistory` 验证数字范围，确保别名存在等）。
-    *   `[ ]` 调用 `await event.respond(...)` 或 `await self.client.send_message(event.chat_id, ...)` 将操作反馈发送回用户的私聊。
+5.  `[x]` **[Implementation]** 在 `handle_command` 方法内部，为 RFC 003 中定义的每个指令 (`.on`, `.off`, `.status`, `.replyon`, `.replyoff`, `.setmodel`, `.listmodels`, `.aliasmodel`, `.unaliasmodel`, `.setrole`, `.listroles`, `.aliasrole`, `.unaliasrole`, `.addgroup`, `.delgroup`, `.listgroups`, `.setlimit`, `.help`) 实现对应的处理逻辑。
+    *   `[x]` 使用注入的 `self.state_service` 实例来读取或更新状态。
+    *   `[x]` 实现输入验证（例如，`.addgroup` 验证群组，`.setlimit` 验证数字，`.setrolepreset` 验证 JSON 格式，`.sethistory` 验证数字范围，确保别名存在等）。
+    *   `[x]` 调用 `await event.respond(...)` 或 `await self.client.send_message(event.chat_id, ...)` 将操作反馈发送回用户的私聊。
     *   `[ ]` `.listmodels`, `.listroles`, `.listgroups`, `.status`, `.help` 需要格式化输出信息，特别是 `.listroles` 需要显示所有新字段，`.status` 需要包含历史数量。
     *   `[ ]` **实现 `.sethistory <数量>` 指令处理:**
         *   解析 `<数量>` 参数。
