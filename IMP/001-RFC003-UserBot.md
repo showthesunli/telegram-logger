@@ -125,14 +125,14 @@
     *   `[x]` 使用注入的 `self.state_service` 实例来读取或更新状态。
     *   `[x]` 实现输入验证（例如，`.addgroup` 验证群组，`.setlimit` 验证数字，`.setrolepreset` 验证 JSON 格式，`.sethistory` 验证数字范围，确保别名存在等）。
     *   `[x]` 调用 `await event.respond(...)` 或 `await self.client.send_message(event.chat_id, ...)` 将操作反馈发送回用户的私聊。
-    *   `[ ]` `.listmodels`, `.listroles`, `.listgroups`, `.status`, `.help` 需要格式化输出信息，特别是 `.listroles` 需要显示所有新字段，`.status` 需要包含历史数量。
-    *   `[ ]` **实现 `.sethistory <数量>` 指令处理:**
-        *   解析 `<数量>` 参数。
-        *   验证参数为非负整数，并进行上限检查 (例如 `0 <= count <= 20`)。若无效则回复错误信息。
-        *   调用 `self.state_service.set_ai_history_length(count)`。
-        *   回复确认消息，例如 `await event.respond(f"AI 上下文历史消息数量已设置为 {count}。")`。
-    *   `[ ]` 确保 `.status` 指令调用 `self.state_service.get_ai_history_length()` 并将其包含在回复给用户的状态信息中。
-    *   `[ ]` 将 `.sethistory <数量>` 指令及其描述添加到 `.help` 命令的输出中。
+    *   `[x]` `.listmodels`, `.listroles`, `.listgroups`, `.status`, `.help` 需要格式化输出信息，特别是 `.listroles` 需要显示所有新字段，`.status` 需要包含历史数量。
+    *   `[x]` **实现 `.sethistory <数量>` 指令处理:**
+        *   `[x]` 解析 `<数量>` 参数。
+        *   `[x]` 验证参数为非负整数，并进行上限检查 (例如 `0 <= count <= 20`)。若无效则回复错误信息。
+        *   `[x]` 调用 `self.state_service.set_ai_history_length(count)`。
+        *   `[x]` 回复确认消息，例如 `await event.respond(f"AI 上下文历史消息数量已设置为 {count}。")`。
+    *   `[x]` 确保 `.status` 指令调用 `self.state_service.get_ai_history_length()` 并将其包含在回复给用户的状态信息中。
+    *   `[x]` 将 `.sethistory <数量>` 指令及其描述添加到 `.help` 命令的输出中。
 6.  `[ ]` **[Registration]** 事件注册将在阶段 7 中通过 `client.add_event_handler` 显式完成，而不是在此处使用装饰器。
 
 **阶段 4: 自动回复逻辑 (`MentionReplyHandler`)**
