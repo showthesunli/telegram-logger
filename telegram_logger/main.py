@@ -94,9 +94,15 @@ from telegram_logger.services.client import TelegramClientService
 from telegram_logger.services.cleanup import CleanupService
 # 导入 UserBot 服务
 from telegram_logger.services.user_bot_state import UserBotStateService
+# 导入 UserBot Handler 和 AI 服务
+from telegram_logger.handlers.user_bot_command import UserBotCommandHandler
+from telegram_logger.handlers.mention_reply import MentionReplyHandler
+from telegram_logger.services.ai_service import AIService
+
 from telegram_logger.handlers import (
     PersistenceHandler,
-    OutputHandler
+    OutputHandler,
+    BaseHandler # 确保 BaseHandler 也被导入，如果需要类型检查
 )
 from telegram_logger.data.database import DatabaseManager
 from telegram_logger.utils.logging import configure_logging
