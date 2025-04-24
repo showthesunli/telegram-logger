@@ -100,20 +100,20 @@
     *   `[x]` 考虑是否在此处检查并创建默认的 `default_assistant` 角色别名（如果不存在）。
 4.  `[x]` **[Service]** 提供访问当前内存状态的属性或方法，例如 `is_enabled() -> bool`, `is_reply_trigger_enabled() -> bool`, `get_current_model_id() -> str`, `get_current_role_alias() -> str`, `get_target_group_ids() -> Set[int]`, `get_rate_limit() -> int`, `get_ai_history_length() -> int` 等。
 5.  `[ ]` **[Service]** 实现异步更新状态的方法 (`async def`)，这些方法应**先更新数据库** (调用 `DatabaseManager` 的方法)，**成功后再更新内存状态**。例如 `enable()`, `disable()`, `set_current_model(model_ref: str)`, `set_current_role(role_alias: str)`, `add_group(chat_id: int)`, `remove_group(chat_id: int)`, `set_rate_limit(seconds: int)`, `async set_ai_history_length(count: int)` 等。
-6.  `[ ]` **[Service]** 实现异步别名管理和解析逻辑：
-    *   `[ ]` `async set_model_alias(alias: str, model_id: str)`
-    *   `[ ]` `async remove_model_alias(alias: str)`
-    *   `[ ]` `async get_model_aliases() -> Dict[str, str]`
-    *   `[ ]` `async resolve_model_id(ref: str) -> Optional[str]` (根据别名或 ID 返回模型 ID)
-    *   `[ ]` `async create_role_alias(alias: str, role_type: str, static_content: Optional[str] = None)`
-    *   `[ ]` `async set_role_description(alias: str, description: str)`
-    *   `[ ]` `async set_role_static_content(alias: str, content: str)`
-    *   `[ ]` `async set_role_system_prompt(alias: str, prompt: str)`
-    *   `[ ]` `async set_role_preset_messages(alias: str, presets_json: str)` (内部调用 DB 前验证 JSON)
-    *   `[ ]` `async remove_role_alias(alias: str)`
-    *   `[ ]` `async get_role_aliases() -> Dict[str, Dict[str, Any]]`
-    *   `[ ]` `async resolve_role_details(alias: str) -> Optional[Dict[str, Any]]` (根据别名获取角色详情)
-7.  `[ ]` **[Service] [Limit]** 实现频率限制状态管理（内存字典 `Dict[int, float]`）：`check_rate_limit(chat_id: int) -> bool` 和 `update_rate_limit(chat_id: int)` (这些可以是同步方法，因为它们只操作内存)。
+6.  `[x]` **[Service]** 实现异步别名管理和解析逻辑：
+    *   `[x]` `async set_model_alias(alias: str, model_id: str)`
+    *   `[x]` `async remove_model_alias(alias: str)`
+    *   `[x]` `async get_model_aliases() -> Dict[str, str]`
+    *   `[x]` `async resolve_model_id(ref: str) -> Optional[str]` (根据别名或 ID 返回模型 ID)
+    *   `[x]` `async create_role_alias(alias: str, role_type: str, static_content: Optional[str] = None)`
+    *   `[x]` `async set_role_description(alias: str, description: str)`
+    *   `[x]` `async set_role_static_content(alias: str, content: str)`
+    *   `[x]` `async set_role_system_prompt(alias: str, prompt: str)`
+    *   `[x]` `async set_role_preset_messages(alias: str, presets_json: str)` (内部调用 DB 前验证 JSON)
+    *   `[x]` `async remove_role_alias(alias: str)`
+    *   `[x]` `async get_role_aliases() -> Dict[str, Dict[str, Any]]`
+    *   `[x]` `async resolve_role_details(alias: str) -> Optional[Dict[str, Any]]` (根据别名获取角色详情)
+7.  `[x]` **[Service] [Limit]** 实现频率限制状态管理（内存字典 `Dict[int, float]`）：`check_rate_limit(chat_id: int) -> bool` 和 `update_rate_limit(chat_id: int)` (这些可以是同步方法，因为它们只操作内存)。
 
 **阶段 3: 指令处理器 (`UserBotCommandHandler`)**
 
