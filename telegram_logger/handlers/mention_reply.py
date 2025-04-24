@@ -223,19 +223,33 @@ class MentionReplyHandler(BaseHandler):
              logger.error("未能生成有效的回复文本。")
              return
 
-        # --- 后续逻辑：发送回复、更新频率限制等将在后续步骤实现 ---
         logger.info(f"准备发送回复 (类型: {role_type})")
 
         # 8. 发送回复
-        try:
+        try: # 包裹发送回复的调用
             await event.reply(reply_text)
             logger.info(f"已成功发送回复到 ChatID={event.chat_id}, MsgID={event.id}")
-            # 9. 更新频率限制
+
+            # 9. 更新频率限制 (仅在发送成功后执行)
             self.state_service.update_rate_limit(event.chat_id)
             logger.debug(f"已更新群组 {event.chat_id} 的频率限制时间戳。")
-        except Exception as e:
-            logger.error(f"发送回复到 ChatID={event.chat_id} 失败: {e}", exc_info=True)
-            # 发送失败不应阻止后续操作，但需要记录日志
+
+        except telethon_errors.rpcerrorlist.ChatWriteForbiddenError as e: # 捕获特定权限错误
+            logger.error(f"发送回复到 ChatID={event.chat_id} 失败: 没有写入权限。 {e}", exc_info=True)
+            # 权限问题，可能需要从目标群组移除？暂时只记录错误
+        except telethon_errors.FloodWaitError as e: # 捕获频率限制错误
+             logger.warning(f"发送回复到 ChatID={event.chat_id} 时遭遇 FloodWaitError: {e.seconds} 秒")
+             # 频率限制错误，不更新内部频率限制器状态
+        except telethon_errors.RPCError as e: # 捕获其他 Telegram RPC 错误
+            logger.error(f"发送回复到 ChatID={event.chat_id} 时发生 RPC 错误: {e}", exc_info=True)
+        except Exception as e: # 捕获其他意外错误
+            logger.error(f"发送回复到 ChatID={event.chat_id} 时发生未知错误: {e}", exc_info=True)
+        # 发送失败不应阻止后续操作（如果有的话），但需要记录日志
+
+    except Exception as e: # 捕获顶层未处理异常
+        logger.critical(f"MentionReplyHandler 处理事件时发生未捕获的异常: {e}", exc_info=True)
+        # 确保处理流程安全终止
+        return
 
     async def process(self, event: events.common.EventCommon) -> Optional[Message]:
         """
