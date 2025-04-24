@@ -98,7 +98,12 @@ class MentionReplyHandler(BaseHandler):
         # 如果同时满足 @ 和回复，也只处理一次
         logger.info(f"事件满足触发条件 (Mention: {is_mention}, ReplyToMe: {is_reply_to_me})，继续处理...")
 
-        # --- 后续逻辑：频率限制、获取角色、生成回复等将在后续步骤实现 ---
+        # 5. 检查频率限制
+        if self.state_service.check_rate_limit(event.chat_id):
+            logger.info(f"群组 {event.chat_id} 触发频率限制，本次忽略。")
+            return
+
+        # --- 后续逻辑：获取角色、生成回复等将在后续步骤实现 ---
         pass # 占位符
 
     async def process(self, event: events.common.EventCommon) -> Optional[Message]:

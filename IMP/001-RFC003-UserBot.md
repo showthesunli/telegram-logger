@@ -149,7 +149,7 @@
         *   `[x]` `event.mentioned` (是否 @ 了自己)
         *   `[x]` 或者 (`self.state_service.is_reply_trigger_enabled()` 且 `event.is_reply` 且 `event.reply_to_msg_id` 对应的消息是自己发的 - 可能需要 `reply_msg = await event.get_reply_message()` 然后检查 `reply_msg.sender_id == self.my_id`)。
     *   `[x]` 如果同时满足 @ 和回复，确保只处理一次。
-5.  `[ ]` **[Rate Limit]** 调用 `self.state_service.check_rate_limit(event.chat_id)`。如果受限，则 `return` 停止处理。
+5.  `[x]` **[Rate Limit]** 调用 `self.state_service.check_rate_limit(event.chat_id)`。如果受限，则 `return` 停止处理。
 6.  `[ ]` **[Get Role]** 获取当前角色详情 `role_details = await self.state_service.resolve_role_details(self.state_service.get_current_role_alias())`。如果角色为空或获取失败，则 `return` 停止处理。
 7.  `[ ]` **[Generate Reply]**
     *   `[ ]` **If `role_details['role_type'] == 'static'`:** 直接使用 `reply_text = role_details.get('static_content', '')`。
