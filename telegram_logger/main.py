@@ -173,6 +173,10 @@ async def main():
             logger.critical("由于无法加载 UserBot 状态，程序将退出。")
             sys.exit(1) # 退出程序
 
+        # 6. 创建 AI 服务实例
+        ai_service = AIService()
+        logger.debug("AIService 已初始化。")
+
         # --- UserBot 功能初始化结束 ---
 
         await cleanup_service.start()
