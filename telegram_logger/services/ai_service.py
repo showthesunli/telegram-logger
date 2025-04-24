@@ -111,9 +111,9 @@ class AIService:
             logger.error(f"调用 OpenAI API 时发生未知错误: {e}", exc_info=True)
             return None
 
-    # 可以考虑添加一个异步初始化方法，如果需要在服务启动时就创建客户端
+    # 可以考虑添加一个异步初始化方法，如果需要在服务启动时就创建客户端并验证
     # async def initialize(self):
-    #     """异步初始化 OpenAI 客户端"""
+    #     """异步初始化 OpenAI 客户端并验证"""
     #     self._get_client() # 尝试初始化
     #     if self._client:
     #         try:
