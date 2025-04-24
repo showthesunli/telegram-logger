@@ -249,7 +249,7 @@
     user_bot_state_service = UserBotStateService(db=db, my_id=user_id)
     ```
 4.  `[x]` **[Init]** 调用 `await user_bot_state_service.load_state()` 来加载 UserBot 的初始状态。 (已实现，包含错误处理)
-5.  `[ ]` **[Init]** 导入新的 Handler 类。
+5.  `[x]` **[Init]** 导入新的 Handler 类。 (已实现)
     ```python
     from telegram_logger.handlers.user_bot_command import UserBotCommandHandler # 需要创建
     from telegram_logger.handlers.mention_reply import MentionReplyHandler # 需要创建
