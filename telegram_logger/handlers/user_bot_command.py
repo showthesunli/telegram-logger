@@ -206,9 +206,41 @@ class UserBotCommandHandler(BaseHandler):
                 await self._safe_respond(event, status_message)
 
             # --- 其他指令的占位符 ---
-            # elif command == "setmodel":
-            #     # 实现设置模型逻辑
-            #     await self._safe_respond(event, "设置模型待实现...")
+            elif command == "setmodel":
+                if len(args) != 1:
+                    await self._safe_respond(event, "错误：`.setmodel` 指令需要一个参数。\n用法: `.setmodel <模型ID或别名>`")
+                    return
+
+                model_ref = args[0]
+                success = await self.state_service.set_current_model(model_ref)
+
+                if success:
+                    # 获取实际的模型 ID 和可能的别名以用于反馈
+                    resolved_model_id = await self.state_service.resolve_model_id(model_ref)
+                    model_aliases = await self.state_service.get_model_aliases()
+                    model_alias_str = ""
+                    if resolved_model_id: # 确保模型ID已成功解析
+                        # 反向查找别名
+                        user_input_alias_found = False
+                        any_alias_found = ""
+                        for alias, m_id in model_aliases.items():
+                            if m_id == resolved_model_id:
+                                if alias.lower() == model_ref.lower(): # 优先匹配用户输入的别名
+                                    model_alias_str = f" (别名: {alias})"
+                                    user_input_alias_found = True
+                                    break # 找到用户输入的，直接用
+                                elif not any_alias_found: # 记录第一个找到的别名
+                                    any_alias_found = f" (别名: {alias})"
+
+                        if not user_input_alias_found and any_alias_found: # 如果没找到用户输入的，但有其他别名
+                            model_alias_str = any_alias_found
+
+                    model_display = f"{resolved_model_id or model_ref}{model_alias_str}" # 如果解析失败，显示原始输入
+                    await self._safe_respond(event, f"✅ AI 模型已设置为 {model_display}。")
+                else:
+                    # 失败可能是因为别名/ID不存在，或者数据库错误
+                    await self._safe_respond(event, f"❌ 设置模型失败。模型ID或别名 '{model_ref}' 不存在，或发生数据库错误。")
+
             # elif command == "listmodels":
             #     # 实现列出模型逻辑
             #     await self._safe_respond(event, "列出模型待实现...")
