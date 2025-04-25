@@ -38,14 +38,14 @@ class UserBotStateService:
         try:
             settings = await self.db.get_user_bot_settings(self.my_id)
             settings = await self.db.get_user_bot_settings(self.my_id)
-            if settings is None: # DB error occurred in get_user_bot_settings
-                 logger.critical(f"无法从数据库加载用户 {self.my_id} 的设置。数据库可能存在问题。")
+            if settings is None: # 返回 None 现在明确表示数据库错误
+                 logger.critical(f"从数据库加载用户 {self.my_id} 的设置时发生错误。")
                  # 抛出异常，阻止服务在不可靠状态下运行
-                 raise RuntimeError(f"无法从数据库加载用户 {self.my_id} 的 UserBot 设置。")
-            elif not settings: # Settings not found, initialize defaults
-                logger.info(f"未找到用户 {self.my_id} 的设置，将创建默认设置。")
+                 raise RuntimeError(f"从数据库加载用户 {self.my_id} 的 UserBot 设置时发生错误。")
+            elif not settings: # 返回空字典 {} 表示未找到记录
+                logger.info(f"数据库中未找到用户 {self.my_id} 的设置，将创建默认设置。")
                 default_settings = {
-                    'enabled': False,
+                    'enabled': False, # 保持默认禁用
                     'reply_trigger_enabled': False,
                     'ai_history_length': 1,
                     'current_model_id': 'gpt-3.5-turbo',
@@ -60,12 +60,15 @@ class UserBotStateService:
                 
                 # 重新加载以确保写入成功并获取完整数据
                 settings = await self.db.get_user_bot_settings(self.my_id)
-                if not settings: # 如果保存后仍然无法加载，则存在严重问题
-                    logger.critical(f"创建默认设置后仍无法加载用户 {self.my_id} 的设置！数据库可能无法写入或读取。")
-                    raise RuntimeError(f"无法为用户 {self.my_id} 加载或创建 UserBot 设置，数据库操作失败。")
+                if settings is None: # 检查是否在重新加载时发生数据库错误
+                    logger.critical(f"创建默认设置后，重新加载用户 {self.my_id} 的设置时发生数据库错误！")
+                    raise RuntimeError(f"为用户 {self.my_id} 创建默认设置后，数据库读取失败。")
+                elif not settings: # 如果仍然是空字典，说明保存操作未生效但未报错？
+                    logger.critical(f"创建默认设置后仍无法加载用户 {self.my_id} 的设置！数据库可能无法写入。")
+                    raise RuntimeError(f"无法为用户 {self.my_id} 加载或创建 UserBot 设置，数据库写入可能失败。")
                 logger.info(f"已为用户 {self.my_id} 创建并加载默认设置。")
 
-        except Exception as e:
+        except Exception as e: # 捕获 get_user_bot_settings 或 save_user_bot_settings 中的其他意外错误
              logger.critical(f"加载用户 {self.my_id} 设置时发生意外错误: {e}", exc_info=True)
              # 抛出异常，而不是继续使用可能不一致的状态
              raise RuntimeError(f"加载用户 {self.my_id} UserBot 设置时发生意外错误。") from e

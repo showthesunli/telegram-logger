@@ -543,10 +543,11 @@ class DatabaseManager:
                 cursor = conn.cursor()
                 cursor.execute("SELECT * FROM user_bot_settings WHERE user_id = ?", (user_id,))
                 row = cursor.fetchone()
-                return dict(row) if row else None
+                # 返回空字典表示未找到，None 表示数据库错误
+                return dict(row) if row else {} 
             except sqlite3.Error as e:
                 logger.error(f"获取用户 {user_id} 机器人设置时数据库错误: {e}", exc_info=True)
-                return None # Return None on error
+                return None # 仅在数据库错误时返回 None
             finally:
                 if conn:
                     conn.close()
