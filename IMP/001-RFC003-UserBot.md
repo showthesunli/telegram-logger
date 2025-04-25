@@ -249,7 +249,7 @@
         *   组合所有行成为最终的列表字符串。
         *   使用 `await self._safe_respond(event, formatted_list)` 回复。
 
-    *   `[ ]` **`.setlimit <秒数>`**:
+    *   `[x]` **`.setlimit <秒数>`**:
         *   检查参数：确保只有一个参数 `<秒数>`。
         *   使用 `try...except ValueError` 验证参数是否为非负整数。如果无效，回复错误信息并 `return`。
         *   调用 `await self.state_service.set_rate_limit(int(args[0]))`。

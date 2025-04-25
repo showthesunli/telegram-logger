@@ -748,6 +748,31 @@ class UserBotCommandHandler(BaseHandler):
 
                     await self._safe_respond(event, "\n".join(response_lines))
 
+            elif command == "setlimit":
+                # 参数验证
+                if len(args) != 1:
+                    await self._safe_respond(event, "错误：`.setlimit` 指令需要一个参数。\n用法: `.setlimit <秒数>`")
+                    return
+                
+                try:
+                    seconds = int(args[0])
+                    if seconds < 0:
+                        raise ValueError("秒数不能为负数。")
+                except ValueError:
+                    logger.warning(f"无效的 .setlimit 参数: {args[0]}")
+                    await self._safe_respond(event, f"错误：无效的秒数 '{args[0]}'。\n请提供一个非负整数。")
+                    return
+
+                # 设置频率限制
+                success = await self.state_service.set_rate_limit(seconds)
+
+                if success:
+                    logger.info(f"用户已将频率限制设置为 {seconds} 秒。")
+                    await self._safe_respond(event, f"✅ 频率限制已设置为 {seconds} 秒。")
+                else:
+                    logger.error(f"设置频率限制为 {seconds} 秒失败。")
+                    await self._safe_respond(event, f"❌ 设置频率限制失败（可能是数据库错误）。")
+
 
             # ... 其他指令 ...
 
