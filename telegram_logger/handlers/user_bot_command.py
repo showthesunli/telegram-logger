@@ -309,6 +309,35 @@ class UserBotCommandHandler(BaseHandler):
                     logger.error(f"删除模型别名失败: alias='{alias}'")
                     await self._safe_respond(event, f"❌ 删除模型别名 `{alias}` 失败（可能是数据库错误）。")
 
+            elif command == "setroleprompt":
+                # 参数验证
+                if len(args) < 2:
+                    await self._safe_respond(event, "错误：`.setroleprompt` 指令需要两个参数。\n用法: `.setroleprompt <别名> \"<系统提示词>\"`")
+                    return
+                
+                alias = args[0]
+                # 将剩余参数合并为系统提示词（以防提示词中有空格且未用引号包裹）
+                prompt = " ".join(args[1:])
+                
+                # 检查角色别名是否存在
+                role_details = await self.state_service.resolve_role_details(alias)
+                if not role_details:
+                    await self._safe_respond(event, f"错误：角色别名 '{alias}' 不存在。")
+                    return
+                
+                # 检查角色类型是否为 AI
+                if role_details.get('role_type') != 'ai':
+                    await self._safe_respond(event, f"错误：角色 '{alias}' 不是 AI 类型，无法设置系统提示词。")
+                    return
+                
+                # 设置系统提示词
+                if await self.state_service.set_role_system_prompt(alias, prompt):
+                    logger.info(f"已更新角色 '{alias}' 的系统提示词")
+                    await self._safe_respond(event, f"✅ 已更新角色 '{alias}' 的系统提示词。")
+                else:
+                    logger.error(f"设置角色 '{alias}' 的系统提示词失败")
+                    await self._safe_respond(event, f"❌ 设置角色 '{alias}' 的系统提示词失败（可能是数据库错误）。")
+
             # ... 其他指令 ...
 
             else:
