@@ -502,6 +502,58 @@ class UserBotCommandHandler(BaseHandler):
                     logger.error(f"设置角色 '{alias}' 的描述失败。")
                     await self._safe_respond(event, f"❌ 设置角色 '{alias}' 的描述失败（可能是数据库错误）。")
 
+            elif command == "setrolepreset":
+                # 参数验证
+                if len(args) < 2:
+                    await self._safe_respond(event, "错误：`.setrolepreset` 指令需要两个参数。\n用法: `.setrolepreset <别名> '<JSON格式的预设消息列表>'`")
+                    return
+                
+                alias = args[0]
+                # 将剩余参数合并为 JSON 字符串（假设 JSON 用单引号包裹或不含空格）
+                # shlex 会处理引号，所以这里直接合并
+                presets_json = " ".join(args[1:])
+
+                # 验证 JSON 格式
+                try:
+                    # 尝试解析 JSON 以验证其有效性
+                    parsed_presets = json.loads(presets_json)
+                    # 进一步验证是否为列表（可选，但推荐）
+                    if not isinstance(parsed_presets, list):
+                         raise ValueError("预设消息必须是一个 JSON 列表。")
+                    # 可以在这里添加对列表内容的更详细验证，例如检查每个元素是否为 {"role": "...", "content": "..."} 格式
+                    
+                except json.JSONDecodeError as e:
+                    logger.warning(f"为角色 '{alias}' 设置的预设消息 JSON 格式无效: {e}")
+                    await self._safe_respond(event, f"错误：提供的预设消息不是有效的 JSON 格式。\n请确保使用正确的 JSON 语法，并用单引号包裹整个 JSON 字符串（如果包含空格）。\n错误详情: {e}")
+                    return
+                except ValueError as e: # 捕获自定义的验证错误
+                    logger.warning(f"为角色 '{alias}' 设置的预设消息内容无效: {e}")
+                    await self._safe_respond(event, f"错误：预设消息内容无效。\n{e}")
+                    return
+
+                # 检查角色别名是否存在
+                role_details = await self.state_service.resolve_role_details(alias)
+                if not role_details:
+                    await self._safe_respond(event, f"错误：角色别名 '{alias}' 不存在。")
+                    return
+                
+                # 检查角色类型是否为 AI
+                if role_details.get('role_type') != 'ai':
+                    await self._safe_respond(event, f"错误：角色 '{alias}' 不是 AI 类型，无法设置预设消息。")
+                    return
+
+                # 设置预设消息
+                # 注意：服务层现在不进行 JSON 验证，所以这里的验证很重要
+                success = await self.state_service.set_role_preset_messages(alias, presets_json)
+
+                if success:
+                    logger.info(f"已更新角色 '{alias}' 的预设消息。")
+                    await self._safe_respond(event, f"✅ 已更新角色 '{alias}' 的预设消息。")
+                else:
+                    # 失败可能是因为别名不存在或数据库错误
+                    logger.error(f"设置角色 '{alias}' 的预设消息失败。")
+                    await self._safe_respond(event, f"❌ 设置角色 '{alias}' 的预设消息失败（可能是数据库错误）。")
+
 
             # ... 其他指令 ...
 

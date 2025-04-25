@@ -206,7 +206,7 @@
         *   检查返回的布尔值。
         *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ 已更新角色 'helper' 的系统提示。"
 
-    *   `[ ]` **`.setrolepreset <别名> '<JSON格式的预设消息列表>'`**:
+    *   `[x]` **`.setrolepreset <别名> '<JSON格式的预设消息列表>'`**:
         *   检查参数：确保有两个参数 `<别名>` 和 `'<JSON格式的预设消息列表>'`。
         *   **重要**: 在调用服务前，使用 `json.loads(args[1])` 尝试解析 JSON 字符串。如果失败（捕获 `json.JSONDecodeError`），则回复用户错误信息，提示 JSON 格式无效，然后 `return`。
         *   如果 JSON 有效，调用 `await self.state_service.set_role_preset_messages(alias=args[0], presets_json=args[1])`。
