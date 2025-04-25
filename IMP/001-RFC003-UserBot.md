@@ -219,7 +219,7 @@
         *   检查返回的布尔值。
         *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ 角色别名 'helper' 已删除。"
 
-    *   `[ ]` **`.addgroup <群组ID或群组链接>`**:
+    *   `[x]` **`.addgroup <群组ID或群组链接>`**:
         *   检查参数：确保只有一个参数 `<群组ID或群组链接>`。
         *   使用 `try...except` 块调用 `entity = await self.client.get_entity(args[0])` 来验证输入并获取实体对象。
         *   处理可能的异常 (`ValueError` 表示无效 ID/链接, `telethon.errors` 如 `ChannelPrivateError` 等)。如果验证失败，回复错误信息并 `return`。

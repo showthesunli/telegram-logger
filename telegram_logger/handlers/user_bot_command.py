@@ -585,6 +585,63 @@ class UserBotCommandHandler(BaseHandler):
                     logger.error(f"删除角色别名 '{alias}' 失败。")
                     await self._safe_respond(event, f"❌ 删除角色别名 '{alias}' 失败（可能是数据库错误）。")
 
+            elif command == "addgroup":
+                # 参数验证
+                if len(args) != 1:
+                    await self._safe_respond(event, "错误：`.addgroup` 指令需要一个参数。\n用法: `.addgroup <群组ID或群组链接>`")
+                    return
+
+                group_ref = args[0]
+                entity = None
+                chat_id = None
+                group_title = group_ref # 默认标题为用户输入
+
+                try:
+                    # 尝试解析为整数 ID
+                    try:
+                        chat_id_int = int(group_ref)
+                        # 对于负数 ID，Telethon 通常需要 -100 前缀，但 get_entity 可以处理
+                        entity = await self.client.get_entity(chat_id_int)
+                    except ValueError:
+                        # 如果不是整数，则尝试作为链接或用户名处理
+                        entity = await self.client.get_entity(group_ref)
+
+                    # 验证实体类型
+                    if not isinstance(entity, (types.Chat, types.Channel)):
+                        await self._safe_respond(event, f"错误：'{group_ref}' 不是一个有效的群组或频道。")
+                        return
+
+                    chat_id = entity.id
+                    group_title = entity.title
+
+                except (ValueError, errors.UsernameInvalidError, errors.ChannelPrivateError, errors.ChatAdminRequiredError, errors.UserDeactivatedError, errors.AuthKeyError, errors.UserBannedInChannelError) as e:
+                    logger.warning(f"无法解析或访问群组 '{group_ref}': {e}")
+                    await self._safe_respond(event, f"错误：无法找到或访问群组/频道 '{group_ref}'。\n请确保 ID/链接正确，且你有权限访问。\n错误详情: {type(e).__name__}")
+                    return
+                except Exception as e: # 捕获其他可能的 Telethon 或网络错误
+                    logger.error(f"获取群组实体 '{group_ref}' 时发生意外错误: {e}", exc_info=True)
+                    await self._safe_respond(event, f"错误：获取群组信息时发生意外错误。请检查日志。")
+                    return
+
+                # 添加到目标列表
+                if chat_id is not None:
+                    success = await self.state_service.add_group(chat_id)
+                    if success:
+                        logger.info(f"已将群组 '{group_title}' (ID: {chat_id}) 添加到目标列表。")
+                        await self._safe_respond(event, f"✅ 群组 '{group_title}' 已添加到目标列表。")
+                    else:
+                        # 可能是数据库错误，或者群组已存在（add_group 返回 False）
+                        # 检查群组是否已存在
+                        if chat_id in self.state_service.get_target_group_ids():
+                             await self._safe_respond(event, f"ℹ️ 群组 '{group_title}' 已在目标列表中。")
+                        else:
+                            logger.error(f"添加目标群组 {chat_id} ('{group_title}') 到数据库时失败。")
+                            await self._safe_respond(event, f"❌ 添加群组 '{group_title}' 失败（可能是数据库错误）。")
+                else:
+                    # 理论上不应到达这里，因为前面有检查
+                    logger.error(f"未能从实体 '{group_ref}' 中提取 chat_id。")
+                    await self._safe_respond(event, f"错误：无法处理群组 '{group_ref}'。")
+
 
             # ... 其他指令 ...
 
