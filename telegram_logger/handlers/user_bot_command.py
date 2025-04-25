@@ -642,6 +642,78 @@ class UserBotCommandHandler(BaseHandler):
                     logger.error(f"未能从实体 '{group_ref}' 中提取 chat_id。")
                     await self._safe_respond(event, f"错误：无法处理群组 '{group_ref}'。")
 
+            elif command == "delgroup":
+                # 参数验证
+                if len(args) != 1:
+                    await self._safe_respond(event, "错误：`.delgroup` 指令需要一个参数。\n用法: `.delgroup <群组ID或群组链接>`")
+                    return
+
+                group_ref = args[0]
+                chat_id = None
+                group_title = group_ref # 默认标题为用户输入
+
+                # 尝试解析 chat_id
+                try:
+                    # 尝试直接解析为整数 ID
+                    try:
+                        chat_id_int = int(group_ref)
+                        # 尝试获取实体以验证 ID 并获取名称
+                        try:
+                            entity = await self.client.get_entity(chat_id_int)
+                            if isinstance(entity, (types.Chat, types.Channel)):
+                                chat_id = entity.id
+                                group_title = entity.title
+                            else:
+                                # 是有效实体但不是群组/频道，也认为 ID 无效
+                                await self._safe_respond(event, f"错误：ID '{group_ref}' 对应的实体不是群组或频道。")
+                                return
+                        except (ValueError, errors.RPCError) as e:
+                            # 获取实体失败，但 ID 是整数，可能群组不存在或无权访问
+                            # 仍然尝试使用该 ID 删除，因为可能之前添加过但现在无法访问
+                            logger.warning(f"无法获取群组实体 (ID: {chat_id_int})，但仍尝试使用此 ID 删除: {e}")
+                            chat_id = chat_id_int
+                            # group_title 保持为原始输入 ID
+                        
+                    except ValueError:
+                        # 不是整数，尝试作为链接或用户名处理
+                        try:
+                            entity = await self.client.get_entity(group_ref)
+                            if isinstance(entity, (types.Chat, types.Channel)):
+                                chat_id = entity.id
+                                group_title = entity.title
+                            else:
+                                await self._safe_respond(event, f"错误：'{group_ref}' 不是一个有效的群组或频道。")
+                                return
+                        except (ValueError, errors.RPCError) as e:
+                            logger.warning(f"无法解析或访问群组 '{group_ref}': {e}")
+                            await self._safe_respond(event, f"错误：无法找到或访问群组/频道 '{group_ref}'。\n请确保 ID/链接正确。\n错误详情: {type(e).__name__}")
+                            return
+                        
+                except Exception as e: # 捕获其他意外错误
+                    logger.error(f"解析群组引用 '{group_ref}' 时发生意外错误: {e}", exc_info=True)
+                    await self._safe_respond(event, f"错误：处理群组引用时发生意外错误。请检查日志。")
+                    return
+
+                # 执行删除
+                if chat_id is not None:
+                    success = await self.state_service.remove_group(chat_id)
+                    if success:
+                        logger.info(f"已将群组 '{group_title}' (ID: {chat_id}) 从目标列表移除。")
+                        await self._safe_respond(event, f"✅ 群组 '{group_title}' 已从目标列表移除。")
+                    else:
+                        # 可能是数据库错误，或者群组原本就不在列表中
+                        if chat_id not in self.state_service.get_target_group_ids():
+                             await self._safe_respond(event, f"ℹ️ 群组 '{group_title}' 不在目标列表中。")
+                        else:
+                            logger.error(f"从数据库移除目标群组 {chat_id} ('{group_title}') 时失败。")
+                            await self._safe_respond(event, f"❌ 移除群组 '{group_title}' 失败（可能是数据库错误）。")
+                else:
+                    # 如果 chat_id 仍然是 None，说明解析失败
+                    logger.error(f"未能从输入 '{group_ref}' 中解析出有效的 chat_id 进行删除。")
+                    # 此处错误已在 try...except 中处理并返回给用户，理论上不会执行到这里
+                    # 但为保险起见，添加一个通用错误
+                    await self._safe_respond(event, f"错误：无法处理输入 '{group_ref}' 以进行删除。")
+
 
             # ... 其他指令 ...
 

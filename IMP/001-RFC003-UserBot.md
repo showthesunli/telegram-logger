@@ -230,7 +230,7 @@
         *   构造确认消息，可以包含群组名称 `entity.title`，如 "✅ 群组 '项目讨论' 已添加到目标列表。"
         *   使用 `await self._safe_respond(...)` 回复确认或错误信息。
 
-    *   `[ ]` **`.delgroup <群组ID或群组链接>`**:
+    *   `[x]` **`.delgroup <群组ID或群组链接>`**:
         *   检查参数：确保只有一个参数 `<群组ID或群组链接>`。
         *   使用 `try...except` 调用 `entity = await self.client.get_entity(args[0])` 获取实体信息（主要是为了获取名称用于反馈）。如果获取失败，可以尝试直接将参数转为 `int` 作为 ID，或者提示用户 ID/链接无效。
         *   尝试将 `args[0]` 解析为 `chat_id` (可能是整数 ID 或从 `entity` 获取)。
