@@ -165,7 +165,7 @@
         *   检查返回的布尔值。
         *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ 已为模型 gpt-4o 设置别名 4o。"
 
-    *   `[ ]` **`.unaliasmodel <别名>`**:
+    *   `[x]` **`.unaliasmodel <别名>`**:
         *   检查参数：确保只有一个参数 `<别名>`。
         *   调用 `await self.state_service.remove_model_alias(args[0])`。
         *   检查返回的布尔值。

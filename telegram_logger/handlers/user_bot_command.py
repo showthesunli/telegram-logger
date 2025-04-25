@@ -287,6 +287,28 @@ class UserBotCommandHandler(BaseHandler):
                     logger.error(f"设置模型别名失败: model_id='{model_id}', alias='{alias}'")
                     await self._safe_respond(event, f"❌ 设置模型别名 `{alias}` 失败（可能是数据库错误）。")
 
+            elif command == "unaliasmodel":
+                # 参数验证
+                if len(args) != 1:
+                    await self._safe_respond(event, "错误：`.unaliasmodel` 指令需要一个参数。\n用法: `.unaliasmodel <别名>`")
+                    return
+
+                alias = args[0]
+                
+                # 检查别名是否存在
+                model_aliases = await self.state_service.get_model_aliases()
+                if alias not in model_aliases:
+                    await self._safe_respond(event, f"错误：模型别名 '{alias}' 不存在。")
+                    return
+                
+                # 删除模型别名
+                if await self.state_service.remove_model_alias(alias):
+                    logger.info(f"已删除模型别名 '{alias}'")
+                    await self._safe_respond(event, f"✅ 模型别名 `{alias}` 已删除。")
+                else:
+                    logger.error(f"删除模型别名失败: alias='{alias}'")
+                    await self._safe_respond(event, f"❌ 删除模型别名 `{alias}` 失败（可能是数据库错误）。")
+
             # ... 其他指令 ...
 
             else:
