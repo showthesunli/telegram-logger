@@ -149,7 +149,7 @@ async def main():
         session_name=SESSION_NAME,
         api_id=API_ID,
         api_hash=API_HASH,
-        handlers=handlers,
+        handlers=[], # 调试：暂时禁用 PersistenceHandler 和 OutputHandler
         log_chat_id=LOG_CHAT_ID
     )
     
