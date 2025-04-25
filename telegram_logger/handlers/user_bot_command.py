@@ -410,6 +410,72 @@ class UserBotCommandHandler(BaseHandler):
 
                     await self._safe_respond(event, "\n".join(response_lines))
 
+            elif command == "aliasrole":
+                # 手动解析参数，因为 shlex.split 已经处理了引号
+                alias = None
+                role_type = None
+                static_content = None
+                type_index = -1
+
+                # 查找 --type 参数
+                try:
+                    type_index = args.index("--type")
+                    if type_index + 1 < len(args):
+                        role_type = args[type_index + 1].lower()
+                        if role_type not in ('static', 'ai'):
+                            raise ValueError("类型必须是 'static' 或 'ai'")
+                    else:
+                        raise ValueError("--type 参数后需要指定类型 ('static' 或 'ai')")
+                except ValueError:
+                    await self._safe_respond(event, "错误：缺少或无效的 `--type` 参数。\n用法: `.aliasrole <别名> [--type <static|ai>] [\"<内容>\"]`")
+                    return
+
+                # 提取别名和可能的静态内容
+                if type_index == 0: # --type 是第一个参数，缺少别名
+                     await self._safe_respond(event, "错误：缺少角色别名。\n用法: `.aliasrole <别名> --type <static|ai> [\"<内容>\"]`")
+                     return
+                elif type_index > 0:
+                    alias = args[0]
+                    # 别名和 --type 之间的参数被视为静态内容（如果类型是 static）
+                    if role_type == 'static' and type_index > 1:
+                        static_content = " ".join(args[1:type_index])
+                    elif role_type == 'ai' and type_index > 1:
+                         await self._safe_respond(event, "错误：AI 类型的角色别名不应提供静态内容参数。")
+                         return
+                else: # 不应该发生，因为前面已经处理了 type_index < 0 的情况
+                    await self._safe_respond(event, "错误：无法解析指令参数。")
+                    return
+
+                # 验证别名格式
+                if not alias or not alias.isalnum() and not (alias.replace('-', '').isalnum() and '-' in alias):
+                    await self._safe_respond(event, f"错误：别名 '{alias}' 格式无效。别名只能包含字母、数字和连字符(-)。")
+                    return
+
+                # 检查静态内容是否提供（对于 static 类型）
+                if role_type == 'static' and static_content is None:
+                    await self._safe_respond(event, "错误：Static 类型的角色别名需要提供静态回复文本。\n用法: `.aliasrole <别名> \"<静态回复文本>\" --type static`")
+                    return
+
+                # 调用服务创建别名
+                success = await self.state_service.create_role_alias(
+                    alias=alias,
+                    role_type=role_type,
+                    static_content=static_content # 如果是 ai 类型，此值为 None
+                )
+
+                if success:
+                    if role_type == 'static':
+                        logger.info(f"已创建静态角色别名 '{alias}' 并设置内容。")
+                        await self._safe_respond(event, f"✅ 已创建静态角色别名 '{alias}' 并设置内容。")
+                    else: # role_type == 'ai'
+                        logger.info(f"已创建 AI 角色别名 '{alias}'。")
+                        await self._safe_respond(event, f"✅ 已创建 AI 角色别名 '{alias}'。")
+                else:
+                    # 失败可能是因为别名已存在或数据库错误
+                    logger.error(f"创建角色别名 '{alias}' (类型: {role_type}) 失败。")
+                    await self._safe_respond(event, f"❌ 创建角色别名 '{alias}' 失败。别名可能已存在，或发生数据库错误。")
+
+
             # ... 其他指令 ...
 
             else:

@@ -184,7 +184,7 @@
         *   遍历字典，为每个角色格式化输出字符串，包含别名、类型、描述、静态内容（如果是 static）、系统提示和预设消息摘要（如果是 ai），格式如 RFC 003 所示。注意处理 `None` 值。
         *   使用 `await self._safe_respond(event, formatted_list)` 回复。
 
-    *   `[ ]` **`.aliasrole <别名> "<内容>" --type static` 或 `.aliasrole <别名> --type ai`**:
+    *   `[x]` **`.aliasrole <别名> "<内容>" --type static` 或 `.aliasrole <别名> --type ai`**:
         *   参数解析较为复杂，建议使用 `argparse` 或手动解析。
         *   提取 `<别名>`。
         *   查找 `--type` 参数及其值 (`static` 或 `ai`)，并验证。
