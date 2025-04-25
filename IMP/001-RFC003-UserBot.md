@@ -200,7 +200,7 @@
         *   检查返回的布尔值。
         *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ 已更新角色 'helper' 的描述。"
 
-    *   `[ ]` **`.setroleprompt <别名> "<系统提示词>"`**:
+    *   `[x]` **`.setroleprompt <别名> "<系统提示词>"`**:
         *   检查参数：确保有两个参数 `<别名>` 和 `"<系统提示词>"`。
         *   调用 `await self.state_service.set_role_system_prompt(alias=args[0], prompt=args[1])`。
         *   检查返回的布尔值。
