@@ -133,7 +133,135 @@
         *   `[x]` 回复确认消息，例如 `await event.respond(f"AI 上下文历史消息数量已设置为 {count}。")`。
     *   `[x]` 确保 `.status` 指令调用 `self.state_service.get_ai_history_length()` 并将其包含在回复给用户的状态信息中。
     *   `[x]` 将 `.sethistory <数量>` 指令及其描述添加到 `.help` 命令的输出中。
-6.  `[x]` **[Registration]** 事件注册将在阶段 7 中通过 `client.add_event_handler` 显式完成，而不是在此处使用装饰器。 (已确认，无代码实现)
+
+6.  `[ ]` **[Implementation - Remaining Commands]** 继续在 `handle_command` 方法中，为 RFC 003 中定义的剩余指令实现处理逻辑：
+
+    *   `[ ]` **`.status`**:
+        *   检查参数：确保没有额外参数。
+        *   调用 `self.state_service` 的多个 getter 方法获取当前状态：`is_enabled()`, `is_reply_trigger_enabled()`, `get_current_model_id()`, `get_current_role_alias()`, `get_target_group_ids()`, `get_rate_limit()`, `get_ai_history_length()`。
+        *   调用 `await self.state_service.resolve_model_id()` 获取当前模型的实际 ID（如果当前设置是别名）。
+        *   调用 `await self.state_service.get_model_aliases()` 查找当前模型 ID 对应的别名（如果有）。
+        *   调用 `await self.state_service.resolve_role_details()` 获取当前角色的详细信息（类型、描述/提示）。
+        *   格式化状态信息字符串，包含 RFC 003 要求的所有字段（启用状态、回复触发、模型ID和别名、角色别名和类型/内容摘要、历史数量、目标群组列表摘要、频率限制）。
+        *   使用 `await self._safe_respond(event, formatted_status)` 回复。
+
+    *   `[ ]` **`.setmodel <模型ID或别名>`**:
+        *   检查参数：确保只有一个参数 `<模型ID或别名>`。
+        *   调用 `await self.state_service.set_current_model(args[0])`。
+        *   检查返回的布尔值。
+        *   如果成功，调用 `await self.state_service.resolve_model_id(args[0])` 和 `await self.state_service.get_model_aliases()` 来获取模型 ID 和对应的别名（如果有）。
+        *   构造确认消息，如 "✅ AI 模型已设置为 gpt-4o (别名: 4o)。" 或 "✅ AI 模型已设置为 gpt-4o (无别名)。"
+        *   使用 `await self._safe_respond(...)` 回复确认或错误信息。
+
+    *   `[ ]` **`.listmodels`**:
+        *   检查参数：确保没有额外参数。
+        *   调用 `await self.state_service.get_model_aliases()` 获取别名字典。
+        *   格式化输出字符串，列出所有模型 ID 及其别名，格式如 RFC 003 所示。
+        *   使用 `await self._safe_respond(event, formatted_list)` 回复。
+
+    *   `[ ]` **`.aliasmodel <模型ID> <别名>`**:
+        *   检查参数：确保有两个参数 `<模型ID>` 和 `<别名>`。
+        *   调用 `await self.state_service.set_model_alias(alias=args[1], model_id=args[0])`。
+        *   检查返回的布尔值。
+        *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ 已为模型 gpt-4o 设置别名 4o。"
+
+    *   `[ ]` **`.unaliasmodel <别名>`**:
+        *   检查参数：确保只有一个参数 `<别名>`。
+        *   调用 `await self.state_service.remove_model_alias(args[0])`。
+        *   检查返回的布尔值。
+        *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ 模型别名 4o 已删除。"
+
+    *   `[ ]` **`.setrole <别名>`**:
+        *   检查参数：确保只有一个参数 `<别名>`。
+        *   调用 `await self.state_service.set_current_role(args[0])`。
+        *   检查返回的布尔值。
+        *   如果成功，可以调用 `await self.state_service.resolve_role_details(args[0])` 获取角色类型以包含在确认消息中。
+        *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ AI 角色已设置为 'helper' (AI)。"
+
+    *   `[ ]` **`.listroles`**:
+        *   检查参数：确保没有额外参数。
+        *   调用 `await self.state_service.get_role_aliases()` 获取所有角色详情的字典。
+        *   遍历字典，为每个角色格式化输出字符串，包含别名、类型、描述、静态内容（如果是 static）、系统提示和预设消息摘要（如果是 ai），格式如 RFC 003 所示。注意处理 `None` 值。
+        *   使用 `await self._safe_respond(event, formatted_list)` 回复。
+
+    *   `[ ]` **`.aliasrole <别名> "<内容>" --type static` 或 `.aliasrole <别名> --type ai`**:
+        *   参数解析较为复杂，建议使用 `argparse` 或手动解析。
+        *   提取 `<别名>`。
+        *   查找 `--type` 参数及其值 (`static` 或 `ai`)，并验证。
+        *   如果类型是 `static`，查找并提取可选的 `"<静态回复文本>"` 参数。
+        *   调用 `await self.state_service.create_role_alias(alias=alias, role_type=role_type, static_content=static_content_if_any)`。
+        *   检查返回的布尔值。
+        *   根据类型和操作结果构造确认消息，如 "✅ 已创建静态角色别名 'meeting' 并设置内容。" 或 "✅ 已创建 AI 角色别名 'helper'。"
+        *   使用 `await self._safe_respond(...)` 回复确认或错误信息。
+
+    *   `[ ]` **`.setroledesc <别名> "<角色描述文本>"`**:
+        *   检查参数：确保有两个参数 `<别名>` 和 `"<角色描述文本>"`。
+        *   调用 `await self.state_service.set_role_description(alias=args[0], description=args[1])`。
+        *   检查返回的布尔值。
+        *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ 已更新角色 'helper' 的描述。"
+
+    *   `[ ]` **`.setroleprompt <别名> "<系统提示词>"`**:
+        *   检查参数：确保有两个参数 `<别名>` 和 `"<系统提示词>"`。
+        *   调用 `await self.state_service.set_role_system_prompt(alias=args[0], prompt=args[1])`。
+        *   检查返回的布尔值。
+        *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ 已更新角色 'helper' 的系统提示。"
+
+    *   `[ ]` **`.setrolepreset <别名> '<JSON格式的预设消息列表>'`**:
+        *   检查参数：确保有两个参数 `<别名>` 和 `'<JSON格式的预设消息列表>'`。
+        *   **重要**: 在调用服务前，使用 `json.loads(args[1])` 尝试解析 JSON 字符串。如果失败（捕获 `json.JSONDecodeError`），则回复用户错误信息，提示 JSON 格式无效，然后 `return`。
+        *   如果 JSON 有效，调用 `await self.state_service.set_role_preset_messages(alias=args[0], presets_json=args[1])`。
+        *   检查返回的布尔值。
+        *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ 已更新角色 'helper' 的预设消息。"
+
+    *   `[ ]` **`.unaliasrole <别名>`**:
+        *   检查参数：确保只有一个参数 `<别名>`。
+        *   调用 `await self.state_service.remove_role_alias(args[0])`。
+        *   检查返回的布尔值。
+        *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ 角色别名 'helper' 已删除。"
+
+    *   `[ ]` **`.addgroup <群组ID或群组链接>`**:
+        *   检查参数：确保只有一个参数 `<群组ID或群组链接>`。
+        *   使用 `try...except` 块调用 `entity = await self.client.get_entity(args[0])` 来验证输入并获取实体对象。
+        *   处理可能的异常 (`ValueError` 表示无效 ID/链接, `telethon.errors` 如 `ChannelPrivateError` 等)。如果验证失败，回复错误信息并 `return`。
+        *   检查 `entity` 是否为群组或频道 (`isinstance(entity, (types.Chat, types.Channel))`)。如果不是，回复错误信息并 `return`。
+        *   获取 `chat_id = entity.id`。
+        *   调用 `await self.state_service.add_group(chat_id)`。
+        *   检查返回的布尔值。
+        *   构造确认消息，可以包含群组名称 `entity.title`，如 "✅ 群组 '项目讨论' 已添加到目标列表。"
+        *   使用 `await self._safe_respond(...)` 回复确认或错误信息。
+
+    *   `[ ]` **`.delgroup <群组ID或群组链接>`**:
+        *   检查参数：确保只有一个参数 `<群组ID或群组链接>`。
+        *   使用 `try...except` 调用 `entity = await self.client.get_entity(args[0])` 获取实体信息（主要是为了获取名称用于反馈）。如果获取失败，可以尝试直接将参数转为 `int` 作为 ID，或者提示用户 ID/链接无效。
+        *   尝试将 `args[0]` 解析为 `chat_id` (可能是整数 ID 或从 `entity` 获取)。
+        *   调用 `await self.state_service.remove_group(chat_id)`。 # 修正：之前写成了 state_state_service
+        *   检查返回的布尔值。
+        *   构造确认消息，如果之前成功获取了 `entity`，可以包含群组名称，如 "✅ 群组 '项目讨论' 已从目标列表移除。"
+        *   使用 `await self._safe_respond(...)` 回复确认或错误信息。
+
+    *   `[ ]` **`.listgroups`**:
+        *   检查参数：确保没有额外参数。
+        *   调用 `target_ids = await self.state_service.get_target_group_ids()`。
+        *   如果列表为空，回复 "当前没有设置目标群组。"
+        *   如果列表不为空，遍历 `target_ids`。对于每个 `chat_id`：
+            *   使用 `try...except` 调用 `entity = await self.client.get_entity(chat_id)` 获取群组名称。
+            *   构建包含群组名称和 ID 的行，如 `- 项目讨论 (-100123456789)`。如果 `get_entity` 失败，则显示 `- 未知群组 (ID: -100...)`。
+        *   组合所有行成为最终的列表字符串。
+        *   使用 `await self._safe_respond(event, formatted_list)` 回复。
+
+    *   `[ ]` **`.setlimit <秒数>`**:
+        *   检查参数：确保只有一个参数 `<秒数>`。
+        *   使用 `try...except ValueError` 验证参数是否为非负整数。如果无效，回复错误信息并 `return`。
+        *   调用 `await self.state_service.set_rate_limit(int(args[0]))`。
+        *   检查返回的布尔值。
+        *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ 频率限制已设置为 120 秒。"
+
+    *   `[ ]` **`.help`**:
+        *   检查参数：确保没有额外参数。
+        *   创建一个包含**所有**已实现指令（包括本步骤中实现的）及其用法描述的多行字符串。确保描述与 RFC 003 一致。
+        *   使用 `await self._safe_respond(event, help_message)` 回复。
+
+7.  `[x]` **[Registration]** 事件注册将在阶段 7 中通过 `client.add_event_handler` 显式完成，而不是在此处使用装饰器。 (已确认，无代码实现)
 
 **阶段 4: 自动回复逻辑 (`MentionReplyHandler`)**
 
