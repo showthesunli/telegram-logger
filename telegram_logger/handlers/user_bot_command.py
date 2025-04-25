@@ -241,9 +241,21 @@ class UserBotCommandHandler(BaseHandler):
                     # 失败可能是因为别名/ID不存在，或者数据库错误
                     await self._safe_respond(event, f"❌ 设置模型失败。模型ID或别名 '{model_ref}' 不存在，或发生数据库错误。")
 
-            # elif command == "listmodels":
-            #     # 实现列出模型逻辑
-            #     await self._safe_respond(event, "列出模型待实现...")
+            elif command == "listmodels":
+                if args:
+                    await self._safe_respond(event, "错误：`.listmodels` 指令不需要参数。")
+                    return
+
+                model_aliases = await self.state_service.get_model_aliases()
+
+                if not model_aliases:
+                    await self._safe_respond(event, "ℹ️ 当前没有设置任何模型别名。")
+                else:
+                    response_lines = ["📚 **可用模型别名**："]
+                    for alias, model_id in model_aliases.items():
+                        response_lines.append(f"- `{alias}` -> `{model_id}`")
+                    await self._safe_respond(event, "\n".join(response_lines))
+
             # ... 其他指令 ...
 
             else:
