@@ -145,7 +145,7 @@
         *   格式化状态信息字符串，包含 RFC 003 要求的所有字段（启用状态、回复触发、模型ID和别名、角色别名和类型/内容摘要、历史数量、目标群组列表摘要、频率限制）。
         *   使用 `await self._safe_respond(event, formatted_status)` 回复。
 
-    *   `[ ]` **`.setmodel <模型ID或别名>`**:
+    *   `[x]` **`.setmodel <模型ID或别名>`**:
         *   检查参数：确保只有一个参数 `<模型ID或别名>`。
         *   调用 `await self.state_service.set_current_model(args[0])`。
         *   检查返回的布尔值。
