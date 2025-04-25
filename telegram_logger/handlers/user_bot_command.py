@@ -249,11 +249,13 @@ class UserBotCommandHandler(BaseHandler):
                 model_aliases = await self.state_service.get_model_aliases()
 
                 if not model_aliases:
-                    await self._safe_respond(event, "ℹ️ 当前没有设置任何模型别名。")
+                    await self._safe_respond(event, "ℹ️ 当前没有设置任何模型别名。\n\n你可以使用 `.aliasmodel <模型ID> <别名>` 来设置模型别名。")
                 else:
+                    # 按字母顺序排序别名，使输出更有条理
+                    sorted_aliases = sorted(model_aliases.items())
                     response_lines = ["📚 **可用模型别名**："]
-                    for alias, model_id in model_aliases.items():
-                        response_lines.append(f"- `{alias}` -> `{model_id}`")
+                    for alias, model_id in sorted_aliases:
+                        response_lines.append(f"- `{alias}` → `{model_id}`")
                     await self._safe_respond(event, "\n".join(response_lines))
 
             elif command == "aliasmodel":
