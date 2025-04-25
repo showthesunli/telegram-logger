@@ -616,6 +616,15 @@ class UserBotCommandHandler(BaseHandler):
                     chat_id = entity.id
                     group_title = entity.title
 
+                    # --- 新增：规范化频道/超级群组 ID ---
+                    normalized_chat_id = chat_id
+                    if isinstance(entity, types.Channel) and chat_id > 0:
+                        # 如果实体是 Channel (包括超级群组) 且 ID 是正数，添加 -100 前缀
+                        normalized_chat_id = int(f"-100{chat_id}")
+                        logger.info(f"规范化频道/超级群组 ID：从 {chat_id} 转换为 {normalized_chat_id} (标题: '{group_title}')")
+                    # --- 规范化结束 ---
+
+
                 except (ValueError, errors.UsernameInvalidError, errors.ChannelPrivateError, errors.ChatAdminRequiredError, errors.UserDeactivatedError, errors.AuthKeyError, errors.UserBannedInChannelError) as e:
                     logger.warning(f"无法解析或访问群组 '{group_ref}': {e}")
                     await self._safe_respond(event, f"错误：无法找到或访问群组/频道 '{group_ref}'。\n请确保 ID/链接正确，且你有权限访问。\n错误详情: {type(e).__name__}")
@@ -625,19 +634,19 @@ class UserBotCommandHandler(BaseHandler):
                     await self._safe_respond(event, f"错误：获取群组信息时发生意外错误。请检查日志。")
                     return
 
-                # 添加到目标列表
-                if chat_id is not None:
-                    success = await self.state_service.add_group(chat_id)
+                # 添加到目标列表 (使用规范化后的 ID)
+                if normalized_chat_id is not None: # 使用 normalized_chat_id
+                    success = await self.state_service.add_group(normalized_chat_id) # 传递规范化后的 ID
                     if success:
-                        logger.info(f"已将群组 '{group_title}' (ID: {chat_id}) 添加到目标列表。")
+                        logger.info(f"已将群组 '{group_title}' (ID: {normalized_chat_id}) 添加到目标列表。")
                         await self._safe_respond(event, f"✅ 群组 '{group_title}' 已添加到目标列表。")
                     else:
                         # 可能是数据库错误，或者群组已存在（add_group 返回 False）
-                        # 检查群组是否已存在
-                        if chat_id in self.state_service.get_target_group_ids():
+                        # 检查群组是否已存在 (也要用规范化 ID 检查)
+                        if normalized_chat_id in self.state_service.get_target_group_ids():
                              await self._safe_respond(event, f"ℹ️ 群组 '{group_title}' 已在目标列表中。")
                         else:
-                            logger.error(f"添加目标群组 {chat_id} ('{group_title}') 到数据库时失败。")
+                            logger.error(f"添加目标群组 {normalized_chat_id} ('{group_title}') 到数据库时失败。")
                             await self._safe_respond(event, f"❌ 添加群组 '{group_title}' 失败（可能是数据库错误）。")
                 else:
                     # 理论上不应到达这里，因为前面有检查
