@@ -1,8 +1,9 @@
 import logging
 import shlex
-import json  # 新增导入
+import json
 from typing import Set, Dict, Any, Optional
-from telethon import events, TelegramClient, errors # 新增导入 errors
+from telethon import events, TelegramClient, errors
+from telethon.tl import types # 新增导入
 from telethon.tl.types import Message as TelethonMessage
 
 from .base_handler import BaseHandler
@@ -126,10 +127,85 @@ class UserBotCommandHandler(BaseHandler):
                 else:
                     await self._safe_respond(event, f"❌ 设置历史数量失败（可能是数据库错误）。")
 
+            elif command == "status":
+                if args:
+                    await self._safe_respond(event, "错误：`.status` 指令不需要参数。")
+                    return
+
+                # 获取所有状态信息
+                enabled = self.state_service.is_enabled()
+                reply_trigger = self.state_service.is_reply_trigger_enabled()
+                current_model_ref = self.state_service.get_current_model_id() # 可能为别名或 ID
+                current_role_alias = self.state_service.get_current_role_alias()
+                target_group_ids = self.state_service.get_target_group_ids()
+                rate_limit = self.state_service.get_rate_limit()
+                history_length = self.state_service.get_ai_history_length()
+
+                # 解析模型信息
+                model_id = await self.state_service.resolve_model_id(current_model_ref)
+                model_aliases = await self.state_service.get_model_aliases()
+                model_alias_str = ""
+                # 反向查找别名
+                for alias, m_id in model_aliases.items():
+                    if m_id == model_id:
+                        model_alias_str = f" (别名: {alias})"
+                        break
+                model_display = f"{model_id or '未设置'}{model_alias_str}"
+
+                # 解析角色信息
+                role_details = await self.state_service.resolve_role_details(current_role_alias)
+                role_display = f"'{current_role_alias}'"
+                if role_details:
+                    role_type = role_details.get('role_type', '未知')
+                    role_display += f" ({role_type.upper()})"
+                    if role_type == 'static':
+                        content = role_details.get('static_content')
+                        role_display += f" (内容: {content[:30] + '...' if content and len(content) > 30 else content or '未设置'})"
+                    elif role_type == 'ai':
+                        prompt = role_details.get('system_prompt')
+                        role_display += f" (提示: {prompt[:30] + '...' if prompt and len(prompt) > 30 else prompt or '未设置'})"
+                else:
+                    role_display += " (未找到或未设置)"
+
+
+                # 获取目标群组名称 (摘要)
+                group_names = []
+                if target_group_ids:
+                    # 只获取前几个群组的名称以避免消息过长
+                    max_groups_to_show = 3
+                    count = 0
+                    for group_id in target_group_ids:
+                        if count >= max_groups_to_show:
+                            group_names.append("...")
+                            break
+                        try:
+                            entity = await self.client.get_entity(group_id)
+                            if isinstance(entity, (types.Chat, types.Channel)):
+                                group_names.append(f"'{entity.title}'")
+                            else:
+                                group_names.append(f"ID:{group_id}")
+                        except Exception:
+                            logger.warning(f"获取群组 {group_id} 信息时出错", exc_info=True)
+                            group_names.append(f"ID:{group_id}")
+                        count += 1
+                groups_display = f"[{', '.join(group_names)}]" if group_names else "无"
+
+
+                # 格式化最终状态字符串
+                status_message = (
+                    f"📊 **用户机器人状态**\n\n"
+                    f"🔹 **核心功能:** {'✅ 已启用' if enabled else '❌ 已禁用'}\n"
+                    f"🔹 **回复触发:** {'✅ 已启用' if reply_trigger else '❌ 已禁用'}\n"
+                    f"🔹 **当前模型:** {model_display}\n"
+                    f"🔹 **当前角色:** {role_display}\n"
+                    f"🔹 **AI历史数量:** {history_length}\n"
+                    f"🔹 **目标群组:** {groups_display}\n"
+                    f"🔹 **频率限制:** {rate_limit} 秒"
+                )
+
+                await self._safe_respond(event, status_message)
+
             # --- 其他指令的占位符 ---
-            # elif command == "status":
-            #     # 实现获取并格式化状态信息
-            #     await self._safe_respond(event, "状态信息待实现...")
             # elif command == "setmodel":
             #     # 实现设置模型逻辑
             #     await self._safe_respond(event, "设置模型待实现...")
