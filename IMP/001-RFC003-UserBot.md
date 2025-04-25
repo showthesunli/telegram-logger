@@ -213,7 +213,7 @@
         *   检查返回的布尔值。
         *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ 已更新角色 'helper' 的预设消息。"
 
-    *   `[ ]` **`.unaliasrole <别名>`**:
+    *   `[x]` **`.unaliasrole <别名>`**:
         *   检查参数：确保只有一个参数 `<别名>`。
         *   调用 `await self.state_service.remove_role_alias(args[0])`。
         *   检查返回的布尔值。

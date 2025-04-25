@@ -554,6 +554,37 @@ class UserBotCommandHandler(BaseHandler):
                     logger.error(f"设置角色 '{alias}' 的预设消息失败。")
                     await self._safe_respond(event, f"❌ 设置角色 '{alias}' 的预设消息失败（可能是数据库错误）。")
 
+            elif command == "unaliasrole":
+                # 参数验证
+                if len(args) != 1:
+                    await self._safe_respond(event, "错误：`.unaliasrole` 指令需要一个参数。\n用法: `.unaliasrole <别名>`")
+                    return
+
+                alias = args[0]
+
+                # 检查别名是否存在（可选，服务层也会检查，但提前检查可以提供更友好的错误信息）
+                role_details = await self.state_service.resolve_role_details(alias)
+                if not role_details:
+                    await self._safe_respond(event, f"错误：角色别名 '{alias}' 不存在。")
+                    return
+                
+                # 检查是否正在删除当前使用的角色
+                current_role = self.state_service.get_current_role_alias()
+                if alias == current_role:
+                    await self._safe_respond(event, f"⚠️ 警告：你正在删除当前使用的角色 '{alias}'。\n请稍后使用 `.setrole` 选择一个新角色。")
+                    # 注意：这里不阻止删除，只是提醒用户
+
+                # 删除角色别名
+                success = await self.state_service.remove_role_alias(alias)
+
+                if success:
+                    logger.info(f"已删除角色别名 '{alias}'。")
+                    await self._safe_respond(event, f"✅ 角色别名 '{alias}' 已删除。")
+                else:
+                    # 失败可能是因为别名不存在（虽然我们检查了）或数据库错误
+                    logger.error(f"删除角色别名 '{alias}' 失败。")
+                    await self._safe_respond(event, f"❌ 删除角色别名 '{alias}' 失败（可能是数据库错误）。")
+
 
             # ... 其他指令 ...
 
