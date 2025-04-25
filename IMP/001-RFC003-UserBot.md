@@ -134,9 +134,9 @@
     *   `[x]` 确保 `.status` 指令调用 `self.state_service.get_ai_history_length()` 并将其包含在回复给用户的状态信息中。
     *   `[x]` 将 `.sethistory <数量>` 指令及其描述添加到 `.help` 命令的输出中。
 
-6.  `[ ]` **[Implementation - Remaining Commands]** 继续在 `handle_command` 方法中，为 RFC 003 中定义的剩余指令实现处理逻辑：
+6.  `[x]` **[Implementation - Remaining Commands]** 继续在 `handle_command` 方法中，为 RFC 003 中定义的剩余指令实现处理逻辑：
 
-    *   `[ ]` **`.status`**:
+    *   `[x]` **`.status`**:
         *   检查参数：确保没有额外参数。
         *   调用 `self.state_service` 的多个 getter 方法获取当前状态：`is_enabled()`, `is_reply_trigger_enabled()`, `get_current_model_id()`, `get_current_role_alias()`, `get_target_group_ids()`, `get_rate_limit()`, `get_ai_history_length()`。
         *   调用 `await self.state_service.resolve_model_id()` 获取当前模型的实际 ID（如果当前设置是别名）。
