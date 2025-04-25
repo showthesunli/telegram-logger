@@ -714,6 +714,40 @@ class UserBotCommandHandler(BaseHandler):
                     # 但为保险起见，添加一个通用错误
                     await self._safe_respond(event, f"错误：无法处理输入 '{group_ref}' 以进行删除。")
 
+            elif command == "listgroups":
+                # 参数验证
+                if args:
+                    await self._safe_respond(event, "错误：`.listgroups` 指令不需要参数。")
+                    return
+
+                target_group_ids = self.state_service.get_target_group_ids()
+
+                if not target_group_ids:
+                    await self._safe_respond(event, "ℹ️ 当前没有设置任何目标群组。\n\n你可以使用 `.addgroup <群组ID或链接>` 来添加。")
+                else:
+                    response_lines = ["🎯 **当前目标群组列表**："]
+                    # 按 ID 排序（可选，但更一致）
+                    sorted_group_ids = sorted(list(target_group_ids))
+
+                    for chat_id in sorted_group_ids:
+                        group_name = f"ID: {chat_id}" # 默认显示 ID
+                        try:
+                            entity = await self.client.get_entity(chat_id)
+                            if isinstance(entity, (types.Chat, types.Channel)):
+                                group_name = f"'{entity.title}' ({chat_id})"
+                            else:
+                                group_name = f"未知类型实体 ({chat_id})"
+                        except (ValueError, errors.RPCError) as e:
+                            logger.warning(f"获取目标群组 {chat_id} 信息时出错: {e}")
+                            group_name = f"无法访问的群组 ({chat_id})"
+                        except Exception as e:
+                            logger.error(f"获取目标群组 {chat_id} 信息时发生意外错误: {e}", exc_info=True)
+                            group_name = f"获取信息出错 ({chat_id})"
+                        
+                        response_lines.append(f"- {group_name}")
+
+                    await self._safe_respond(event, "\n".join(response_lines))
+
 
             # ... 其他指令 ...
 

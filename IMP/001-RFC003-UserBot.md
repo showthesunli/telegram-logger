@@ -239,7 +239,7 @@
         *   构造确认消息，如果之前成功获取了 `entity`，可以包含群组名称，如 "✅ 群组 '项目讨论' 已从目标列表移除。"
         *   使用 `await self._safe_respond(...)` 回复确认或错误信息。
 
-    *   `[ ]` **`.listgroups`**:
+    *   `[x]` **`.listgroups`**:
         *   检查参数：确保没有额外参数。
         *   调用 `target_ids = await self.state_service.get_target_group_ids()`。
         *   如果列表为空，回复 "当前没有设置目标群组。"
