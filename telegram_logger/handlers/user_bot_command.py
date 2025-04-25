@@ -259,16 +259,32 @@ class UserBotCommandHandler(BaseHandler):
                     await self._safe_respond(event, "\n".join(response_lines))
 
             elif command == "aliasmodel":
+                # 参数验证
                 if len(args) != 2:
                     await self._safe_respond(event, "错误：`.aliasmodel` 指令需要两个参数。\n用法: `.aliasmodel <模型ID> <别名>`")
                     return
 
                 model_id = args[0]
                 alias = args[1]
-
+                
+                # 验证别名格式
+                if not alias.isalnum() and not (alias.replace('-', '').isalnum() and '-' in alias):
+                    await self._safe_respond(event, f"错误：别名 '{alias}' 格式无效。别名只能包含字母、数字和连字符(-)。")
+                    return
+                
+                # 检查别名是否与现有模型ID冲突
+                existing_aliases = await self.state_service.get_model_aliases()
+                for existing_alias, existing_model in existing_aliases.items():
+                    if existing_model.lower() == alias.lower():
+                        await self._safe_respond(event, f"错误：别名 '{alias}' 与现有模型ID '{existing_model}' 冲突。")
+                        return
+                
+                # 设置模型别名
                 if await self.state_service.set_model_alias(alias=alias, model_id=model_id):
+                    logger.info(f"已为模型 '{model_id}' 设置别名 '{alias}'")
                     await self._safe_respond(event, f"✅ 已为模型 `{model_id}` 设置别名 `{alias}`。")
                 else:
+                    logger.error(f"设置模型别名失败: model_id='{model_id}', alias='{alias}'")
                     await self._safe_respond(event, f"❌ 设置模型别名 `{alias}` 失败（可能是数据库错误）。")
 
             # ... 其他指令 ...

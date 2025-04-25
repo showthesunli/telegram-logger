@@ -153,13 +153,13 @@
         *   构造确认消息，如 "✅ AI 模型已设置为 gpt-4o (别名: 4o)。" 或 "✅ AI 模型已设置为 gpt-4o (无别名)。"
         *   使用 `await self._safe_respond(...)` 回复确认或错误信息。
 
-    *   `[ ]` **`.listmodels`**:
+    *   `[x]` **`.listmodels`**:
         *   检查参数：确保没有额外参数。
         *   调用 `await self.state_service.get_model_aliases()` 获取别名字典。
         *   格式化输出字符串，列出所有模型 ID 及其别名，格式如 RFC 003 所示。
         *   使用 `await self._safe_respond(event, formatted_list)` 回复。
 
-    *   `[ ]` **`.aliasmodel <模型ID> <别名>`**:
+    *   `[x]` **`.aliasmodel <模型ID> <别名>`**:
         *   检查参数：确保有两个参数 `<模型ID>` 和 `<别名>`。
         *   调用 `await self.state_service.set_model_alias(alias=args[1], model_id=args[0])`。
         *   检查返回的布尔值。
