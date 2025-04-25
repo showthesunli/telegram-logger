@@ -103,9 +103,11 @@ class MentionReplyHandler(BaseHandler):
             logger.info(f"事件满足触发条件 (Mention: {is_mention}, ReplyToMe: {is_reply_to_me})，继续处理...")
 
             # 5. 检查频率限制
-            if self.state_service.check_rate_limit(event.chat_id):
+            # check_rate_limit 返回 True 表示 *未受限* (可以发送)
+            # 因此，我们需要在它返回 False (受限) 时才忽略
+            if not self.state_service.check_rate_limit(event.chat_id):
                 logger.info(f"群组 {event.chat_id} 触发频率限制，本次忽略。")
-                return # 检查返回值 (False 表示受限)
+                return
 
             # 6. 获取当前角色详情
             current_role_alias = self.state_service.get_current_role_alias()
