@@ -338,6 +338,32 @@ class UserBotCommandHandler(BaseHandler):
                     logger.error(f"设置角色 '{alias}' 的系统提示词失败")
                     await self._safe_respond(event, f"❌ 设置角色 '{alias}' 的系统提示词失败（可能是数据库错误）。")
 
+            elif command == "setrole":
+                # 参数验证
+                if len(args) != 1:
+                    await self._safe_respond(event, "错误：`.setrole` 指令需要一个参数。\n用法: `.setrole <别名>`")
+                    return
+
+                alias = args[0]
+
+                # 设置当前角色
+                success = await self.state_service.set_current_role(alias)
+
+                if success:
+                    # 获取角色详情以在反馈中显示类型
+                    role_details = await self.state_service.resolve_role_details(alias)
+                    role_type_str = ""
+                    if role_details:
+                        role_type = role_details.get('role_type', '未知')
+                        role_type_str = f" ({role_type.upper()})"
+                    
+                    logger.info(f"用户已将当前角色设置为 '{alias}'{role_type_str}")
+                    await self._safe_respond(event, f"✅ AI 角色已设置为 '{alias}'{role_type_str}。")
+                else:
+                    # 失败可能是因为别名不存在或数据库错误
+                    logger.error(f"设置当前角色为 '{alias}' 失败")
+                    await self._safe_respond(event, f"❌ 设置角色失败。角色别名 '{alias}' 不存在，或发生数据库错误。")
+
             # ... 其他指令 ...
 
             else:
