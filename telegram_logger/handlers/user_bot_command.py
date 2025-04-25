@@ -95,7 +95,8 @@ class UserBotCommandHandler(BaseHandler):
                 if args:
                     await self._safe_respond(event, "错误：`.replyon` 指令不需要参数。")
                     return
-                if await self.state_service.enable_reply_trigger():
+                # 使用 set_reply_trigger(True)
+                if await self.state_service.set_reply_trigger(True):
                     await self._safe_respond(event, "✅ 回复触发已启用。")
                 else:
                     await self._safe_respond(event, "❌ 启用回复触发失败（可能是数据库错误）。")
@@ -104,7 +105,8 @@ class UserBotCommandHandler(BaseHandler):
                 if args:
                     await self._safe_respond(event, "错误：`.replyoff` 指令不需要参数。")
                     return
-                if await self.state_service.disable_reply_trigger():
+                # 使用 set_reply_trigger(False)
+                if await self.state_service.set_reply_trigger(False):
                     await self._safe_respond(event, "✅ 回复触发已禁用。")
                 else:
                     await self._safe_respond(event, "❌ 禁用回复触发失败（可能是数据库错误）。")
