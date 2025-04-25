@@ -178,7 +178,7 @@
         *   如果成功，可以调用 `await self.state_service.resolve_role_details(args[0])` 获取角色类型以包含在确认消息中。
         *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ AI 角色已设置为 'helper' (AI)。"
 
-    *   `[ ]` **`.listroles`**:
+    *   `[x]` **`.listroles`**:
         *   检查参数：确保没有额外参数。
         *   调用 `await self.state_service.get_role_aliases()` 获取所有角色详情的字典。
         *   遍历字典，为每个角色格式化输出字符串，包含别名、类型、描述、静态内容（如果是 static）、系统提示和预设消息摘要（如果是 ai），格式如 RFC 003 所示。注意处理 `None` 值。

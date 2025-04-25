@@ -364,6 +364,52 @@ class UserBotCommandHandler(BaseHandler):
                     logger.error(f"设置当前角色为 '{alias}' 失败")
                     await self._safe_respond(event, f"❌ 设置角色失败。角色别名 '{alias}' 不存在，或发生数据库错误。")
 
+            elif command == "listroles":
+                if args:
+                    await self._safe_respond(event, "错误：`.listroles` 指令不需要参数。")
+                    return
+
+                role_aliases_details = await self.state_service.get_role_aliases()
+
+                if not role_aliases_details:
+                    await self._safe_respond(event, "ℹ️ 当前没有定义任何角色别名。\n\n你可以使用 `.aliasrole <别名> --type <ai|static> [\"<内容>\"]` 来创建角色。")
+                else:
+                    response_lines = ["🎭 **可用角色别名**："]
+                    # 按别名排序
+                    sorted_aliases = sorted(role_aliases_details.items())
+
+                    for alias, details in sorted_aliases:
+                        role_type = details.get('role_type', '未知').upper()
+                        description = details.get('description') or "无描述"
+                        
+                        role_line = f"\n🔹 **`{alias}`** ({role_type}):\n   - 描述: {description}"
+
+                        if role_type == 'STATIC':
+                            content = details.get('static_content') or "(未设置)"
+                            role_line += f"\n   - 内容: {content}"
+                        elif role_type == 'AI':
+                            prompt = details.get('system_prompt') or "(未设置)"
+                            presets_json = details.get('preset_messages')
+                            presets_summary = "(未设置)"
+                            if presets_json:
+                                try:
+                                    presets = json.loads(presets_json)
+                                    if isinstance(presets, list) and presets:
+                                        presets_summary = f"({len(presets)} 条预设)"
+                                    elif isinstance(presets, list) and not presets:
+                                         presets_summary = "(空列表)"
+                                    else:
+                                        presets_summary = "(无效格式)"
+                                except json.JSONDecodeError:
+                                    presets_summary = "(无效JSON)"
+
+                            role_line += f"\n   - 系统提示: {prompt}"
+                            role_line += f"\n   - 预设消息: {presets_summary}"
+                        
+                        response_lines.append(role_line)
+
+                    await self._safe_respond(event, "\n".join(response_lines))
+
             # ... 其他指令 ...
 
             else:
