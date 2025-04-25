@@ -171,7 +171,7 @@
         *   检查返回的布尔值。
         *   使用 `await self._safe_respond(...)` 回复确认或错误信息，如 "✅ 模型别名 4o 已删除。"
 
-    *   `[ ]` **`.setrole <别名>`**:
+    *   `[x]` **`.setrole <别名>`**:
         *   检查参数：确保只有一个参数 `<别名>`。
         *   调用 `await self.state_service.set_current_role(args[0])`。
         *   检查返回的布尔值。
