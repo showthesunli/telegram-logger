@@ -475,6 +475,33 @@ class UserBotCommandHandler(BaseHandler):
                     logger.error(f"创建角色别名 '{alias}' (类型: {role_type}) 失败。")
                     await self._safe_respond(event, f"❌ 创建角色别名 '{alias}' 失败。别名可能已存在，或发生数据库错误。")
 
+            elif command == "setroledesc":
+                # 参数验证
+                if len(args) < 2:
+                    await self._safe_respond(event, "错误：`.setroledesc` 指令需要两个参数。\n用法: `.setroledesc <别名> \"<角色描述文本>\"`")
+                    return
+                
+                alias = args[0]
+                # 将剩余参数合并为描述（以防描述中有空格且未用引号包裹）
+                description = " ".join(args[1:])
+
+                # 检查角色别名是否存在（可选但推荐，服务层也会检查）
+                role_details = await self.state_service.resolve_role_details(alias)
+                if not role_details:
+                    await self._safe_respond(event, f"错误：角色别名 '{alias}' 不存在。")
+                    return
+
+                # 设置角色描述
+                success = await self.state_service.set_role_description(alias, description)
+
+                if success:
+                    logger.info(f"已更新角色 '{alias}' 的描述。")
+                    await self._safe_respond(event, f"✅ 已更新角色 '{alias}' 的描述。")
+                else:
+                    # 失败可能是因为别名不存在或数据库错误
+                    logger.error(f"设置角色 '{alias}' 的描述失败。")
+                    await self._safe_respond(event, f"❌ 设置角色 '{alias}' 的描述失败（可能是数据库错误）。")
+
 
             # ... 其他指令 ...
 

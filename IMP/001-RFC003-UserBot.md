@@ -194,7 +194,7 @@
         *   根据类型和操作结果构造确认消息，如 "✅ 已创建静态角色别名 'meeting' 并设置内容。" 或 "✅ 已创建 AI 角色别名 'helper'。"
         *   使用 `await self._safe_respond(...)` 回复确认或错误信息。
 
-    *   `[ ]` **`.setroledesc <别名> "<角色描述文本>"`**:
+    *   `[x]` **`.setroledesc <别名> "<角色描述文本>"`**:
         *   检查参数：确保有两个参数 `<别名>` 和 `"<角色描述文本>"`。
         *   调用 `await self.state_service.set_role_description(alias=args[0], description=args[1])`。
         *   检查返回的布尔值。
