@@ -37,10 +37,11 @@ class UserBotStateService:
         # 加载用户设置
         try:
             settings = await self.db.get_user_bot_settings(self.my_id)
+            settings = await self.db.get_user_bot_settings(self.my_id)
             if settings is None: # DB error occurred in get_user_bot_settings
-                 logger.critical(f"无法从数据库加载用户 {self.my_id} 的设置。将使用默认值，但数据库可能存在问题。")
-                 # 使用默认值继续，但记录严重错误
-                 settings = {} # Use empty dict to trigger default setting logic below
+                 logger.critical(f"无法从数据库加载用户 {self.my_id} 的设置。数据库可能存在问题。")
+                 # 抛出异常，阻止服务在不可靠状态下运行
+                 raise RuntimeError(f"无法从数据库加载用户 {self.my_id} 的 UserBot 设置。")
             elif not settings: # Settings not found, initialize defaults
                 logger.info(f"未找到用户 {self.my_id} 的设置，将创建默认设置。")
                 default_settings = {
@@ -54,20 +55,30 @@ class UserBotStateService:
                 # Attempt to save defaults
                 if not await self.db.save_user_bot_settings(self.my_id, default_settings):
                     logger.critical(f"无法为用户 {self.my_id} 保存初始默认设置到数据库。服务可能无法正常运行。")
-                    # Consider raising an exception here if saving defaults is critical
-                settings = default_settings # Use defaults for in-memory state regardless
+                    # 抛出异常
+                    raise RuntimeError(f"无法为用户 {self.my_id} 创建默认 UserBot 设置，数据库写入失败。")
+                
+                # 重新加载以确保写入成功并获取完整数据
+                settings = await self.db.get_user_bot_settings(self.my_id)
+                if not settings: # 如果保存后仍然无法加载，则存在严重问题
+                    logger.critical(f"创建默认设置后仍无法加载用户 {self.my_id} 的设置！数据库可能无法写入或读取。")
+                    raise RuntimeError(f"无法为用户 {self.my_id} 加载或创建 UserBot 设置，数据库操作失败。")
+                logger.info(f"已为用户 {self.my_id} 创建并加载默认设置。")
+
         except Exception as e:
              logger.critical(f"加载用户 {self.my_id} 设置时发生意外错误: {e}", exc_info=True)
-             # Decide how to proceed: raise error or use defaults? Using defaults for now.
-             settings = {} # Use empty dict to trigger default setting logic below
+             # 抛出异常，而不是继续使用可能不一致的状态
+             raise RuntimeError(f"加载用户 {self.my_id} UserBot 设置时发生意外错误。") from e
 
-        # Apply settings (use defaults if loading/saving failed)
-        self._enabled = bool(settings.get('enabled', False))
-        self._reply_trigger_enabled = bool(settings.get('reply_trigger_enabled', False))
-        self._ai_history_length = int(settings.get('ai_history_length', 1))
-        self._current_model_id = settings.get('current_model_id', 'gpt-3.5-turbo')
-        self._current_role_alias = settings.get('current_role_alias', 'default_assistant')
-        self._rate_limit_seconds = int(settings.get('rate_limit_seconds', 60))
+        # --- 只有在 settings 成功加载或创建后才继续 ---
+
+        # Apply settings (不再需要 .get() 的默认值，因为 settings 保证非空)
+        self._enabled = bool(settings['enabled'])
+        self._reply_trigger_enabled = bool(settings['reply_trigger_enabled'])
+        self._ai_history_length = int(settings['ai_history_length'])
+        self._current_model_id = settings['current_model_id']
+        self._current_role_alias = settings['current_role_alias']
+        self._rate_limit_seconds = int(settings['rate_limit_seconds'])
         logger.info(f"用户 {self.my_id} 设置已加载: enabled={self._enabled}, reply_trigger={self._reply_trigger_enabled}, history={self._ai_history_length}, model={self._current_model_id}, role={self._current_role_alias}, limit={self._rate_limit_seconds}")
 
         # 加载目标群组
