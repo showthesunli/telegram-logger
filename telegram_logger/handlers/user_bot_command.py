@@ -256,6 +256,19 @@ class UserBotCommandHandler(BaseHandler):
                         response_lines.append(f"- `{alias}` -> `{model_id}`")
                     await self._safe_respond(event, "\n".join(response_lines))
 
+            elif command == "aliasmodel":
+                if len(args) != 2:
+                    await self._safe_respond(event, "错误：`.aliasmodel` 指令需要两个参数。\n用法: `.aliasmodel <模型ID> <别名>`")
+                    return
+
+                model_id = args[0]
+                alias = args[1]
+
+                if await self.state_service.set_model_alias(alias=alias, model_id=model_id):
+                    await self._safe_respond(event, f"✅ 已为模型 `{model_id}` 设置别名 `{alias}`。")
+                else:
+                    await self._safe_respond(event, f"❌ 设置模型别名 `{alias}` 失败（可能是数据库错误）。")
+
             # ... 其他指令 ...
 
             else:
