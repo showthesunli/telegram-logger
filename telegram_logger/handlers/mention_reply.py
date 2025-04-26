@@ -187,8 +187,9 @@ class MentionReplyHandler(BaseHandler):
                 # 注意：数据库返回的是按时间倒序，需要反转
                 for msg in reversed(history_messages):
                     # 假设 self.my_id 是机器人的 ID
-                    role = "assistant" if msg.sender_id == self.my_id else "user"
-                    content = msg.text or "[空消息或非文本]" # 确保有内容
+                    # 使用数据库模型中的 from_id 属性
+                    role = "assistant" if msg.from_id == self.my_id else "user"
+                    content = msg.msg_text or "[空消息或非文本]" # 确保有内容，使用 msg_text
                     ai_messages.append({"role": role, "content": content})
                 if history_messages:
                      logger.debug(f"已添加 {len(history_messages)} 条历史消息到 AI 消息列表。")
