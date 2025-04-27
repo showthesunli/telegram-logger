@@ -51,6 +51,6 @@
     *   移除其自身的 `init()` 方法。
     *   修改 `handle_event`，直接使用 `self.my_id` 属性（不再需要 `hasattr` 检查，因为属性现在会确保 `_my_id` 已设置或抛出错误）。
 
-7.  [ ] **修改 `UserBotCommandHandler`**:
-    *   更新初始化日志，确保打印正确的 `my_id`。
+7.  [x] **修改 `UserBotCommandHandler`**:
+    *   更新初始化日志，确保打印正确的 `my_id`。 (已验证，当前代码已满足要求)
 ```
