@@ -30,10 +30,10 @@ class MentionReplyHandler(BaseHandler):
         client: TelegramClient,
         db: DatabaseManager,
         state_service: UserBotStateService,
-        my_id: Optional[int] = None, # 添加 my_id 参数
         ai_service: AIService,
         log_chat_id: int,  # 从 BaseHandler 继承
         ignored_ids: Set[int],  # 从 BaseHandler 继承
+        my_id: Optional[int] = None, # 移动到后面
         **kwargs: Dict[str, Any],
     ):
         """
@@ -43,10 +43,10 @@ class MentionReplyHandler(BaseHandler):
             client: Telethon 客户端实例。
             db: DatabaseManager 实例。
             state_service: UserBotStateService 实例。
-            my_id: 用户自己的 Telegram ID (可选, 基类需要)。
             ai_service: AI 服务实例。
             log_chat_id: 日志频道 ID。
             ignored_ids: 忽略的用户/群组 ID。
+            my_id: 用户自己的 Telegram ID (可选, 基类需要)。
             **kwargs: 其他传递给 BaseHandler 的参数。
         """
         # 调用父类构造函数，注意 UserBot 功能可能不需要 log_chat_id 和 ignored_ids

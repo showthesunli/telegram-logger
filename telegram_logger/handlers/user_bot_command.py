@@ -24,9 +24,9 @@ class UserBotCommandHandler(BaseHandler):
         client: TelegramClient,
         db: DatabaseManager,
         state_service: UserBotStateService,
-        my_id: Optional[int] = None, # 修改为 Optional[int] = None
         log_chat_id: int,
         ignored_ids: Set[int],
+        my_id: Optional[int] = None, # 移动到后面
         **kwargs: Dict[str, Any]
     ):
         super().__init__(client=client, db=db, log_chat_id=log_chat_id, ignored_ids=ignored_ids, my_id=my_id, **kwargs) # 传递 my_id
