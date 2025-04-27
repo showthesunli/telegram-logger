@@ -53,10 +53,11 @@ class OutputHandler(BaseHandler):
         deletion_rate_limit_threshold: int = 5,
         deletion_rate_limit_window: int = 10,  # 单位：秒
         deletion_pause_duration: int = 5,  # 单位：秒
+        my_id: Optional[int] = None, # 添加 my_id 参数
         **kwargs: Dict[str, Any],
     ):
         """初始化 OutputHandler。"""
-        super().__init__(None, db, log_chat_id, ignored_ids, **kwargs)
+        super().__init__(None, db, log_chat_id, ignored_ids, my_id=my_id, **kwargs) # 传递 my_id
         self.forward_user_ids = set(forward_user_ids) if forward_user_ids else set()
         self.forward_group_ids = set(forward_group_ids) if forward_group_ids else set()
 
@@ -72,8 +73,9 @@ class OutputHandler(BaseHandler):
         self.formatter: Optional[MessageFormatter] = None
         self.restricted_media_handler: Optional[RestrictedMediaHandler] = None
 
+        my_id_status = f"my_id={my_id}" if my_id is not None else "my_id 未提供 (将由 init 获取)"
         logger.info(
-            f"OutputHandler 初始化完毕。转发用户: {self.forward_user_ids}, "
+            f"OutputHandler 初始化完毕。{my_id_status}, 转发用户: {self.forward_user_ids}, "
             f"群组: {self.forward_group_ids}, 忽略 ID: {self.ignored_ids}, "
             f"删除速率限制: {self.deletion_rate_limit_threshold} 事件 / "
             f"{self.deletion_rate_limit_window.total_seconds()} 秒, 暂停: "

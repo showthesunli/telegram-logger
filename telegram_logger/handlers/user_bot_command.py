@@ -24,14 +24,18 @@ class UserBotCommandHandler(BaseHandler):
         client: TelegramClient,
         db: DatabaseManager,
         state_service: UserBotStateService,
-        my_id: int,
+        my_id: Optional[int] = None, # 修改为 Optional[int] = None
         log_chat_id: int,
         ignored_ids: Set[int],
         **kwargs: Dict[str, Any]
     ):
-        super().__init__(client=client, db=db, log_chat_id=log_chat_id, ignored_ids=ignored_ids, **kwargs)
+        super().__init__(client=client, db=db, log_chat_id=log_chat_id, ignored_ids=ignored_ids, my_id=my_id, **kwargs) # 传递 my_id
         self.state_service = state_service
-        logger.info(f"UserBotCommandHandler 初始化完成。 My ID: {self.my_id}")
+        my_id_status = f"my_id={my_id}" if my_id is not None else "my_id 未提供 (错误? UserBot 需要 my_id)"
+        logger.info(f"UserBotCommandHandler 初始化完成。{my_id_status}")
+        if my_id is None:
+            logger.error("UserBotCommandHandler 初始化时未提供 my_id，可能导致后续操作失败！")
+
 
     async def _safe_respond(self, event: events.NewMessage.Event, message: str):
         """安全地发送回复消息，处理可能的 Telethon 错误。"""

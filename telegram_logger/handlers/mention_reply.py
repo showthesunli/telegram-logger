@@ -30,7 +30,7 @@ class MentionReplyHandler(BaseHandler):
         client: TelegramClient,
         db: DatabaseManager,
         state_service: UserBotStateService,
-        # my_id: int, # 不再直接传递 my_id, 将通过 init() 设置
+        my_id: Optional[int] = None, # 添加 my_id 参数
         ai_service: AIService,
         log_chat_id: int,  # 从 BaseHandler 继承
         ignored_ids: Set[int],  # 从 BaseHandler 继承
@@ -43,7 +43,7 @@ class MentionReplyHandler(BaseHandler):
             client: Telethon 客户端实例。
             db: DatabaseManager 实例。
             state_service: UserBotStateService 实例。
-            # my_id: 用户自己的 Telegram ID (将通过 init() 设置)。
+            my_id: 用户自己的 Telegram ID (可选, 基类需要)。
             ai_service: AI 服务实例。
             log_chat_id: 日志频道 ID。
             ignored_ids: 忽略的用户/群组 ID。
@@ -56,12 +56,16 @@ class MentionReplyHandler(BaseHandler):
             db=db,
             log_chat_id=log_chat_id,
             ignored_ids=ignored_ids,
+            my_id=my_id, # 传递 my_id
             **kwargs,
         )
         self.state_service = state_service
-        # self.my_id = None # my_id 将通过 init() 设置
         self.ai_service = ai_service  # 注入 AI 服务实例
-        logger.info("MentionReplyHandler 初始化完成，等待 init() 设置 my_id。")
+        my_id_status = f"my_id={my_id}" if my_id is not None else "my_id 未提供 (错误? MentionReply 需要 my_id)"
+        logger.info(f"MentionReplyHandler 初始化完成。{my_id_status}")
+        if my_id is None:
+            logger.error("MentionReplyHandler 初始化时未提供 my_id，可能导致后续操作失败！")
+
 
     async def init(self):
         """异步初始化，获取并设置 my_id。"""

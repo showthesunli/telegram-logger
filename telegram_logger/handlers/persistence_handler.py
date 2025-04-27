@@ -23,6 +23,7 @@ class PersistenceHandler(BaseHandler):
         db: DatabaseManager,
         log_chat_id: int,
         ignored_ids: Set[int],
+        my_id: Optional[int] = None, # 添加 my_id 参数
         **kwargs: Dict[str, Any]
     ):
         """
@@ -32,10 +33,12 @@ class PersistenceHandler(BaseHandler):
             db: 数据库管理器实例。
             log_chat_id: 日志频道 ID (基类可能需要)。
             ignored_ids: 要忽略的用户/频道 ID 集合 (基类可能需要)。
+            my_id: 用户自己的 Telegram ID (可选, 基类需要)。
             **kwargs: 其他传递给基类的参数。
         """
-        super().__init__(client=None, db=db, log_chat_id=log_chat_id, ignored_ids=ignored_ids, **kwargs)
-        logger.info("PersistenceHandler 初始化完毕。")
+        super().__init__(client=None, db=db, log_chat_id=log_chat_id, ignored_ids=ignored_ids, my_id=my_id, **kwargs) # 传递 my_id
+        my_id_status = f"my_id={my_id}" if my_id is not None else "my_id 未提供 (将由 init 获取)"
+        logger.info(f"PersistenceHandler 初始化完毕。{my_id_status}")
 
     async def process(self, event: events.common.EventCommon) -> Optional[Message]:
         """
