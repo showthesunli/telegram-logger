@@ -23,34 +23,34 @@
 
 ## 修复步骤 (统一方案)
 
-1.  **修改 `BaseHandler.__init__`**:
+1.  [ ] **修改 `BaseHandler.__init__`**:
     *   接受一个可选的 `my_id` 参数: `my_id: Optional[int] = None`。
     *   在 `__init__` 中保存: `self._my_id = my_id`。
 
-2.  **修改 `BaseHandler.init()`**:
+2.  [ ] **修改 `BaseHandler.init()`**:
     *   保留此方法。
     *   修改逻辑，使其仅在 `self._my_id` 为 `None` 时才尝试从 `self.client.get_me()` 获取 `my_id`。
     *   更新日志记录，区分是通过构造函数设置还是通过 `init()` 获取。
 
-3.  **修改 `BaseHandler.my_id` 属性**:
+3.  [ ] **修改 `BaseHandler.my_id` 属性**:
     *   如果 `self._my_id` 是 `None`，则引发 `RuntimeError`，强制要求在使用前必须成功初始化 `my_id`。
 
-4.  **修改 `main.py`**:
+4.  [ ] **修改 `main.py`**:
     *   在 `client_service.initialize()` 成功获取 `user_id` 后。
     *   创建 `UserBotCommandHandler` 和 `MentionReplyHandler` 实例时，传递 `my_id=user_id`。
     *   创建 `PersistenceHandler` 和 `OutputHandler` 实例时，**不传递** `my_id` (使用默认值 `None`)。
     *   在将 `client` 注入 `PersistenceHandler` 和 `OutputHandler` (通过 `set_client`) 之后，**显式调用 `await handler.init()`** 来让它们获取 `my_id`。
     *   移除对 `mention_reply_handler.init()` 的调用（因为它在 `__init__` 中已经收到了 `my_id`）。
 
-5.  **修改所有 Handler (`PersistenceHandler`, `OutputHandler`, `UserBotCommandHandler`, `MentionReplyHandler`) 的 `__init__`**:
+5.  [ ] **修改所有 Handler (`PersistenceHandler`, `OutputHandler`, `UserBotCommandHandler`, `MentionReplyHandler`) 的 `__init__`**:
     *   确保它们的 `__init__` 方法接受 `my_id: Optional[int] = None`。
     *   在调用 `super().__init__(...)` 时，传递 `my_id=my_id`。
     *   更新各自的初始化日志信息，明确 `my_id` 的来源或状态。
 
-6.  **修改 `MentionReplyHandler`**:
+6.  [ ] **修改 `MentionReplyHandler`**:
     *   移除其自身的 `init()` 方法。
     *   修改 `handle_event`，直接使用 `self.my_id` 属性（不再需要 `hasattr` 检查，因为属性现在会确保 `_my_id` 已设置或抛出错误）。
 
-7.  **修改 `UserBotCommandHandler`**:
+7.  [ ] **修改 `UserBotCommandHandler`**:
     *   更新初始化日志，确保打印正确的 `my_id`。
 ```
