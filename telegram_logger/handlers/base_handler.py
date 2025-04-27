@@ -17,6 +17,7 @@ class BaseHandler(abc.ABC):
         db: DatabaseManager,
         log_chat_id: int,
         ignored_ids: set,
+        my_id: Optional[int] = None, # 添加 my_id 参数
         **kwargs: Dict[str, Any]
     ):
         """Telegram 事件处理器的基类。
