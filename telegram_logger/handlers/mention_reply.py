@@ -101,11 +101,22 @@ class MentionReplyHandler(BaseHandler):
                     logger.warning(f"获取回复消息失败 (可能已被删除): {e}", exc_info=True)
                     # 即使获取失败，如果被 @ 了，仍然可以继续处理
 
+            # --- 新增日志 ---
+            logger.debug(f"准备判断忽略条件: is_mention={is_mention}, is_reply_to_me={is_reply_to_me}")
+            # --- 日志结束 ---
+
             if not is_mention and not is_reply_to_me:
+                # --- 新增日志 ---
+                logger.debug("条件 (not is_mention and not is_reply_to_me) 为 True，准备忽略并返回。")
+                # --- 日志结束 ---
                 logger.debug("事件既不是 @提及 也不是对我的回复（或回复触发未启用），忽略。")
                 return
 
-            # 如果同时满足 @ 和回复，也只处理一次
+            # --- 新增日志 ---
+            logger.debug("条件 (not is_mention and not is_reply_to_me) 为 False，继续执行回复流程。")
+            # --- 日志结束 ---
+
+            # 如果同时满足 @ 和回复，也只处理一次 (这条日志移到这里更合适)
             logger.info(f"事件满足触发条件 (Mention: {is_mention}, ReplyToMe: {is_reply_to_me})，继续处理...")
 
             # 5. 检查频率限制
