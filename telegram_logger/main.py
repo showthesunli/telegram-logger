@@ -142,11 +142,13 @@ async def main():
         db=db,
         log_chat_id=LOG_CHAT_ID,
         ignored_ids=IGNORED_IDS,
+        # my_id 不在此处传递，将通过 init() 获取
     )
     output_handler = OutputHandler(
         db=db,
         log_chat_id=LOG_CHAT_ID,
         ignored_ids=IGNORED_IDS,
+        # my_id 不在此处传递，将通过 init() 获取
         forward_user_ids=FORWARD_USER_IDS,
         forward_group_ids=FORWARD_GROUP_IDS,
         deletion_rate_limit_threshold=DELETION_RATE_LIMIT_THRESHOLD,
@@ -198,9 +200,9 @@ async def main():
             client=client_service.client,  # 注入 client
             db=db,
             state_service=user_bot_state_service,
-            my_id=user_id,
-            log_chat_id=LOG_CHAT_ID,  # 传递 log_chat_id
-            ignored_ids=IGNORED_IDS,  # 传递 ignored_ids
+            my_id=user_id, # 直接传递 my_id
+            log_chat_id=LOG_CHAT_ID,
+            ignored_ids=IGNORED_IDS,
         )
         logger.debug("UserBotCommandHandler 已初始化。")
 
@@ -208,13 +210,13 @@ async def main():
             client=client_service.client,  # 注入 client
             db=db,
             state_service=user_bot_state_service,
-            # my_id=user_id, # 移除 my_id 参数
-            ai_service=ai_service,  # 注入 AI 服务
-            log_chat_id=LOG_CHAT_ID,  # 传递 log_chat_id
-            ignored_ids=IGNORED_IDS,  # 传递 ignored_ids
+            my_id=user_id, # 直接传递 my_id
+            ai_service=ai_service,
+            log_chat_id=LOG_CHAT_ID,
+            ignored_ids=IGNORED_IDS,
         )
         logger.debug("MentionReplyHandler 已初始化。")
-        await mention_reply_handler.init()  # 调用 init 来设置 my_id
+        # 不再需要调用 mention_reply_handler.init()，因为 my_id 已在构造时提供
 
         # 8. 注册 UserBot 事件处理器
         try:
@@ -252,13 +254,15 @@ async def main():
         ) in handlers:  # 'handlers' 列表只包含 PersistenceHandler 和 OutputHandler
             if hasattr(handler, "set_client"):
                 handler.set_client(client_service.client)
+                # 在设置客户端后，调用 init() 来获取 my_id
+                await handler.init()
             else:
                 logging.warning(
                     f"Handler {type(handler).__name__} does not have a set_client method."
                 )
 
         logging.info("All services started successfully")
-        logging.info(f"Client ID: {user_id}")
+        logging.info(f"Client ID: {user_id}") # 确认 user_id 已获取
         logging.info("Cleanup service is running")
 
         await client_service.run()
