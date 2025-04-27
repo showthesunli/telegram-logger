@@ -21,29 +21,36 @@
 
 `MentionReplyHandler` (以及 `UserBotCommandHandler`) 在处理事件时，其内部状态 `self.my_id` (或通过 `BaseHandler.my_id` 属性访问的 `self._my_id`) 的值是 `0`，而不是正确的用户 ID。这很可能是因为 `my_id` 的传递和初始化机制存在问题，依赖于 `BaseHandler.init()` 的异步执行或默认返回值 `0`。
 
-## 修复步骤
+## 修复步骤 (统一方案)
 
-1.  **修改 `BaseHandler.__init__`:**
-    *   接受 `my_id: Optional[int]` 参数。
-    *   将传入的 `my_id` 存储在 `self._my_id` 中。
-    *   移除 `BaseHandler.init()` 方法。
-    *   修改 `BaseHandler.my_id` 属性：如果 `self._my_id` 是 `None`，则引发 `RuntimeError` 或返回 `None`，而不是返回 `0`。
+1.  **修改 `BaseHandler.__init__`**:
+    *   接受一个可选的 `my_id` 参数: `my_id: Optional[int] = None`。
+    *   在 `__init__` 中保存: `self._my_id = my_id`。
 
-2.  **修改 `main.py`:**
+2.  **修改 `BaseHandler.init()`**:
+    *   保留此方法。
+    *   修改逻辑，使其仅在 `self._my_id` 为 `None` 时才尝试从 `self.client.get_me()` 获取 `my_id`。
+    *   更新日志记录，区分是通过构造函数设置还是通过 `init()` 获取。
+
+3.  **修改 `BaseHandler.my_id` 属性**:
+    *   如果 `self._my_id` 是 `None`，则引发 `RuntimeError`，强制要求在使用前必须成功初始化 `my_id`。
+
+4.  **修改 `main.py`**:
     *   在 `client_service.initialize()` 成功获取 `user_id` 后。
-    *   在创建 `UserBotCommandHandler` 和 `MentionReplyHandler` 实例时，将 `user_id` 作为 `my_id` 参数传递给它们的 `__init__` 方法。
-    *   移除对 `mention_reply_handler.init()` 的调用。
+    *   创建 `UserBotCommandHandler` 和 `MentionReplyHandler` 实例时，传递 `my_id=user_id`。
+    *   创建 `PersistenceHandler` 和 `OutputHandler` 实例时，**不传递** `my_id` (使用默认值 `None`)。
+    *   在将 `client` 注入 `PersistenceHandler` 和 `OutputHandler` (通过 `set_client`) 之后，**显式调用 `await handler.init()`** 来让它们获取 `my_id`。
+    *   移除对 `mention_reply_handler.init()` 的调用（因为它在 `__init__` 中已经收到了 `my_id`）。
 
-3.  **修改 `UserBotCommandHandler.__init__`:**
-    *   确保通过调用 `super().__init__(..., my_id=my_id, ...)` 将传入的 `my_id` 正确传递给 `BaseHandler`。
+5.  **修改所有 Handler (`PersistenceHandler`, `OutputHandler`, `UserBotCommandHandler`, `MentionReplyHandler`) 的 `__init__`**:
+    *   确保它们的 `__init__` 方法接受 `my_id: Optional[int] = None`。
+    *   在调用 `super().__init__(...)` 时，传递 `my_id=my_id`。
+    *   更新各自的初始化日志信息，明确 `my_id` 的来源或状态。
+
+6.  **修改 `MentionReplyHandler`**:
+    *   移除其自身的 `init()` 方法。
+    *   修改 `handle_event`，直接使用 `self.my_id` 属性（不再需要 `hasattr` 检查，因为属性现在会确保 `_my_id` 已设置或抛出错误）。
+
+7.  **修改 `UserBotCommandHandler`**:
     *   更新初始化日志，确保打印正确的 `my_id`。
-
-4.  **修改 `MentionReplyHandler.__init__`:**
-    *   移除 `init()` 方法。
-    *   确保通过调用 `super().__init__(..., my_id=my_id, ...)` 将传入的 `my_id` 正确传递给 `BaseHandler`。
-    *   更新初始化日志，确保打印正确的 `my_id`。
-
-5.  **修改 `MentionReplyHandler.handle_event`:**
-    *   移除对 `hasattr(self, "my_id")` 的检查和相关日志，因为 `my_id` 现在应该在初始化时就已设置。
-    *   在获取 `my_id` 时，直接使用 `self.my_id` 属性，并处理其可能为 `None` 的情况（如果选择让 `my_id` 属性返回 `None` 而不是抛出错误）。如果 `my_id` 为 `None`，应记录错误并提前返回。
 ```
