@@ -33,19 +33,31 @@ class BaseHandler(abc.ABC):
         self.db = db
         self.log_chat_id = log_chat_id
         self.ignored_ids = ignored_ids or set()
-        self._my_id = None
+        self._my_id = my_id # 在初始化时保存 my_id
         
     async def init(self):
         """初始化处理器。
 
+        如果 `my_id` 未在构造函数中提供，则尝试从客户端获取。
         此方法应在客户端初始化之后调用。
         """
+        if self._my_id is not None:
+            logger.info(f"处理器 {self.__class__.__name__} 已通过构造函数初始化，用户 ID: {self._my_id}")
+            return
+
         if self.client:
-            me = await self.client.get_me()
-            self._my_id = me.id
-            logger.info(f"处理器已初始化，用户 ID: {self._my_id}")
+            try:
+                me = await self.client.get_me()
+                if me:
+                    self._my_id = me.id
+                    logger.info(f"处理器 {self.__class__.__name__} 在 init() 中初始化，用户 ID: {self._my_id}")
+                else:
+                    logger.error(f"无法获取当前用户信息 (get_me 返回 None)，处理器 {self.__class__.__name__} 未能设置 my_id。")
+            except Exception as e:
+                logger.error(f"在 init() 中获取用户信息时出错: {e}", exc_info=True)
+                # 保持 self._my_id 为 None
         else:
-            logger.warning("无法初始化处理器：客户端为 None")
+            logger.warning(f"无法在 init() 中初始化处理器 {self.__class__.__name__}：客户端为 None")
 
     @abc.abstractmethod
     async def process(self, event: EventCommon) -> Optional[Union[Message, List[Message]]]:
