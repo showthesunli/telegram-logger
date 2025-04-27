@@ -162,8 +162,7 @@ async def main():
         session_name=SESSION_NAME,
         api_id=API_ID,
         api_hash=API_HASH,
-        # handlers=handlers,
-        handlers=[],
+        handlers=handlers,
         log_chat_id=LOG_CHAT_ID,
     )
 
@@ -200,7 +199,7 @@ async def main():
             client=client_service.client,  # 注入 client
             db=db,
             state_service=user_bot_state_service,
-            my_id=user_id, # 直接传递 my_id
+            my_id=user_id,  # 直接传递 my_id
             log_chat_id=LOG_CHAT_ID,
             ignored_ids=IGNORED_IDS,
         )
@@ -210,7 +209,7 @@ async def main():
             client=client_service.client,  # 注入 client
             db=db,
             state_service=user_bot_state_service,
-            my_id=user_id, # 直接传递 my_id
+            my_id=user_id,  # 直接传递 my_id
             ai_service=ai_service,
             log_chat_id=LOG_CHAT_ID,
             ignored_ids=IGNORED_IDS,
@@ -262,7 +261,7 @@ async def main():
                 )
 
         logging.info("All services started successfully")
-        logging.info(f"Client ID: {user_id}") # 确认 user_id 已获取
+        logging.info(f"Client ID: {user_id}")  # 确认 user_id 已获取
         logging.info("Cleanup service is running")
 
         await client_service.run()
