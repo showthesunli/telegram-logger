@@ -58,6 +58,12 @@ class MentionReplyHandler(BaseHandler):
         包含完整的错误处理逻辑。
         """
         try: # 添加顶层 try 块
+            # --- 新增调试日志 ---
+            reply_trigger_status = self.state_service.is_reply_trigger_enabled()
+            mention_status = event.mentioned
+            logger.debug(f"Handling event in ChatID={event.chat_id}. Reply trigger status: {reply_trigger_status}, Mentioned status: {mention_status}, IsReply: {event.is_reply}")
+            # --- 调试日志结束 ---
+
             logger.debug(f"MentionReplyHandler 收到事件: ChatID={event.chat_id}, MsgID={event.id}, SenderID={event.sender_id}")
 
             # 1. 检查功能是否启用
