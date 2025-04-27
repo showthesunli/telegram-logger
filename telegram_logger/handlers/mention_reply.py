@@ -67,33 +67,6 @@ class MentionReplyHandler(BaseHandler):
             logger.error("MentionReplyHandler 初始化时未提供 my_id，可能导致后续操作失败！")
 
 
-    async def init(self):
-        """异步初始化，获取并设置 my_id。"""
-        if self.client and not hasattr(self, "my_id"):
-            try:
-                me = await self.client.get_me()
-                if me:
-                    self.my_id = me.id
-                    logger.info(
-                        f"MentionReplyHandler 初始化完成，获取到 my_id: {self.my_id}"
-                    )
-                else:
-                    logger.error(
-                        "MentionReplyHandler 初始化失败：无法获取当前用户信息 (get_me 返回 None)。"
-                    )
-                    # 可能需要更健壮的处理，例如重试或退出
-            except Exception as e:
-                logger.error(
-                    f"MentionReplyHandler 初始化获取 my_id 时发生错误: {e}",
-                    exc_info=True,
-                )
-                # 处理初始化失败的情况
-        elif hasattr(self, "my_id") and self.my_id is not None:
-            logger.debug(f"MentionReplyHandler my_id ({self.my_id}) 已初始化。")
-        elif not self.client:
-            logger.error("MentionReplyHandler 初始化失败：client 未设置。")
-        # 如果 my_id 已经存在，则不重新获取
-
     async def handle_event(self, event: events.NewMessage.Event):
         """
         处理新消息事件，判断是否需要自动回复。
@@ -112,14 +85,8 @@ class MentionReplyHandler(BaseHandler):
                 return
 
             # 3. 忽略自己发送的消息
-            # 注意：需要先获取 my_id
-            if not hasattr(self, "my_id") or self.my_id is None:
-                logger.warning(
-                    "MentionReplyHandler 未初始化 my_id，无法检查是否为自己的消息。"
-                )
-                # 可以选择在这里 return 或者继续执行，取决于你的容错策略
-                # return
-            elif event.sender_id == self.my_id:
+            # my_id 现在由 BaseHandler 保证已设置或抛出错误
+            if event.sender_id == self.my_id:
                 logger.debug("事件来自自己，忽略。")
                 return
 
@@ -128,22 +95,21 @@ class MentionReplyHandler(BaseHandler):
             is_reply = event.is_reply
             replied_to_msg_id = event.reply_to_msg_id
             is_reply_to_me = False
-            my_id = getattr(self, "my_id", None)  # 安全地获取 my_id
+            # 直接使用 self.my_id 属性
+            my_id = self.my_id
 
             logger.debug(
                 f"事件详情: mentioned={is_mention}, is_reply={is_reply}, reply_to_msg_id={replied_to_msg_id}, my_id={my_id}"
             )
 
-            if (
-                is_reply and replied_to_msg_id and my_id is not None
-            ):  # 增加 my_id is not None 检查
+            if is_reply and replied_to_msg_id: # my_id 保证存在
                 try:
                     # 尝试从数据库获取被回复消息
                     replied_message_db = self.db.get_message_by_id(replied_to_msg_id)
                     if replied_message_db and replied_message_db.from_id == my_id:
                         is_reply_to_me = True
                         logger.debug(
-                            f"从数据库确认: 消息 {event.id} 回复了我的消息 {replied_to_msg_id}"
+                            f"从数据库确认: 消息 {event.id} 回复了我的消息 {replied_to_msg_id} (my_id={my_id})"
                         )
                     elif replied_message_db:
                         logger.debug(
@@ -161,7 +127,7 @@ class MentionReplyHandler(BaseHandler):
                         ):
                             is_reply_to_me = True
                             logger.debug(
-                                f"从 API 确认: 消息 {event.id} 回复了我的消息 {replied_to_msg_id}"
+                                f"从 API 确认: 消息 {event.id} 回复了我的消息 {replied_to_msg_id} (my_id={my_id})"
                             )
                         elif replied_message_api:
                             logger.debug(
@@ -182,8 +148,7 @@ class MentionReplyHandler(BaseHandler):
                         exc_info=True,
                     )
                     # is_reply_to_me 保持 False
-            elif my_id is None:
-                logger.warning("无法计算 is_reply_to_me，因为 my_id 未设置。")
+            # 不再需要 elif my_id is None 的检查
 
             # --- 根据 is_reply_trigger_enabled 决定触发逻辑 ---
             is_reply_trigger_enabled = self.state_service.is_reply_trigger_enabled()
@@ -335,8 +300,7 @@ class MentionReplyHandler(BaseHandler):
                 # 3. 添加历史消息 (按时间顺序)
                 # 注意：数据库返回的是按时间倒序，需要反转
                 for msg in reversed(history_messages):
-                    # 假设 self.my_id 是机器人的 ID
-                    # 使用数据库模型中的 from_id 属性
+                    # 使用 self.my_id 属性判断角色
                     role = "assistant" if msg.from_id == self.my_id else "user"
                     content = (
                         msg.msg_text or "[空消息或非文本]"
