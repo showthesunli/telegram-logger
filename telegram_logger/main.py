@@ -160,7 +160,8 @@ async def main():
         session_name=SESSION_NAME,
         api_id=API_ID,
         api_hash=API_HASH,
-        handlers=handlers,
+        # handlers=handlers,
+        handlers=[],
         log_chat_id=LOG_CHAT_ID,
     )
 

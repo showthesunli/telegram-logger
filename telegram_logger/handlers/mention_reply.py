@@ -65,22 +65,29 @@ class MentionReplyHandler(BaseHandler):
 
     async def init(self):
         """异步初始化，获取并设置 my_id。"""
-        if self.client and not hasattr(self, 'my_id'):
+        if self.client and not hasattr(self, "my_id"):
             try:
                 me = await self.client.get_me()
                 if me:
                     self.my_id = me.id
-                    logger.info(f"MentionReplyHandler 初始化完成，获取到 my_id: {self.my_id}")
+                    logger.info(
+                        f"MentionReplyHandler 初始化完成，获取到 my_id: {self.my_id}"
+                    )
                 else:
-                    logger.error("MentionReplyHandler 初始化失败：无法获取当前用户信息 (get_me 返回 None)。")
+                    logger.error(
+                        "MentionReplyHandler 初始化失败：无法获取当前用户信息 (get_me 返回 None)。"
+                    )
                     # 可能需要更健壮的处理，例如重试或退出
             except Exception as e:
-                logger.error(f"MentionReplyHandler 初始化获取 my_id 时发生错误: {e}", exc_info=True)
+                logger.error(
+                    f"MentionReplyHandler 初始化获取 my_id 时发生错误: {e}",
+                    exc_info=True,
+                )
                 # 处理初始化失败的情况
-        elif hasattr(self, 'my_id') and self.my_id is not None:
-             logger.debug(f"MentionReplyHandler my_id ({self.my_id}) 已初始化。")
+        elif hasattr(self, "my_id") and self.my_id is not None:
+            logger.debug(f"MentionReplyHandler my_id ({self.my_id}) 已初始化。")
         elif not self.client:
-             logger.error("MentionReplyHandler 初始化失败：client 未设置。")
+            logger.error("MentionReplyHandler 初始化失败：client 未设置。")
         # 如果 my_id 已经存在，则不重新获取
 
     async def handle_event(self, event: events.NewMessage.Event):
@@ -102,10 +109,12 @@ class MentionReplyHandler(BaseHandler):
 
             # 3. 忽略自己发送的消息
             # 注意：需要先获取 my_id
-            if not hasattr(self, 'my_id') or self.my_id is None:
-                 logger.warning("MentionReplyHandler 未初始化 my_id，无法检查是否为自己的消息。")
-                 # 可以选择在这里 return 或者继续执行，取决于你的容错策略
-                 # return
+            if not hasattr(self, "my_id") or self.my_id is None:
+                logger.warning(
+                    "MentionReplyHandler 未初始化 my_id，无法检查是否为自己的消息。"
+                )
+                # 可以选择在这里 return 或者继续执行，取决于你的容错策略
+                # return
             elif event.sender_id == self.my_id:
                 logger.debug("事件来自自己，忽略。")
                 return
@@ -115,70 +124,106 @@ class MentionReplyHandler(BaseHandler):
             is_reply = event.is_reply
             replied_to_msg_id = event.reply_to_msg_id
             is_reply_to_me = False
-            my_id = getattr(self, 'my_id', None) # 安全地获取 my_id
+            my_id = getattr(self, "my_id", None)  # 安全地获取 my_id
 
-            logger.debug(f"事件详情: mentioned={is_mention}, is_reply={is_reply}, reply_to_msg_id={replied_to_msg_id}, my_id={my_id}")
+            logger.debug(
+                f"事件详情: mentioned={is_mention}, is_reply={is_reply}, reply_to_msg_id={replied_to_msg_id}, my_id={my_id}"
+            )
 
-            if is_reply and replied_to_msg_id and my_id is not None: # 增加 my_id is not None 检查
+            if (
+                is_reply and replied_to_msg_id and my_id is not None
+            ):  # 增加 my_id is not None 检查
                 try:
                     # 尝试从数据库获取被回复消息
-                    replied_message_db = await self.db.get_message_by_id(replied_to_msg_id)
+                    replied_message_db = self.db.get_message_by_id(replied_to_msg_id)
                     if replied_message_db and replied_message_db.from_id == my_id:
                         is_reply_to_me = True
-                        logger.debug(f"从数据库确认: 消息 {event.id} 回复了我的消息 {replied_to_msg_id}")
+                        logger.debug(
+                            f"从数据库确认: 消息 {event.id} 回复了我的消息 {replied_to_msg_id}"
+                        )
                     elif replied_message_db:
-                        logger.debug(f"从数据库确认: 消息 {event.id} 回复了其他人 ({replied_message_db.from_id}) 的消息 {replied_to_msg_id}")
+                        logger.debug(
+                            f"从数据库确认: 消息 {event.id} 回复了其他人 ({replied_message_db.from_id}) 的消息 {replied_to_msg_id}"
+                        )
                     else:
                         # 如果数据库没有，再尝试 API 调用 (作为备选)
-                        logger.debug(f"数据库中未找到被回复消息 {replied_to_msg_id}，尝试 API 调用...")
+                        logger.debug(
+                            f"数据库中未找到被回复消息 {replied_to_msg_id}，尝试 API 调用..."
+                        )
                         replied_message_api = await event.get_reply_message()
-                        if replied_message_api and replied_message_api.sender_id == my_id:
+                        if (
+                            replied_message_api
+                            and replied_message_api.sender_id == my_id
+                        ):
                             is_reply_to_me = True
-                            logger.debug(f"从 API 确认: 消息 {event.id} 回复了我的消息 {replied_to_msg_id}")
+                            logger.debug(
+                                f"从 API 确认: 消息 {event.id} 回复了我的消息 {replied_to_msg_id}"
+                            )
                         elif replied_message_api:
-                            logger.debug(f"从 API 确认: 消息 {event.id} 回复了其他人 ({replied_message_api.sender_id}) 的消息 {replied_to_msg_id}")
+                            logger.debug(
+                                f"从 API 确认: 消息 {event.id} 回复了其他人 ({replied_message_api.sender_id}) 的消息 {replied_to_msg_id}"
+                            )
                         else:
-                            logger.warning(f"无法获取被回复的消息 {replied_to_msg_id} 的详情")
+                            logger.warning(
+                                f"无法获取被回复的消息 {replied_to_msg_id} 的详情"
+                            )
 
                 except telethon_errors.rpcerrorlist.MsgIdInvalidError:
-                     logger.warning(f"获取被回复消息 {replied_to_msg_id} 失败：消息 ID 无效或已被删除。")
+                    logger.warning(
+                        f"获取被回复消息 {replied_to_msg_id} 失败：消息 ID 无效或已被删除。"
+                    )
                 except Exception as e:
-                    logger.warning(f"获取或检查被回复消息 {replied_to_msg_id} 时出错: {e}", exc_info=True)
+                    logger.warning(
+                        f"获取或检查被回复消息 {replied_to_msg_id} 时出错: {e}",
+                        exc_info=True,
+                    )
                     # is_reply_to_me 保持 False
             elif my_id is None:
-                 logger.warning("无法计算 is_reply_to_me，因为 my_id 未设置。")
-
+                logger.warning("无法计算 is_reply_to_me，因为 my_id 未设置。")
 
             # --- 根据 is_reply_trigger_enabled 决定触发逻辑 ---
             is_reply_trigger_enabled = self.state_service.is_reply_trigger_enabled()
-            should_trigger = False # 初始化触发标志
+            should_trigger = False  # 初始化触发标志
 
             if is_reply_trigger_enabled:
                 # 规则: Flag 为 True 时，触发 "@提及" 或 "回复我"
                 # 因为 "回复我" 必然导致 is_mention 为 True，所以条件简化为 is_mention
                 if is_mention:
                     should_trigger = True
-                    logger.debug(f"触发条件满足 (reply_trigger=True): 消息提及了我 (is_mention=True)")
+                    logger.debug(
+                        f"触发条件满足 (reply_trigger=True): 消息提及了我 (is_mention=True)"
+                    )
                 else:
-                    logger.debug(f"触发条件不满足 (reply_trigger=True): 消息未提及我 (is_mention=False)")
+                    logger.debug(
+                        f"触发条件不满足 (reply_trigger=True): 消息未提及我 (is_mention=False)"
+                    )
 
             else:
                 # 规则: Flag 为 False 时，触发 "@提及" 但 **不是** "回复我"
                 if is_mention and not is_reply_to_me:
                     should_trigger = True
-                    logger.debug(f"触发条件满足 (reply_trigger=False): @提及且非回复我 (is_mention=True, is_reply_to_me=False)")
+                    logger.debug(
+                        f"触发条件满足 (reply_trigger=False): @提及且非回复我 (is_mention=True, is_reply_to_me=False)"
+                    )
                 else:
                     # 记录不触发的原因
                     if not is_mention:
-                        logger.debug(f"触发条件不满足 (reply_trigger=False): 事件未提及我 (is_mention=False)")
-                    elif is_reply_to_me: # is_mention is True here because is_reply_to_me implies is_mention
-                        logger.debug(f"触发条件不满足 (reply_trigger=False): 事件是回复我的消息 (is_reply_to_me=True)")
+                        logger.debug(
+                            f"触发条件不满足 (reply_trigger=False): 事件未提及我 (is_mention=False)"
+                        )
+                    elif (
+                        is_reply_to_me
+                    ):  # is_mention is True here because is_reply_to_me implies is_mention
+                        logger.debug(
+                            f"触发条件不满足 (reply_trigger=False): 事件是回复我的消息 (is_reply_to_me=True)"
+                        )
                     # else: # 理论上不会到这里
-
 
             # --- 如果不满足触发条件，则提前返回 ---
             if not should_trigger:
-                logger.debug(f"事件 (ID: {event.id}) 不满足基于 reply_trigger_enabled={is_reply_trigger_enabled} 的触发条件，忽略。")
+                logger.debug(
+                    f"事件 (ID: {event.id}) 不满足基于 reply_trigger_enabled={is_reply_trigger_enabled} 的触发条件，忽略。"
+                )
                 return
 
             # --- 后续处理逻辑 ---
