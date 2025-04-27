@@ -127,10 +127,9 @@ class BaseHandler(abc.ABC):
             int: 当前用户的 ID。
 
         Raises:
-            RuntimeError: 如果处理器尚未初始化。
+            RuntimeError: 如果处理器尚未成功设置 `my_id`。
         """
         if self._my_id is None:
-            # 返回 0 而不是引发错误
-            # 这允许处理器即使未完全初始化也能工作
-            return 0
+            # 强制要求在使用前必须成功初始化 my_id
+            raise RuntimeError(f"处理器 {self.__class__.__name__} 的 my_id 尚未设置。请确保已调用 init() 或在构造时提供了 my_id。")
         return self._my_id
