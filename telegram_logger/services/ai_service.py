@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 class AIService:
     """
     封装与 AI 模型（当前为 OpenAI）交互的服务。
+    内部使用流式请求，但对外返回完整响应。
     """
 
     def __init__(self):
@@ -52,47 +53,55 @@ class AIService:
     ) -> Optional[str]:
         """
         使用 OpenAI API 获取聊天补全。
+        内部实现使用流式请求，但将结果拼接后一次性返回。
 
         Args:
             model_id: 要使用的 OpenAI 模型 ID。
             messages: OpenAI API 所需格式的消息列表。
 
         Returns:
-            生成的回复文本，如果发生错误则返回 None。
+            生成的完整回复文本，如果发生错误则返回 None。
         """
-        logger.debug(f"请求 OpenAI 补全: 模型={model_id}, 消息数={len(messages)}")
+        logger.debug(f"请求 OpenAI 补全 (内部流式): 模型={model_id}, 消息数={len(messages)}")
 
         client = self._get_client() # 获取 (或初始化) 客户端
         if not client:
             logger.error("无法获取 OpenAI 客户端实例，取消补全请求。")
             return None # 如果客户端无法初始化，则直接返回
 
+        full_response = "" # 用于拼接所有接收到的块
+        stream = None # 初始化 stream 变量
         try:
-            # 调用 OpenAI API
-            response = await client.chat.completions.create(
+            # 调用 OpenAI API，启用流式传输
+            stream = await client.chat.completions.create(
                 model=model_id,
                 messages=messages,
+                stream=True, # 内部启用流式响应
                 # 可以根据需要添加其他参数，如 temperature, max_tokens 等
                 # temperature=0.7,
-                # max_tokens=1000,
+                # max_tokens=1500, # 示例：如果需要限制最大 token
             )
 
-            # 解析响应
-            if response.choices and response.choices[0].message:
-                reply_content = response.choices[0].message.content
-                finish_reason = response.choices[0].finish_reason
-                logger.debug(f"OpenAI 响应成功。Finish reason: {finish_reason}")
-                # 记录 token 使用情况 (如果需要)
-                if response.usage:
-                     logger.debug(f"Token usage: Prompt={response.usage.prompt_tokens}, Completion={response.usage.completion_tokens}, Total={response.usage.total_tokens}")
-                # 返回提取的文本内容，去除首尾空白
-                return reply_content.strip() if reply_content else None
-            else:
-                # 如果响应结构不符合预期
-                logger.warning(f"OpenAI 响应无效或 choices 为空。Response: {response}")
-                return None
+            finish_reason = None
+            # 异步迭代处理流式响应，并将内容块拼接到 full_response
+            async for chunk in stream:
+                # 提取内容块
+                content = chunk.choices[0].delta.content if chunk.choices and chunk.choices[0].delta else None
+                if content:
+                    full_response += content # 拼接内容块
 
-        # 处理特定的 OpenAI 错误
+                # 记录流结束原因 (通常在最后一个 chunk 中)
+                if chunk.choices and chunk.choices[0].finish_reason:
+                    finish_reason = chunk.choices[0].finish_reason
+                    logger.debug(f"OpenAI 内部流结束。Finish reason: {finish_reason}")
+
+            # 注意：流式响应通常不直接提供最终的 token usage 信息。
+            logger.debug("内部流式响应处理完成，已拼接完整内容。")
+            # 返回拼接后的完整字符串，去除可能的首尾空白
+            return full_response.strip() if full_response else None
+
+        # --- 错误处理 ---
+        # 这些异常可能在请求开始时或在流处理期间发生
         except AuthenticationError as e:
             logger.error(f"OpenAI API 认证失败: {e}. 请检查 OPENAI_API_KEY 是否正确。")
             return None
@@ -113,8 +122,13 @@ class AIService:
             return None
         # 捕获其他所有意外错误
         except Exception as e:
-            logger.error(f"调用 OpenAI API 时发生未知错误: {e}. Model: {model_id}", exc_info=True)
+            logger.error(f"处理 OpenAI 内部流式响应时发生未知错误: {e}. Model: {model_id}", exc_info=True)
             return None
+        finally:
+            # 根据 openai v1.x+ 的文档，使用 async for 会自动处理流的关闭
+            # 无需手动关闭 stream
+            logger.debug("内部流式请求处理流程结束（包括正常结束或异常）。")
+
 
     # 可以考虑添加一个异步初始化方法，如果需要在服务启动时就创建客户端并验证
     # async def initialize(self):
