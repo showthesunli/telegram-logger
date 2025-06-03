@@ -33,7 +33,7 @@ class MentionReplyHandler(BaseHandler):
         ai_service: AIService,
         log_chat_id: int,  # 从 BaseHandler 继承
         ignored_ids: Set[int],  # 从 BaseHandler 继承
-        my_id: Optional[int] = None, # 移动到后面
+        my_id: Optional[int] = None,  # 移动到后面
         **kwargs: Dict[str, Any],
     ):
         """
@@ -56,16 +56,21 @@ class MentionReplyHandler(BaseHandler):
             db=db,
             log_chat_id=log_chat_id,
             ignored_ids=ignored_ids,
-            my_id=my_id, # 传递 my_id
+            my_id=my_id,  # 传递 my_id
             **kwargs,
         )
         self.state_service = state_service
         self.ai_service = ai_service  # 注入 AI 服务实例
-        my_id_status = f"my_id={my_id}" if my_id is not None else "my_id 未提供 (错误? MentionReply 需要 my_id)"
+        my_id_status = (
+            f"my_id={my_id}"
+            if my_id is not None
+            else "my_id 未提供 (错误? MentionReply 需要 my_id)"
+        )
         logger.info(f"MentionReplyHandler 初始化完成。{my_id_status}")
         if my_id is None:
-            logger.error("MentionReplyHandler 初始化时未提供 my_id，可能导致后续操作失败！")
-
+            logger.error(
+                "MentionReplyHandler 初始化时未提供 my_id，可能导致后续操作失败！"
+            )
 
     async def handle_event(self, event: events.NewMessage.Event):
         """
@@ -86,9 +91,9 @@ class MentionReplyHandler(BaseHandler):
 
             # 3. 忽略自己发送的消息
             # my_id 现在由 BaseHandler 保证已设置或抛出错误
-            if event.sender_id == self.my_id:
-                logger.debug("事件来自自己，忽略。")
-                return
+            # if event.sender_id == self.my_id:
+            #     logger.debug("事件来自自己，忽略。")
+            #     return
 
             # --- 计算 is_reply_to_me ---
             is_mention = event.mentioned
@@ -102,7 +107,7 @@ class MentionReplyHandler(BaseHandler):
                 f"事件详情: mentioned={is_mention}, is_reply={is_reply}, reply_to_msg_id={replied_to_msg_id}, my_id={my_id}"
             )
 
-            if is_reply and replied_to_msg_id: # my_id 保证存在
+            if is_reply and replied_to_msg_id:  # my_id 保证存在
                 try:
                     # 尝试从数据库获取被回复消息
                     replied_message_db = self.db.get_message_by_id(replied_to_msg_id)
